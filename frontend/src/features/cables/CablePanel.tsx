@@ -5,6 +5,7 @@ import { Alert, Anchor, Button, Card, Group, Select, Stack, Table, Text, TextInp
 import { useMutation, useQueries, useQuery, useQueryClient, type Query, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
+import { colourName } from '../wire-stock/builder';
 import { CableViews } from '../cable-views/CableViews';
 import { useProbedSelection } from '../cable-views/useProbedSelection';
 import { useProbe } from '../probe';
@@ -171,13 +172,17 @@ function RevisionPicker({ label, title, kind, value, onChange, definitions, name
 
 type Choice = { value: string; label: string; display: string; look: ReturnType<typeof appearanceOf> };
 /** Conductive elements of a stock: the stock's own label and recorded colour for display, the path kept for identity. */
-function elements(node: StockElement, prefix = ''): Choice[] {
+function elements(node: StockElement, prefix = '', coreColor: string | null = null): Choice[] {
   const path = prefix ? `${prefix}.${node.id}` : node.id;
-  if (node.kind === 'group') return node.children.flatMap(child => elements(child, path));
+  if (node.kind === 'group') {
+    // A core's identifying colour is its insulation colour; its conductor is bare metal.
+    const ins = node.children.find(c => c.kind === 'insulation')?.color ?? null;
+    return node.children.flatMap(child => elements(child, path, ins));
+  }
   if (!['conductor', 'shield', 'drain'].includes(node.kind)) return [];
   const look = appearanceOf({ kind: node.kind, color: node.color, material: node.material, construction: 'construction' in node ? node.construction : null });
   const name = node.label?.trim() || path;
-  return [{ value: path, label: `${path} · ${node.label} (${node.kind})`, display: node.color ? `${name} (${node.color})` : name, look }];
+  return [{ value: path, label: `${path} · ${node.label} (${node.kind})`, display: node.kind === 'conductor' && coreColor ? `${name} (${colourName(coreColor)})` : node.color ? `${name} (${colourName(node.color)})` : name, look }];
 }
 export function CableEditor({ value, onChange, definitions, onAuthorityChange, workspaceId, errors = {} }: { errors?: Record<string, string>; workspaceId?: string | null; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
   const stock = useQuery({ queryKey: ['cable-stock', value.stock_revision_id], queryFn: () => loadFrozenStock(value.stock_revision_id), enabled: !!value.stock_revision_id });

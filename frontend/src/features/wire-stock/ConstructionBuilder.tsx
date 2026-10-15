@@ -6,10 +6,10 @@ import { areaDiameterMm, awgAreaMm2, awgDiameterMm, awgForArea, coreLooks, drain
 import type { BuilderSpec, Known, ShieldKind } from './builder';
 import { MmEntry } from './MmEntry';
 
-const CONDUCTOR_MATERIALS = ['copper', 'tinned copper', 'silver-plated copper', 'aluminium', 'copper-clad aluminium'];
-const INSULATION_MATERIALS = ['PVC', 'polyethylene', 'foam polyethylene', 'XLPE', 'FEP', 'PTFE', 'silicone', 'polypropylene'];
-const JACKET_MATERIALS = ['PVC', 'polyurethane (PUR)', 'TPE', 'silicone', 'polyethylene'];
-const SHIELD_MATERIALS = ['aluminium foil', 'tinned copper', 'copper'];
+const CONDUCTOR_MATERIALS = ['copper', 'tinned copper', 'silver-plated copper', 'aluminium', 'copper-clad aluminium', 'copper-clad steel (CCS)'];
+const INSULATION_MATERIALS = ['PVC', 'PE (polyethylene)', 'foam PE', 'XLPE', 'FEP', 'PTFE', 'PP (polypropylene)', 'TPE', 'silicone', 'LSZH'];
+const JACKET_MATERIALS = ['PVC', 'PE (polyethylene)', 'foam PE', 'PUR (polyurethane)', 'TPE', 'silicone', 'PTFE', 'FEP', 'PP (polypropylene)', 'XLPE', 'LSZH'];
+const SHIELD_MATERIALS = ['aluminium foil', 'Cu braid', 'tinned copper braid', 'copper', 'tinned copper'];
 const SWATCHES = ['#d62728', '#1f1f1f', '#f2d21b', '#1f5fbf', '#2e8b3a', '#8b5a2b', '#7f7f7f', '#f2f2f2', '#ff7f0e', '#303030'];
 const shown = (v: Known): Known => v === null ? null : Number(v.toFixed(4));
 const cell = (label: string, value: Known, note?: string) => <div className="sb-cell" key={label}>
@@ -96,6 +96,9 @@ export function ConstructionBuilder({ spec, onChange }: { spec: BuilderSpec; onC
         {t === 'round' && count >= 3 && <Checkbox size="xs" label="Centre filler (fills the space between cores)" checked={spec.filler} onChange={e => set({ filler: e.currentTarget.checked })} />}
       </Fieldset>
     </SimpleGrid>
+    {t !== 'coax' && <Select size="xs" w={260} label="Quick colour code" aria-label="Quick colour code" placeholder="Choose to fill all core colours" value={null} clearable={false}
+      data={[{ value: 'sequence', label: pairs ? 'Pair sequence (blue/white, orange/white, ...)' : 'Hook-up sequence (red, black, yellow, blue, ...)' }, { value: 'unknown', label: 'Clear: all colours unknown' }]}
+      onChange={v => { if (v === 'sequence' || v === 'unknown') set({ cores: coreLooks(t, count, v).map((look, i) => ({ label: spec.cores[i]?.label ?? look.label, color: look.color })) }); }} />}
     {t !== 'coax' && <Table className="sb-ws-table" withRowBorders={false} aria-label="Cores">
       <Table.Thead><Table.Tr><Table.Th>Core</Table.Th><Table.Th>Label</Table.Th><Table.Th>Insulation colour</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>{spec.cores.map((look, i) => <Table.Tr key={i}>

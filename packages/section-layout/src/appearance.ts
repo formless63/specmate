@@ -105,6 +105,7 @@ const SPEC: Record<MaterialFamily, FamilySpec> = {
 
 /** Ordered: specific before general. Words are matched on lower-cased free text. */
 const RULES: [RegExp, MaterialFamily][] = [
+  [/copper[- ]?clad[- ]?steel|\bccs\b/, 'steel'],
   [/copper[- ]?clad[- ]?alumin|\bcca\b/, 'copper-clad-aluminium'],
   [/tinned|tin[- ]?plated|\bsn[- ]?cu\b/, 'tinned-copper'],
   [/silver|\bag[- ]?cu\b/, 'silver-plated-copper'],

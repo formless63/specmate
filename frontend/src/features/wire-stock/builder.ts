@@ -47,16 +47,23 @@ export const hasJacket = (t: TemplateKind) => t === 'coax' || t === 'round' || t
 export const hasDrain = (t: TemplateKind) => t === 'round' || t === 'pairs';
 export const hasWeb = (t: TemplateKind) => t === 'ribbon' || t === 'figure-eight';
 
-/** Conventional insulation colour sequence (illustrative starting point; every colour is editable). */
+/** Conventional insulation colour sequence (a quick choice only; every colour is editable and none is applied unless chosen). */
 const CORE_COLOURS = ['#d62728', '#1f1f1f', '#f2d21b', '#1f5fbf', '#2e8b3a', '#8b5a2b', '#7f7f7f', '#f2f2f2', '#ff7f0e', '#8e44ad'];
 const PAIR_COLOURS: [string, string][] = [['#1f5fbf', '#f2f2f2'], ['#ff7f0e', '#f2f2f2'], ['#2e8b3a', '#f2f2f2'], ['#8b5a2b', '#f2f2f2']];
-export function coreLooks(template: TemplateKind, count: number): CoreLook[] {
+export type ColourCode = 'unknown' | 'sequence';
+const COLOUR_NAMES: Record<string, string> = { '#d62728': 'red', '#1f1f1f': 'black', '#f2d21b': 'yellow', '#1f5fbf': 'blue', '#2e8b3a': 'green', '#8b5a2b': 'brown',
+  '#7f7f7f': 'grey', '#f2f2f2': 'white', '#ff7f0e': 'orange', '#8e44ad': 'violet', '#303030': 'black' };
+/** A plain colour name for the quick-choice colours, otherwise the recorded value itself. */
+export const colourName = (hex: string): string => COLOUR_NAMES[hex.toLowerCase()] ?? hex;
+/** Core labels, with colours unknown unless a colour code is chosen. */
+export function coreLooks(template: TemplateKind, count: number, code: ColourCode = 'unknown'): CoreLook[] {
+  const on = code === 'sequence';
   if (template === 'coax') return [{ label: 'Centre', color: null }];
   if (template === 'pairs') return Array.from({ length: count * 2 }, (_, i) => {
     const pair = Math.floor(i / 2) + 1;
-    return { label: `Pair ${pair} ${i % 2 ? 'B' : 'A'}`, color: PAIR_COLOURS[(pair - 1) % PAIR_COLOURS.length]![i % 2]! };
+    return { label: `Pair ${pair} ${i % 2 ? 'B' : 'A'}`, color: on ? PAIR_COLOURS[(pair - 1) % PAIR_COLOURS.length]![i % 2]! : null };
   });
-  return Array.from({ length: count }, (_, i) => ({ label: `Core ${i + 1}`, color: CORE_COLOURS[i % CORE_COLOURS.length]! }));
+  return Array.from({ length: count }, (_, i) => ({ label: `Core ${i + 1}`, color: on ? CORE_COLOURS[i % CORE_COLOURS.length]! : null }));
 }
 
 export function blankSpec(template: TemplateKind, count?: number): BuilderSpec {
@@ -156,8 +163,8 @@ function group(spec: BuilderSpec, id: string, label: string, role: GroupElement[
 function core(spec: BuilderSpec, id: string, look: CoreLook): GroupElement {
   const c = spec.conductor;
   return group(spec, id, look.label, 'bundle', 'concentric', null, [
-    round(spec, 'conductor', 'Conductor', 'conductor', c.diameter_mm, 0, { material: c.material, color: c.color, construction: c.construction, area_mm2: c.area_mm2 }),
-    round(spec, 'insulation', 'Insulation', 'insulation', spec.insulation.od_mm, c.diameter_mm, { material: spec.insulation.material, color: look.color }),
+    round(spec, 'conductor', look.label, 'conductor', c.diameter_mm, 0, { material: c.material, color: c.color, construction: c.construction, area_mm2: c.area_mm2 }),
+    round(spec, 'insulation', `${look.label} insulation`, 'insulation', spec.insulation.od_mm, c.diameter_mm, { material: spec.insulation.material, color: look.color }),
   ]);
 }
 /** Screen layers from `bore` outward; returns the layers and the resulting outer diameter. */
@@ -166,12 +173,12 @@ function screens(spec: BuilderSpec, bore: Known): { layers: RoundElement[]; oute
   let current = bore;
   if (spec.shield === 'foil' || spec.shield === 'foil+braid') {
     const od = add(current, mul(spec.foil_thickness_mm, 2));
-    layers.push(round(spec, 'foil', 'Foil screen', 'shield', od, current, { construction: 'foil', material: spec.shield === 'foil' ? spec.shield_material : null }));
+    layers.push(round(spec, 'foil', spec.shield === 'foil' ? 'Screen' : 'Foil screen', 'shield', od, current, { construction: 'foil', material: spec.shield === 'foil' ? spec.shield_material : null }));
     current = od;
   }
   if (spec.shield === 'braid' || spec.shield === 'foil+braid') {
     const od = add(current, mul(spec.braid_thickness_mm, 2));
-    layers.push(round(spec, 'braid', 'Braid screen', 'shield', od, current, { construction: 'braid', material: spec.shield_material }));
+    layers.push(round(spec, 'braid', spec.shield === 'braid' ? 'Screen' : 'Braid screen', 'shield', od, current, { construction: 'braid', material: spec.shield_material }));
     current = od;
   }
   return { layers, outer: current };

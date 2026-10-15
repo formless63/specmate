@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateFit, placeStock, sectionLayout } from '../../../../packages/section-layout/src';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
-import { awgAreaMm2, awgDiameterMm, awgForArea, blankSpec, drainPlacement, exampleCoax, generate, illustrate, layup, readBuilder } from './builder';
+import { awgAreaMm2, awgDiameterMm, awgForArea, blankSpec, colourName, coreLooks, drainPlacement, exampleCoax, generate, illustrate, layup, readBuilder } from './builder';
 import type { BuilderSpec } from './builder';
 import { stockPresets } from './presets';
 
@@ -121,5 +121,22 @@ describe('construction builder', () => {
     expect(awgDiameterMm(36)).toBeCloseTo(0.127, 12);
     expect(awgForArea(0.2047)).toBe(24);
     expect(awgForArea(0.3)).toBeNull();
+  });
+
+  it('labels generated nodes by core and keeps entered colours, round-tripping exactly', () => {
+    const spec = { ...shieldedTwoCore(), cores: coreLooks('round', 2, 'sequence') };
+    const stock = generate(spec);
+    const cores = stock.structure.children.find(c => c.id === 'cores');
+    const core1 = (cores as { children: { id: string; children: { label: string; color: string | null }[] }[] }).children[0]!;
+    expect(core1.children.map(c => c.label)).toEqual(['Core 1', 'Core 1 insulation']);
+    expect(core1.children[1]!.color).toBe('#d62728');
+    expect(colourName('#d62728')).toBe('red');
+    expect(stock.structure.children.find(c => c.id === 'braid')!.label).toBe('Screen');
+    expect(readBuilder(stock)).toEqual(spec);
+  });
+
+  it('leaves core colours unknown until a colour code is chosen', () => {
+    expect(coreLooks('round', 3).map(l => l.color)).toEqual([null, null, null]);
+    expect(coreLooks('pairs', 1, 'sequence').map(l => l.color)).toEqual(['#1f5fbf', '#f2f2f2']);
   });
 });
