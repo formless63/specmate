@@ -35,3 +35,11 @@ zoom around a node; an explicit `initialViewport` takes precedence, and
 `onViewportChange` lets the consumer retain numeric pan/zoom in its own scope.
 Fit remains an explicit whole-graph overview. None of these presentation fields
 change engineering geometry, terminal identities, or saved connections.
+
+Part placement is an explicit choice between shell/hardware and a declared
+two-lead inline use. Inline placement requires the declaration checkbox and a
+separate authored component behavior (unknown by default). The exact catalog
+Part pin is provenance, not package pinout or compatibility evidence. Every
+inline component has a separate draggable node while its original layer ID,
+local part ID and terminal IDs remain unchanged. Joins within the same layer
+remain unsupported by the current stack contract.
