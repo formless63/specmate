@@ -3,7 +3,8 @@
 A stack is a short list of layers: an optional board (PCBA) whose labeled pads the wire
 lands on, optional hand-soldered inline parts (for example a series resistor), the
 connector body with its chosen pinout variant, and an optional shell or hood. Joins say
-how terminals of two layers are connected. Nothing is joined by label equality:
+how terminals of different layers or distinct inline parts are connected. Nothing is
+joined by label equality:
 
 - a board's reviewed carried-connector correspondence joins its pads to the connector
   layer when the board layer names that carried connector; an unreviewed one stays unknown;
@@ -93,7 +94,7 @@ class StackTerminal(StrictModel):
 
 
 class Join(StrictModel):
-    """A declared connection between terminals of two different layers."""
+    """A declared connection between layers or distinct inline parts."""
 
     local_id: Key
     a: StackTerminal
@@ -102,9 +103,9 @@ class Join(StrictModel):
     basis: Basis
 
     @model_validator(mode="after")
-    def distinct_layers(self):
-        if self.a.layer_id == self.b.layer_id:
-            raise ValueError("A join connects terminals of two different layers.")
+    def distinct_terminals(self):
+        if self.a == self.b:
+            raise ValueError("A join requires two different terminals.")
         return self
 
 
@@ -136,6 +137,18 @@ class EndStack(StrictModel):
             for end in ends:
                 if end.layer_id not in layers:
                     raise ValueError("A join names an undeclared layer.")
+            if join.a.layer_id == join.b.layer_id:
+                layer = layers[join.a.layer_id]
+                if layer.kind != "inline":
+                    raise ValueError("Same-layer joins require distinct declared inline parts.")
+                owners = {
+                    f"{part.local_id}.{lead}": part.local_id
+                    for part in layer.parts
+                    for lead in INLINE_PINS
+                }
+                a, b = owners.get(join.a.terminal_id), owners.get(join.b.terminal_id)
+                if a is None or b is None or a == b:
+                    raise ValueError("An inline join requires declared leads of different parts.")
             shell = [e for e in ends if layers[e.layer_id].kind == "shell"]
             if join.kind == "bond" and not shell:
                 raise ValueError("A bond join connects a terminal to the shell.")
