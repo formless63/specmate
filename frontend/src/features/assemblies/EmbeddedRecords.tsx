@@ -12,7 +12,7 @@ export function EmbeddedRecords(props: { active: boolean; principalKey: string; 
 }
 function EmbeddedSession({ active, principalKey, workspaceId, choices }: { active: boolean; principalKey: string; workspaceId: string; choices: Choice[] }) {
   const [kind, setKind] = useState(choices[0]!.kind), [selected, setSelected] = useState<string | null>(null), [visits, setVisits] = useState<{ key: string; id: string | null; kind: string; number: number | null; working: boolean }[]>([]);
-  const count = useRef(0), create = usePermission('item.create'), choice = choices.find(row => row.kind === kind)!;
+  const count = useRef(0), choice = choices.find(row => row.kind === kind)!, create = usePermission(choice.config.createPermission ?? 'item.create');
   function open(id: string | null) {
     const prior = id ? visits.find(row => row.id === id) : null, key = prior?.key ?? (id || `new:${++count.current}`);
     if (!prior) setVisits(current => [...current, { key, id, kind, number: null, working: !id }]);
