@@ -42,6 +42,7 @@ function server(kind: Kind) {
       writes.push(command);
       if (hold) return new Promise<Response>(resolve => { release = resolve; });
       if (conflict) return reply({ error: { message: 'Original draft token conflicts' } }, 409);
+      if (command.operation === 'definition.create') { content = command.payload.content; state = 'draft-v1'; return reply({ result: draft() }); }
       if (command.operation === 'draft.update') { content = command.payload.changes; state = 'draft-v2'; return reply({ result: draft() }); }
       state = 'draft-v3'; return reply({ result: { number: 76, revision_id: 'secondary-r76', draft: draft() } });
     }
@@ -55,7 +56,7 @@ function server(kind: Kind) {
 function mount(kind: Kind, revision = '@75', permissions = ['workspace.read', 'design.edit', 'design.freeze', 'item.create']) {
   const exact = revision.startsWith('@') ? revision : '';
   const params = new URLSearchParams(kind === 'cable_test_plan' ? { tool: 'cable-test-intent' } : {}); if (revision.startsWith('?')) params.set('status', 'draft');
-  const path = `${kind === 'cable_intent' ? '/designs/recipes' : '/designs'}/secondary${exact}/~/occurrence${params.size ? `?${params}` : ''}`;
+  const path = revision === 'new' ? kind === 'cable_intent' ? '/designs/recipes?status=new' : '/designs?tool=cable-test-intent&status=new' : `${kind === 'cable_intent' ? '/designs/recipes' : '/designs'}/secondary${exact}/~/occurrence${params.size ? `?${params}` : ''}`;
   const history = createMemoryHistory({ initialEntries: [path] }), cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Routed({ active, principalKey }: { active: boolean; principalKey: string }) {
     const nav = useNavigation()!;
@@ -186,4 +187,18 @@ test.each([
   expect(window.location.search).toContain('status=new');
   expect((screen.getByRole('button', { name: 'Save draft' }) as HTMLButtonElement).disabled).toBe(true);
   expect(api.state.operations.filter(row => !['library.home', 'library.previews'].includes(row.operation))).toHaveLength(0);
+});
+
+test('successful New promotes the same retained form to its returned record while the next New starts blank', async () => {
+  const api = server('cable_test_plan'), view = mount('cable_test_plan', 'new');
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Test plan name' }), { target: { value: 'New local plan' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Exact cable revision ID' }), { target: { value: 'cable-r1' } });
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Exact scope root revision ID' }), { target: { value: 'root-r1' } });
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Pair stable ID' }), { target: { value: 'Retained partial pair after create' } });
+  await saveDraft(); await waitFor(() => expect(view.history.location.pathname).toBe('/designs/secondary'));
+  expect((await screen.findByRole('textbox', { name: 'Pair stable ID' }) as HTMLInputElement).value).toBe('Retained partial pair after create');
+  await act(async () => view.history.push('/designs?tool=cable-test-intent&status=new'));
+  expect((await screen.findByRole('textbox', { name: 'Test plan name' }) as HTMLInputElement).value).toBe('');
+  expect((screen.getByRole('textbox', { name: 'Exact cable revision ID' }) as HTMLInputElement).value).toBe('');
+  expect(api.writes).toHaveLength(1); expect(api.writes[0]).toMatchObject({ operation: 'definition.create', payload: { kind: 'cable_test_plan', name: 'New local plan' } });
 });
