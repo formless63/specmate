@@ -48,7 +48,7 @@ export function LibraryList({ toolId, projectFilterId, projects, principalKey, o
   toolId: string; projectFilterId: string | null; projects: Project[]; principalKey: string;
   onOpenInProject: (projectId: string, record: LibraryRecord) => void; editor?: EditorActions;
 }) {
-  const view = TYPED_LIBRARY_VIEWS[toolId]!;
+  const view = TYPED_LIBRARY_VIEWS[toolId] ?? LIBRARY_VIEWS[toolId]!;
   const cache = useQueryClient();
   const nav = useNavigation();
   const location = nav?.location;
