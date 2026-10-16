@@ -20,15 +20,16 @@ const choiceData = [{ value: 'undecided', label: 'Not decided (candidate only)' 
 
 /** Root keyed by principal and project, so no draft, board identity or unsaved text crosses either. */
 export function MechanicalProposalFields({ workspaceId, principalKey = '', active = true }: { workspaceId: string; principalKey?: string; active?: boolean }) {
- const probe=useProbe()?.probe??null,working=useNavigation()?.location.filters?.status==='draft';
- return <div hidden={!active} inert={!active}><Workspace key={JSON.stringify([principalKey,workspaceId])} workspaceId={workspaceId} visible={active} probe={probe} working={working}/></div>;
+ const scope=useProbe(),probe=scope?.probe??null,working=useNavigation()?.location.filters?.status==='draft';
+ const selectRetained=(id:string)=>scope?.setProbe({object:id,rev:probe?.object===id?probe.rev:null,path:probe?.object===id?probe.path:[]});
+ return <div hidden={!active} inert={!active}><Workspace key={JSON.stringify([principalKey,workspaceId])} workspaceId={workspaceId} visible={active} probe={probe} working={working} onSelectRetained={selectRetained}/></div>;
 }
 
 function Field({ label, value, onChange, unit = 'mm', disabled }: { label: string; value: string; onChange: (value: string) => void; unit?: string; disabled?: boolean }) {
   return <TextInput label={label} description={`${unit}; blank means unknown`} value={value} inputMode="decimal" disabled={disabled} onChange={event => onChange(event.currentTarget.value)} />;
 }
 
-function Workspace({ workspaceId, visible, probe, working }: { workspaceId: string; visible:boolean;probe:ProbeTarget|null;working:boolean }) {
+function Workspace({ workspaceId, visible, probe, working, onSelectRetained }: { workspaceId: string; visible:boolean;probe:ProbeTarget|null;working:boolean;onSelectRetained:(id:string)=>void }) {
   const shown=useRef(visible);shown.current=visible;
   const [checking,setChecking]=useState(true),[target,setTarget]=useState<ProposalTarget|null>(null);
   const edit = usePermission('design.edit');
@@ -142,13 +143,13 @@ function Workspace({ workspaceId, visible, probe, working }: { workspaceId: stri
       if(exact.revision_id!==record.revision_id||exact.draft_id!==selectedId||exact.workspace_id!==workspaceId||exact.sha256!==record.sha256)throw new Error('Retained proposal identity changed.');
       // Retain does not advance the draft version. Keep its CAS and any fields typed in flight.
       setDraft(current=>current&&current.draft_id===selectedId?{...current,revisions:[...current.revisions.filter(row=>row.revision_id!==exact.revision_id),{revision_id:exact.revision_id,number:exact.number,sha256:exact.sha256,status:exact.status}]}:current);
-      setRetained(exact);intent.current=null;
+      setRetained(exact);intent.current=null;onSelectRetained(exact.revision_id);
     }catch(reason){if(mounted.current&&epoch===selectionEpoch.current)outcome(reason);}finally{if(mounted.current&&epoch===selectionEpoch.current)setBusy(false);}
   }
   async function showRetained(id: string) {
     if(!shown.current)return;selectionEpoch.current+=1;const ticket=++generation.current;setChecking(true);
     setBusy(true); setError('');
-    try{const record=await readRetained(id,workspaceId);if(mounted.current&&shown.current&&ticket===generation.current){if(record.revision_id!==id||record.workspace_id!==workspaceId)throw new Error('Retained proposal identity changed.');setRetained(record);setDenied(false);setChecking(false);}}
+    try{const record=await readRetained(id,workspaceId);if(mounted.current&&shown.current&&ticket===generation.current){if(record.revision_id!==id||record.workspace_id!==workspaceId)throw new Error('Retained proposal identity changed.');setRetained(record);setDenied(false);setChecking(false);onSelectRetained(record.revision_id);}}
     catch(reason){if(mounted.current&&ticket===generation.current){setDenied(true);setChecking(false);outcome(reason);}}finally{if(mounted.current)setBusy(false);}
   }
   async function decide(revisionId: string, state: string, payload: DecidePayload) {
