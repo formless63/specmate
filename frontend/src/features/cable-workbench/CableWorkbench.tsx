@@ -204,7 +204,7 @@ export function CableWorkbench(props: WorkbenchProps) {
   const stage = <>
     {props.libraryScope && <Group gap="xs" aria-label="Cable presentation"><Button size="xs" variant={presentation === "canvas" ? "commit" : "quiet"} onClick={()=>setPresentation("canvas")}>Manual canvas</Button><Button size="xs" variant={presentation === "drawing" ? "commit" : "quiet"} onClick={()=>setPresentation("drawing")}>Cable drawing</Button></Group>}
     <div hidden={presentation !== "drawing"}>{drawingStage}</div>
-    {props.libraryScope && canvasVisited && <div hidden={presentation !== "canvas"}><Suspense fallback={<Text>Loading manual canvas…</Text>}><ManualCanvas active={props.editor?.active !== false && presentation === "canvas"} disabled={!editable || mode === "frozen"} scope={props.libraryScope} layoutId={props.libraryScope.layoutId} cable={cable} drawing={drawing} onChange={onChange} creating={mode === "new"}/></Suspense></div>}
+    {props.libraryScope && canvasVisited && <div hidden={presentation !== "canvas"}><Suspense fallback={<Text>Loading manual canvas…</Text>}><ManualCanvas active={props.editor?.active !== false && presentation === "canvas"} disabled={!editable || mode === "frozen"} scope={props.libraryScope} layoutId={props.libraryScope.layoutId} cable={cable} drawing={drawing} section={section} onChange={onChange} creating={mode === "new"}/></Suspense></div>}
   </>;
   const proposalView = <>
       {proposal.isError && <Alert color="red">{proposal.error.message}</Alert>}
