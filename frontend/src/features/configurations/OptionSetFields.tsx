@@ -64,7 +64,7 @@ function OptionEditor({ option, disabled, editable, occurrences, described, onCh
     const removed = option.choices[index]?.key;
     onChange({ ...option, default_choice: option.default_choice === removed ? null : option.default_choice, choices: option.choices.filter((_, position) => position !== index) });
   }
-  return <fieldset style={{ border: '1px solid var(--sb-border-subtle)', padding: 'var(--mantine-spacing-xs)', margin: 0 }}>
+  return <fieldset style={{ minWidth: 0, border: '1px solid var(--sb-border-subtle)', padding: 'var(--mantine-spacing-xs)', margin: 0 }}>
     <legend className="sb-silk">{label}</legend>
     <Stack gap="xs">
       <Group align="end" gap="xs">
