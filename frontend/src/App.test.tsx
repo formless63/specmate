@@ -116,7 +116,7 @@ async function openTool(label: string) {
   if (label === "Mechanical sources") return openTool("Shells & hardware");
   if (["Conductor conventions", "Workshop profiles", "Evidence kinds"].includes(label)) {
     await openTool("Vocabulary");
-    fireEvent.click(screen.getByRole("button", { name: label === "Conductor conventions" ? "Conventions" : label, exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: label === "Conductor conventions" ? "Conventions" : label }));
     return;
   }
   const area = AREAS.find((item) => item.tools.some((tool) => tool.label === label));
