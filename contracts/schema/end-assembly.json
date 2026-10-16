@@ -292,7 +292,7 @@
     },
     "Join": {
       "additionalProperties": false,
-      "description": "A declared connection between terminals of two different layers.",
+      "description": "A declared connection between layers or distinct inline parts.",
       "properties": {
         "a": {
           "$ref": "#/$defs/StackTerminal"

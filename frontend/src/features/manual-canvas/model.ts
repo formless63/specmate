@@ -64,10 +64,13 @@ export type SavedAssembly = { interface: EndAssembly };
 
 export function manualJoin(cable: Cable, left: HandleAddress, right: HandleAddress, reason: string, kind: EndStack['joins'][number]['kind'], savedStack?: EndStack): Cable {
   if (left.type !== 'terminal' || right.type !== 'terminal' || left.endpointId !== right.endpointId || left.layerId === right.layerId && left.terminalId === right.terminalId) throw new Error('Choose two different terminals on the same end stack.');
-  if (left.layerId === right.layerId) throw new Error('Joints within one layer are not supported. Choose terminals on different end-stack layers.');
   if (!reason.trim()) throw new Error('Record a basis for this declared joint.');
   const endpoint = cable.endpoints.find(end => end.local_id === left.endpointId); if (!endpoint || endpoint.end_assembly_revision_id && !savedStack) throw new Error('Read the exact saved stack before preparing a local joint.');
   const stack = structuredClone(savedStack ?? endpoint.stack); if (!stack) throw new Error('No editable end stack is available.');
+  const a=stack.layers.find(layer=>layer.layer_id===left.layerId),b=stack.layers.find(layer=>layer.layer_id===right.layerId);
+  if(!a||!b)throw new Error('Choose terminals on declared end-stack layers.');
+  if(left.layerId===right.layerId){const owner=(id:string)=>a.kind==='inline'?a.parts.find(part=>[`${part.local_id}.1`,`${part.local_id}.2`].includes(id))?.local_id:null;const first=owner(left.terminalId),second=owner(right.terminalId);if(!first||!second||first===second)throw new Error('Same-layer joints require declared leads of different inline parts.');}
+  const shell=a.kind==='shell'||b.kind==='shell';if(kind==='bond'&&!shell||shell&&kind!=='bond')throw new Error('A shell requires a bond; other layers cannot declare a shell bond.');
   let index = 1; while (stack.joins.some(join => join.local_id === `joint-${index}`)) index += 1;
   stack.joins.push({ local_id: `joint-${index}`, a: {layer_id:left.layerId,terminal_id:left.terminalId}, b: {layer_id:right.layerId,terminal_id:right.terminalId},kind,basis:reason.trim() });
   return {...cable,review:'unreviewed',review_basis:null,endpoints:cable.endpoints.map(end=>end===endpoint?{...end,end_assembly_revision_id:null,stack}:end)};

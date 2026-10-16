@@ -295,8 +295,11 @@ policy exists; ordinary missing make inputs remain unresolved too. Board-contain
 components are not counted again as hand-soldered inline uses.
 
 Every other connection is an explicit join (`solder`, `crimp`, `mated`, `integrated` or
-`bond`) between terminals of two layers, with a basis; nothing is joined by label. A
-reusable `end_assembly` (an interface kind, edited in the Library's End assemblies lens)
+`bond`) between terminals of two layers, or different declared parts inside the
+inline layer, with a basis; nothing is joined by label. A same-layer inline join
+must name existing leads of different parts. Joining a part to itself cannot
+bypass its authored component model; same-layer board and shell edits remain
+unsupported. A reusable `end_assembly` (an interface kind, edited in the Library's End assemblies lens)
 holds one stack and a review; cable ends pin its exact revision.
 
 `end_assembly.resolve` (and `POST /api/v0/interfaces/end-stacks/resolve`) returns a

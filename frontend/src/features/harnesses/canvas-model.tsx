@@ -1,12 +1,12 @@
 import type { Edge } from '@xyflow/react';
 import { sectionLayout, renderSectionSvg, type StockSpecification } from '../../../../packages/section-layout/src';
 import type { FlowItem } from '../manual-canvas/EngineeringFlow';
-import { placeLibraryDrop, inlineNodeId, type LibraryDrop, type PartPlacement } from '../manual-canvas/model';
+import { placeLibraryDrop, manualJoin, inlineNodeId, type LibraryDrop, type PartPlacement } from '../manual-canvas/model';
 import { ConnectorFace, geometryForBody } from '../../../../packages/connector-art/src';
 import { faceFrame } from '../cable-workbench/model';
 import { rowLook } from '../cable-views/Swatch';
 import type { Body } from '../interfaces/api';
-import type { EndStack, ResolvedStack } from '../end-assemblies/api';
+import type { EndStack, JoinKind, ResolvedStack } from '../end-assemblies/api';
 import { initialCable } from '../cables/api';
 import { terminalKey, terminalLabel, type Harness, type Joint, type Terminal } from './api';
 
@@ -77,6 +77,12 @@ export function addHarnessJoint(harness: Harness, left: Terminal, right: Termina
   if (harness.joints.some(joint => joint.members.some(member => [terminalKey(left), terminalKey(right)].includes(terminalKey(member))))) throw new Error('A terminal already belongs to a joint. Edit that declared joint explicitly.');
   let index = 1; while (harness.joints.some(joint => joint.local_id === `joint-${index}`)) index += 1;
   return { ...harness, review: 'unreviewed', review_basis: null, joints: [...harness.joints, { local_id: `joint-${index}`, kind, members: [left, right], basis: basis.trim() }] };
+}
+/** Same-end internals remain in the existing end-stack domain, with original layer and lead IDs. */
+export function joinHarnessStack(harness: Harness, left: Terminal, right: Terminal, basis: string, kind: JoinKind, savedStack?: EndStack): Harness {
+  if (left.kind !== 'endpoint' || right.kind !== 'endpoint' || left.endpoint_id !== right.endpoint_id) throw new Error('Choose two exact terminals on the same harness endpoint.');
+  const cable = manualJoin({ ...initialCable(), endpoints: harness.endpoints.map(endpoint => ({ ...endpoint, stock_end: 'unknown' as const })) }, { type: 'terminal', endpointId: left.endpoint_id, layerId: left.layer_id, terminalId: left.terminal_id }, { type: 'terminal', endpointId: right.endpoint_id, layerId: right.layer_id, terminalId: right.terminal_id }, basis, kind, savedStack);
+  return { ...harness, review: 'unreviewed', review_basis: null, endpoints: cable.endpoints.map(({ stock_end: _, ...endpoint }) => endpoint) };
 }
 /** Reuse the exact end-stack placement adapter, while preserving Harness's own section and topology records. */
 export function placeHarnessDrop(harness: Harness, drop: LibraryDrop, source?: unknown, targetId: string | null = null, savedStack?: EndStack, partUse?: PartPlacement): { harness: Harness; node: string } {
