@@ -37,20 +37,18 @@ const IntegrationsPanel = lazy(() => import("./features/integrations/Integration
 const WorkspaceAccessPanel = lazy(() => import("./features/project-access/WorkspaceAccessPanel").then((module) => ({ default: module.WorkspaceAccessPanel })));
 const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
 const EvidencePanel = lazy(() => import("./features/evidence/EvidencePanel").then((module) => ({ default: module.EvidencePanel })));
-const ConventionPanel = lazy(() => import("./features/interfaces/ConventionPanel").then((module) => ({ default: module.ConventionPanel })));
-const SignalSetPanel = lazy(() => import("./features/interfaces/SignalSetPanel").then((module) => ({ default: module.SignalSetPanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
 const IntentPanel = lazy(() => import("./features/intents/IntentPanel").then((module) => ({ default: module.IntentPanel })));
 const ConnectorLibrary = lazy(() => import("./features/interfaces/ConnectorLibrary").then(module => ({ default: module.ConnectorLibrary })));
 const BoardLibrary = lazy(() => import("./features/boards/BoardLibrary").then(module => ({ default: module.BoardLibrary })));
 const PartsLibrary = lazy(() => import('./features/parts/PartsLibrary').then(module => ({ default: module.PartsLibrary })));
 const StockLibrary = lazy(() => import("./features/wire-stock/StockLibrary").then(module => ({ default: module.StockLibrary })));
-const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
 const SettingsPanel = lazy(() => import("./features/settings/SettingsPanel").then(module => ({ default: module.SettingsPanel })));
 const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPanel").then((module) => ({ default: module.PreferencesPanel })));
 const DiscoveryPanel = lazy(() => import("./features/discovery/DiscoveryPanel").then((module) => ({ default: module.DiscoveryPanel })));
 const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/PhysicalUnitsPanel").then((module) => ({ default: module.PhysicalUnitsPanel })));
 const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
+const VocabularyLibrary = lazy(() => import("./features/vocabulary/VocabularyLibrary").then(module => ({ default: module.VocabularyLibrary })));
 const HistoryPage = lazy(() => import("./features/history/History").then(module => ({ default: module.HistoryPage })));
 const CableRecordHost = lazy(() => import("./features/cables/CableRecordEditor").then(module => ({ default: module.CableRecordHost })));
 const NewCable = lazy(() => import("./features/designs/NewCable").then(module => ({ default: module.NewCable })));
@@ -237,6 +235,7 @@ function FocusNote({ focus, onDismiss }: { focus: RecordFocus; onDismiss: () => 
 /** A lens at Library scope: the project list, workspace access, the lens's library, or an inline project chooser. */
 function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }: { record?: LibraryRecord; toolId: string; toolLabel: string; scope: WorkspaceScope; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void; lens: LensContext }) {
   const navigation = useNavigation();
+  if (["signals", "conventions", "workshop-profiles"].includes(toolId)) return <VocabularyLibrary toolId={toolId} active={lens.active === toolId} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(id, item) => onOpenInProject(id, toolId, item)} />;
   if (toolId === "new-cable") return <NewCable active={lens.active === toolId} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />;
   if (["harnesses", "new-harness"].includes(toolId)) return <HarnessLibrary active={lens.active === toolId} creating={toolId === "new-harness"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, item) => onOpenInProject(projectId, "harnesses", item)} />;
   if (["assemblies", "new-assembly"].includes(toolId)) return <DeviceLibrary active={lens.active === toolId} creating={toolId === "new-assembly"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, item) => onOpenInProject(projectId, "assemblies", item)} />;
@@ -331,10 +330,7 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   const { workspaceId } = scope;
   const onAccessChanged = scope.refresh;
   switch (toolId) {
-    case "signals": return <SignalSetPanel projectId={projectId} />;
-    case "conventions": return <ConventionPanel projectId={projectId} />;
     case "intents": return <IntentPanel projectId={projectId} />;
-    case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
     case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
     case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
     // Firmware definitions are declared here; per-occurrence firmware choices follow.

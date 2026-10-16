@@ -5,7 +5,7 @@ import { SbStatus, type SbLed } from "../../components/sb";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { randomUUID } from "../../lib/random-id";
 import { recordCableIntentCheck } from "../evidence/api";
-import { SignalTypeChip } from "../interfaces/SignalSetPanel";
+import { SignalTypeChip } from "../interfaces/SignalSetFields";
 import { DIMENSIONS, DIMENSION_LABELS, checkPath, read, type CheckRow, type Chip, type Dimension, type IntentCheck, type Status } from "./api";
 import "./intent-check.css";
 

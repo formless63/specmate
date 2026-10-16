@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
-import { ConventionEditor, ConventionInspector, ConventionPanel, conductiveElements } from "./ConventionPanel";
+import { ConventionEditor, ConventionInspector, conductiveElements } from "./ConventionFields";
 import { StockConventions } from "./StockConventions";
 import { initialInterface, type Convention, type ConventionView, type StockConventions as Applicable } from "./api";
 
@@ -61,10 +61,10 @@ test("only conductors, screens and drains are offered, labeled by their parents"
 test("a stock convention maps elements by label to signals by name; unstated elements are omitted", async () => {
   stub();
   render(wrap(<Harness />));
-  await select("Signal set", "Workshop AV signals");
-  await select("Signal set revision", /r1/);
-  await select("Wire stock", "Six-coax AV stock");
-  await select("Wire stock revision", /r1/);
+  await select("Signal set definition", "Workshop AV signals");
+  await waitFor(() => expect(latest?.signal_set_revision_id).toBe("set-r1"));
+  await select("Wire stock definition", "Six-coax AV stock");
+  await waitFor(() => expect(latest?.stock_revision_id).toBe("stock-r1"));
   await screen.findByText("Core 1 (red) / Center");
   await select("Use of Core 1 (red) / Center", "Carries signal");
   await select("Signal for Core 1 (red) / Center", "Red video");
@@ -124,13 +124,6 @@ test("a frozen convention reads by label and signal name, unmapped conductors ar
   expect(within(open).queryByText(/spare/i)).toBeNull();
   expect(screen.getByText("Preference only")).toBeTruthy();
   expect(screen.getByText(/never makes a check pass/)).toBeTruthy();
-});
-
-test("a viewer reads conventions but authoring is withheld", () => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]))));
-  render(wrap(<ConventionPanel projectId="project" />, ["workspace.read"]));
-  expect((screen.getByText("Create convention draft").closest("button") as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Creating conventions is unavailable/)).toBeTruthy();
 });
 
 test("a stock view lists exact conventions with rows, others by name, and color matches", async () => {

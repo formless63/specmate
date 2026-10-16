@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { read, useText, type StockConventions as Applicable } from "./api";
-import { ConventionRows } from "./ConventionPanel";
+import { ConventionRows } from "./ConventionFields";
 
 /**
  * Read-only: the frozen conventions that apply to one frozen wire stock revision. Exact-pin

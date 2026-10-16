@@ -6,7 +6,7 @@ import { SbStatus, SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { CONDITIONING, read, unknownPortPin, type CableEnd, type DeclaredQuantity, type Definition, type EndRow, type Identity, type Inspection, type Pinout, type PinoutRole, type Port, type PortPin } from "./api";
-import { DeclaredValue, SignalTypeChip } from "./SignalSetPanel";
+import { DeclaredValue, SignalTypeChip } from "./SignalSetFields";
 import "./signals.css";
 import { BEHAVIOR, COUPLING, NEED_LABELS, PortWorkbench, TERMINATION } from "../pinout-editor/PortWorkbench";
 import type { WorkbenchMode } from "../pinout-editor/PinoutWorkbench";

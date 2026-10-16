@@ -4,7 +4,7 @@ import { SbStatus, SbUnknown } from "../../components/sb";
 import { COMPONENT_KINDS, read as readBoard, type BoardInspection } from "../boards/api";
 import { RevisionPicker } from "../cables/RevisionPicker";
 import type { Inspection as InterfaceInspection } from "../interfaces/api";
-import { SignalTypeChip } from "../interfaces/SignalSetPanel";
+import { SignalTypeChip } from "../interfaces/SignalSetFields";
 import {
   JOIN_KINDS, LAYER_LABELS, LAYER_ORDER, addLayer, removeLayer, resolveEnd, splitKey, stackComplete, terminalKey, terminalText,
   type Definition, type EndStack, type InlineLayer, type LayerKind, type ResolvedLayer, type ResolvedStack, type ResolvedTerminal, type StackLayer,

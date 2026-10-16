@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { SbUnknown } from "../../components/sb";
 import { useCan } from "../../lib/permissions";
 import { faceForBody } from "../interfaces/BodyFace";
-import { DeclaredValue, SignalTypeChip } from "../interfaces/SignalSetPanel";
+import { DeclaredValue, SignalTypeChip } from "../interfaces/SignalSetFields";
 import { CONDITIONING, read, unknownPortPin, type CableEnd, type DeclaredQuantity, type EndRow, type Inspection, type Port, type PortPin } from "../interfaces/api";
 import { FaceLegend, FaceStage, type StripPin } from "./FaceStage";
 import { familyColor, signalFamily } from "./palette";

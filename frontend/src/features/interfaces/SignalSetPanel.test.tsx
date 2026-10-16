@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
-import { SignalSetInspector, SignalSetPanel } from "./SignalSetPanel";
+import { SignalSetInspector, SignalSetEditor } from "./SignalSetFields";
 import type { SignalSet } from "./api";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
@@ -27,39 +28,16 @@ const FROZEN: SignalSet = { kind: "signal_set", description: "Synthetic AV", sig
   { key: "video_ground", name: "Video ground", type: "ground_return", return_for: ["video_red", "composite_sync"], differential_with: null, level: { ...unknown, unit: "unknown" }, impedance: { ...unknown, unit: "ohm" }, notes: null, basis: null },
 ] };
 
-test("a new signal set is authored by name with type and return relation, unknown values omitted", async () => {
-  const calls: { operation: string; payload: { name?: string; interface?: SignalSet } }[] = [];
-  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
-    if (options?.method === "POST") {
-      calls.push(JSON.parse(String(options.body)));
-      return new Response(JSON.stringify({ result: { definition_id: "set", draft_id: "draft", state: "draft-v1" } }), { status: 200 });
-    }
-    if (url.includes("catalog/definitions/")) return new Response(JSON.stringify({ definition_id: "set", name: "Workshop AV signals", kind: "signal_set", drafts: [{ draft_id: "draft", state: "draft-v1", dependencies: [] }], revisions: [] }));
-    if (url.includes("interfaces/drafts/")) return new Response(JSON.stringify({ definition_id: "set", kind: "signal_set", draft_id: "draft", state: "draft-v1", content: { interface: calls[0]?.payload.interface } }));
-    return new Response(JSON.stringify([]));
-  }));
-  render(wrap(<SignalSetPanel projectId={null} />));
-  fireEvent.change(screen.getByLabelText("Signal set name"), { target: { value: "Workshop AV signals" } });
-  for (const name of ["Red video", "Video ground"]) {
-    fireEvent.change(screen.getByLabelText("New signal name"), { target: { value: name } });
-    fireEvent.click(screen.getByText("Add signal"));
-  }
-  expect(screen.getByText("red_video")).toBeTruthy();
-  await select("Type of Video ground", "Ground / return");
-  await select("Signals returned by Video ground", "Red video");
-  fireEvent.click(screen.getByText("Create signal set draft"));
-  await screen.findByText("Edit signal set draft");
-  expect(calls[0]).toMatchObject({ operation: "interface.create", payload: { name: "Workshop AV signals", interface: { kind: "signal_set", signals: [
+test("a new signal set retains manual names, return relations and unknown values", async () => {
+  let latest: SignalSet;
+  function Fields() { const [value, setValue] = useState<SignalSet>({ kind: "signal_set", description: null, signals: [] }); latest = value; return <SignalSetEditor value={value} onChange={setValue} />; }
+  render(wrap(<Fields />));
+  for (const name of ["Red video", "Video ground"]) { fireEvent.change(screen.getByLabelText("New signal name"), { target: { value: name } }); fireEvent.click(screen.getByText("Add signal")); }
+  await select("Type of Video ground", "Ground / return"); await select("Signals returned by Video ground", "Red video");
+  expect(latest!).toMatchObject({ kind: "signal_set", signals: [
     { key: "red_video", name: "Red video", type: "unknown", level: { status: "unknown", nominal: null }, impedance: { status: "unknown", nominal: null } },
     { key: "video_ground", name: "Video ground", type: "ground_return", return_for: ["red_video"] },
-  ] } } });
-});
-
-test("a viewer reads signal sets but authoring is withheld", () => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]))));
-  render(wrap(<SignalSetPanel projectId="project" />, ["workspace.read"]));
-  expect((screen.getByText("Create signal set draft").closest("button") as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Creating signal sets is unavailable/)).toBeTruthy();
+  ] });
 });
 
 test("a frozen set shows names, type chips, returns by name and unknown levels hatched, never zero", async () => {
@@ -75,4 +53,14 @@ test("a frozen set shows names, type chips, returns by name and unknown levels h
   const red = screen.getByText("Red video", { selector: "td" }).closest("tr") as HTMLElement;
   expect(within(red).getByText("0.7 Vpp")).toBeTruthy();
   expect(within(red).getByText("75 ohm")).toBeTruthy();
+});
+
+test("a denied refresh withdraws cached frozen signal names", async () => {
+  let denied = false;
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(denied ? { error: { message: "Signal source denied" } } : { revision_id: "set-r1", interface: FROZEN }), { status: denied ? 403 : 200 })));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={client}><SignalSetInspector revisionId="set-r1" /></QueryClientProvider></MantineProvider>);
+  await screen.findByText("Red video", { selector: "td" }); denied = true;
+  await act(async () => { await client.invalidateQueries({ queryKey: ["interface-inspect", "set-r1"] }); });
+  await screen.findByText("Signal source denied"); expect(screen.queryByText("Red video", { selector: "td" })).toBeNull();
 });

@@ -7,7 +7,7 @@ import { LAYER_LABELS, splitKey, terminalKey, type ResolvedStack } from "../end-
 import { SignalCell, findTerminal, targetOptions } from "../end-assemblies/StackEditor";
 import { statusLed } from "../intent-check/IntentCheckPanel";
 import { DIMENSIONS, DIMENSION_LABELS, type CheckRow, type IntentCheck } from "../intent-check/api";
-import { SignalTypeChip } from "../interfaces/SignalSetPanel";
+import { SignalTypeChip } from "../interfaces/SignalSetFields";
 import type { ProposedRow } from "../intent-propose/ProposeWiring";
 import { REQUIREMENT_LABELS } from "../intents/api";
 import { DEFAULT_NOTE, assignLanding, landingOf, splitTermKey, type CheckIndex, type Drawing, type DrawnWire } from "./model";

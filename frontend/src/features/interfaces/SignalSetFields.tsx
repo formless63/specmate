@@ -1,13 +1,9 @@
 import { Alert, Button, Card, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SbUnknown } from "../../components/sb";
-import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
-import { SIGNAL_TYPE_LABELS, SIGNAL_TYPES, command, initialInterface, newSignal, read, type DeclaredQuantity, type Definition, type Draft, type Identity, type Inspection, type Signal, type SignalSet, type SignalType } from "./api";
-import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
-import { ContinueDraftButton } from "../scope/ContinueDraftButton";
+import { SIGNAL_TYPE_LABELS, SIGNAL_TYPES, newSignal, read, type DeclaredQuantity, type Inspection, type Signal, type SignalSet, type SignalType } from "./api";
 import "./signals.css";
 
 const RETURN_TYPES: SignalType[] = ["ground_return", "shield", "chassis"];
@@ -33,77 +29,6 @@ export function DeclaredValue({ value, unit, what }: { value: DeclaredQuantity; 
   if (value.status !== "known") return <SbUnknown what={what} />;
   const range = value.minimum !== null || value.maximum !== null ? ` (${value.minimum ?? "…"} to ${value.maximum ?? "…"})` : "";
   return <span className="sb-mono" title={value.basis ?? undefined}>{value.nominal ?? ""}{range} {unit}</span>;
-}
-
-/** Signals lens: the Library home for shared signal sets used by pinout variants. */
-export function SignalSetPanel({ projectId }: { projectId: string | null }) {
-  return <SignalSets key={projectId ?? "library"} projectId={projectId} />;
-}
-
-function SignalSets({ projectId }: { projectId: string | null }) {
-  const cache = useQueryClient();
-  const createGate = usePermission("item.create");
-  const freezeGate = usePermission("design.freeze");
-  const [name, setName] = useState("");
-  const [value, setValue] = useState<SignalSet>(() => initialInterface("signal_set") as SignalSet);
-  const [definitionId, setDefinitionId] = useState<string | null>(null);
-  const [draftId, setDraftId] = useState<string | null>(null);
-  const [revisionId, setRevisionId] = useState<string | null>(null);
-  const definitions = useQuery({ queryKey: ["signal-set-definitions", projectId], queryFn: () => read<Definition[]>("workspace/definitions") });
-  const identity = useQuery({ queryKey: ["signal-set-identity", definitionId], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}`), enabled: !!definitionId });
-  const draft = useQuery({ queryKey: ["signal-set-draft", draftId], queryFn: () => read<Draft>(`interfaces/drafts/${draftId}`), enabled: !!draftId });
-  const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); };
-  // A Library row or deep link opens that set: its newest draft, else its latest frozen revision.
-  const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
-  useOpenProbed(definitionIn(definitions.data, ["signal_set"]), (id) => { pick(id); openNewest(id); });
-  const create = useMutation({ mutationFn: () => command<Draft>("interface.create", { name, interface: value }), onSuccess: async (data) => {
-    setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null);
-    await referenceFromProject(projectId, data.definition_id, "signal set");
-    await cache.invalidateQueries({ queryKey: ["signal-set-definitions", projectId] });
-  } });
-  const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("interface.freeze", { draft_id: draftId }, draft.data?.state), onSuccess: async (data) => {
-    setRevisionId(data.revision_id);
-    await cache.invalidateQueries({ queryKey: ["signal-set-draft", draftId] });
-    await cache.invalidateQueries({ queryKey: ["signal-set-identity", definitionId] });
-  } });
-  const sets = (definitions.data ?? []).filter((d) => d.kind === "signal_set");
-  return <Stack>
-    <Title order={2}>Signals</Title>
-    <Text size="sm">A signal set names what travels through a contact: its type, which signals a ground returns, and declared level and impedance. Pinout variants pick signals from an exact frozen set. Equal names in two sets are different signals; blank values stay unknown.</Text>
-    {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Group align="end">
-      <Select label="Signal set" searchable placeholder={sets.length ? "Choose a set" : "No signal sets yet"} data={sets.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
-      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
-      {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
-    </Group>
-    {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {revisionId && <SignalSetInspector key={revisionId} revisionId={revisionId} />}
-    {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && <><SignalSetDraft key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["signal-set-draft", draftId] }); }} />
-      <Group><Button loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze signal set</Button><ReadOnlyNote permission="design.freeze">Freezing signal sets is unavailable.</ReadOnlyNote></Group></>}
-    {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-    <Card withBorder><Stack gap="xs">
-      <Title order={3}>New signal set</Title>
-      <InspectionScope permission="item.create">
-        <TextInput label="Signal set name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        <SignalSetEditor value={value} onChange={setValue} />
-      </InspectionScope>
-      <Group><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create signal set draft</Button><ReadOnlyNote permission="item.create">Creating signal sets is unavailable.</ReadOnlyNote></Group>
-      {create.isError && <Alert color="red">{create.error.message}</Alert>}
-    </Stack></Card>
-  </Stack>;
-}
-
-function SignalSetDraft({ draft, onSaved }: { draft: Draft; onSaved: () => Promise<void> }) {
-  const editGate = usePermission("design.edit");
-  const [value, setValue] = useState<SignalSet>(() => (draft.content.interface as SignalSet | undefined) ?? (initialInterface("signal_set") as SignalSet));
-  const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
-  return <Card withBorder><Stack gap="xs"><Title order={3}>Edit signal set draft</Title>
-    <InspectionScope permission="design.edit"><SignalSetEditor value={value} onChange={setValue} /></InspectionScope>
-    <Group><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save signal set draft</Button><ReadOnlyNote permission="design.edit">Saving signal sets is unavailable.</ReadOnlyNote></Group>
-    {save.isError && <Alert color="red">{save.error.message}</Alert>}
-  </Stack></Card>;
 }
 
 function slug(name: string): string {
@@ -152,7 +77,7 @@ function QuantityInput({ label, value, onChange }: { label: string; value: Decla
 /** A frozen signal set as a dense read-only table. */
 export function SignalSetInspector({ revisionId }: { revisionId: string }) {
   const inspected = useQuery({ queryKey: ["interface-inspect", revisionId], queryFn: () => read<Inspection>(`interfaces/revisions/${revisionId}`) });
-  const value = inspected.data?.interface.kind === "signal_set" ? inspected.data.interface : null;
+  const value = !inspected.isError && !inspected.isFetching && inspected.data?.interface.kind === "signal_set" ? inspected.data.interface : null;
   const names = new Map((value?.signals ?? []).map((s) => [s.key, s.name]));
   return <Card withBorder><Stack gap="xs"><Title order={3}>Frozen signal set</Title><Text size="sm"><RevisionLabel id={revisionId} /></Text>
     {inspected.isError && <Alert color="red">{inspected.error.message}</Alert>}

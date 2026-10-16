@@ -8,7 +8,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { faceForBody } from "../interfaces/BodyFace";
 import { ConditionsEditor, PinoutSignalsEditor, firstSetRevision } from "../interfaces/PinoutSignals";
-import { SignalTypeChip } from "../interfaces/SignalSetPanel";
+import { SignalTypeChip } from "../interfaces/SignalSetFields";
 import { read, unknownElectrical, type Body, type Definition, type Identity, type Inspection, type Pinout, type Signal, type VariantPort } from "../interfaces/api";
 import type { PinRing } from "../../../../packages/connector-art/src";
 import { FaceLegend, FaceStage, type StripPin } from "./FaceStage";

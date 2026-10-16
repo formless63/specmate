@@ -6,7 +6,7 @@ import { SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { read, unknownElectrical, type Assignment, type Contact, type Definition, type Identity, type Inspection, type PinSignal, type Pinout, type PinoutRole, type PinoutVariant, type Signal } from "./api";
-import { SignalTypeChip } from "./SignalSetPanel";
+import { SignalTypeChip } from "./SignalSetFields";
 import "./signals.css";
 import { SUGGESTED_ROLE } from "../pinout-editor/model";
 

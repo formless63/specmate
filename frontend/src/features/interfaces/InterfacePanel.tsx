@@ -5,8 +5,8 @@ import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Titl
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { command, read, initialInterface, type Body, type Definition, type Draft, type Identity, type Inspection, type Interface, type Mapping, type Orientation, type Pinout, type Trace } from "./api";
-import { SignalSetEditor } from "./SignalSetPanel";
-import { ConventionEditor } from "./ConventionPanel";
+import { SignalSetEditor } from "./SignalSetFields";
+import { ConventionEditor } from "./ConventionFields";
 import { PortEditor } from "./PortEditor";
 import { MatingList } from "./Mating";
 import { PinoutVariantFields, PinSignalCell, PinoutVariantList } from "./PinoutSignals";

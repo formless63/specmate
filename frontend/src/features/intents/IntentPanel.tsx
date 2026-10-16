@@ -7,7 +7,7 @@ import { InspectionScope, ReadOnlyNote, useCan, usePermission, type PermissionNa
 import { revisionOptionLabel, useRevisionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionPicker } from "../cables/RevisionPicker";
 import type { CableEnd } from "../interfaces/api";
-import { SignalTypeChip } from "../interfaces/SignalSetPanel";
+import { SignalTypeChip } from "../interfaces/SignalSetFields";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import {
