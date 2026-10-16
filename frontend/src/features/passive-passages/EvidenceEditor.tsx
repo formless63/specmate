@@ -6,4 +6,3 @@ export function EvidenceEditor({ label, value, onChange, disabled }: { label: st
     {value.status === "registered_file" && <Group grow><TextInput label={`${label} source bundle revision ID`} value={value.source_bundle_revision_id ?? ""} disabled={disabled} onChange={(e) => onChange({ ...value, source_bundle_revision_id: e.currentTarget.value })} /><TextInput label={`${label} exact source path`} value={value.source_path ?? ""} disabled={disabled} onChange={(e) => onChange({ ...value, source_path: e.currentTarget.value })} /></Group>}
   </Stack>;
 }
-

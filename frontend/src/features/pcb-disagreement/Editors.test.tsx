@@ -73,4 +73,3 @@ test('denied preserved-source refresh hides private assertion rows and declarati
   expect(screen.queryByText('J1 / 1 · one · assigned · sense · Synthetic terminal table')).toBeNull();
   expect(onDenied).toHaveBeenLastCalledWith(true);
 });
-
