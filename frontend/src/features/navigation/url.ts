@@ -98,6 +98,7 @@ export function parseLocation(pathname: string, search: string): WorkspaceLocati
   if (legacy && lens === "intents" && !probe) { lens = "new-cable"; filters.kind = "cable"; filters.start = "ports"; }
   if (!probe && BOARD_RECORD_SECTIONS[lens]) { filters.section = BOARD_RECORD_SECTIONS[lens]!; lens = "pcb"; }
   if (lens === "discovery") filters.palette = "open";
+  if (lens === 'mechanical-sources') lens = 'hardware';
   return { area: areaOfTool(lens).id, lens, project, probe, malformed, ...(Object.keys(filters).length ? { filters } : {}) };
 }
 

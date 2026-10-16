@@ -50,6 +50,7 @@ const EndAssemblyPanel = lazy(() => import("./features/end-assemblies/EndAssembl
 const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
 const ConnectorLibrary = lazy(() => import("./features/interfaces/ConnectorLibrary").then(module => ({ default: module.ConnectorLibrary })));
 const BoardLibrary = lazy(() => import("./features/boards/BoardLibrary").then(module => ({ default: module.BoardLibrary })));
+const PartsLibrary = lazy(() => import('./features/parts/PartsLibrary').then(module => ({ default: module.PartsLibrary })));
 const StockLibrary = lazy(() => import("./features/wire-stock/StockLibrary").then(module => ({ default: module.StockLibrary })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
@@ -180,7 +181,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -200,7 +201,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
         <ToolPanel value="intents">{tools.has("intents") && <LibraryTool toolId="intents" toolLabel="Recipe record" record={selected.isError ? undefined : selected.data} scope={scope} onOpenInProject={openInProject} lens={{ scope, projectId: null, active, setActive, onStatusChanged: () => {}, upgradeProposalId, setUpgradeProposalId }} />}</ToolPanel>
         <ToolPanel value="history">{tools.has("history") && <HistoryPage active={active === "history"} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />}</ToolPanel>
         {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
-        {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
+        {['identity', 'hardware', 'kits', 'mechanical-sources'].some(tool => tools.has(tool)) && <div hidden={!['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)}><PartsLibrary active={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)} toolId={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active) ? active : 'identity'} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
+        {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
           {tools.has(tool.id) && (["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) && (!url.probe || url.lens !== tool.id || documentRoute || selected.isPending || selected.isError) ? url.lens !== tool.id || !url.probe ? null : selected.isError ? <Stack gap="xs">
             <Text role="status">This document context is unavailable.</Text><Group>
               <Button size="xs" onClick={() => void selected.refetch()}>Retry current record access</Button>

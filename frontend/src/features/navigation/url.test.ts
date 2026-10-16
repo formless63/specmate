@@ -40,7 +40,7 @@ test.each(redirects)("/%s?lens=%s redirects to %s", (area, lens, expected) => {
 test("every existing tool has a stable reachable canonical home", () => {
   for (const area of AREAS) for (const tool of area.tools) {
     const location = { ...HOME, area: area.id, lens: tool.id };
-    const expected = ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
+    const expected = tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
       : ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) ? "designs" : tool.id;
     const [path, query] = formatLocation(location).split("?");
     expect(parseLocation(path!, query ? `?${query}` : "").lens, tool.id).toBe(expected);

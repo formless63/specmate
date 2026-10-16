@@ -62,6 +62,7 @@ export function libraryView(toolId: string): LibraryView | null {
 
 /** The lens that owns a definition kind; kinds without a dedicated lens open in Identities. */
 export function toolForKind(kind: string | null): string {
+  if (kind === 'mechanical_source') return 'hardware';
   for (const [tool, view] of Object.entries(LIBRARY_VIEWS)) {
     if (view.family === "definition" && kind && view.kinds.includes(kind)) return tool;
   }

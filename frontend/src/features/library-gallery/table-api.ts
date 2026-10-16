@@ -14,11 +14,12 @@ export type LibrarySummary = {
 export type LibraryTableRecord = LibraryRecord & { summary: LibrarySummary };
 export type LibraryTablePage = Omit<LibraryPage, "results"> & { results: LibraryTableRecord[] };
 
-export function listLibraryTable(params: { kinds: string[]; query: string; projectFilterId: string | null; after: string | null }): Promise<LibraryTablePage> {
+export function listLibraryTable(params: { kinds: string[]; query: string; projectFilterId: string | null; after: string | null; catalogClass?: 'parts' | 'hardware' | 'kits' }): Promise<LibraryTablePage> {
   const search = new URLSearchParams({ limit: "50" });
   for (const kind of params.kinds) search.append("kinds", kind);
   if (params.query) search.set("query", params.query);
   if (params.projectFilterId) { search.set("project_id", params.projectFilterId); search.set("referenced_only", "true"); }
   if (params.after) search.set("after", params.after);
+  if (params.catalogClass) search.set('catalog_class', params.catalogClass);
   return requestJson(`/api/v0/workspace/library-table?${search}`);
 }

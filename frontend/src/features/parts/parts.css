@@ -1,0 +1,6 @@
+.part-model-empty{min-height:18rem;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:1rem;padding:2rem;border:1px dashed var(--mantine-color-default-border);border-radius:var(--mantine-radius-sm)}
+.part-model-image{display:block;max-width:100%;width:auto;height:22rem;object-fit:contain;background:var(--mantine-color-body)}
+.part-model-canvas{width:100%;max-width:100%;min-width:0;overflow:hidden;touch-action:none}
+.part-model-canvas canvas{display:block;max-width:100%}
+.part-spec{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:1rem;padding:1.5rem;border:1px solid var(--mantine-color-default-border);margin:1rem 0}
+.part-spec dt{font-size:.75rem;color:var(--mantine-color-dimmed)}.part-spec dd{margin:.5rem 0 0;font-family:var(--mantine-font-family-monospace)}

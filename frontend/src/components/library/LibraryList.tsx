@@ -22,9 +22,9 @@ export const TYPED_LIBRARY_VIEWS: Record<string, LibraryView> = {
   ports: definition(["port"], "Device ports", "device port"),
   "end-assemblies": definition(["end_assembly"], "Saved end stacks", "end stack"),
   pcb: LIBRARY_VIEWS.pcb!, "wire-stock": definition(["wire_stock"], "Wire stocks", "wire stock"),
-  identity: definition(["part", "material"], "Parts", "part"),
-  hardware: definition(["hardware"], "Shells & hardware", "hardware definition"),
-  kits: definition(["kit"], "Kits", "kit definition"),
+  identity: definition(["part", "material", "hardware", "mechanical_source"], "Parts", "part"),
+  hardware: definition(["part", "hardware", "mechanical_source"], "Shells & hardware", "hardware part"),
+  kits: definition(["kit"], "Kits", "kit"),
   signals: LIBRARY_VIEWS.signals!, conventions: LIBRARY_VIEWS.conventions!, "workshop-profiles": LIBRARY_VIEWS["workshop-profiles"]!,
 };
 const CONNECTORS = [["interfaces", "connector_body", "Bodies"], ["interfaces", "pinout", "Pinouts"], ["ports", "", "Device ports"], ["end-assemblies", "", "Saved end stacks"]];
@@ -71,7 +71,7 @@ export function LibraryList({ toolId, projectFilterId, projects, principalKey, o
   const noun = kind === "pinout" ? "pinout" : kind === "connector_body" ? "connector body" : view.noun;
   const records = useInfiniteQuery({
     queryKey: ["workspace", "library", "table", principalKey, toolId, kinds, searchQuery, projectFilterId],
-    queryFn: ({ pageParam }) => listLibraryTable({ kinds, query: searchQuery, projectFilterId, after: pageParam }),
+    queryFn: ({ pageParam }) => listLibraryTable({ kinds, query: searchQuery, projectFilterId, after: pageParam, catalogClass: toolId === 'identity' ? 'parts' : toolId === 'hardware' ? 'hardware' : toolId === 'kits' ? 'kits' : undefined }),
     initialPageParam: null as string | null, getNextPageParam: page => page.next_after, retry: false,
   });
   const rows = useMemo(() => records.isError ? [] : records.data?.pages.flatMap(page => page.results) ?? [], [records.data, records.isError]);
