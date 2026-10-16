@@ -46,12 +46,13 @@ function NewItem({ toolId, view, onPick }: { toolId: string; view: LibraryView; 
 
 /** "New…": choose what to create; the item's lens opens with its New form, as its own New button does. */
 function NewMenu({ onPick }: { onPick: (toolId: string, view: LibraryView) => void }) {
-  const entries = Object.entries(LIBRARY_VIEWS).sort((a, b) => a[1].noun.localeCompare(b[1].noun));
+  const entries: [string,LibraryView][] = [...Object.entries(LIBRARY_VIEWS),["configurations",{...LIBRARY_VIEWS.configurations!,kinds:["option_set"],noun:"option set",create:"item.create"}]];
+  entries.sort((a, b) => a[1].noun.localeCompare(b[1].noun));
   return <Menu position="bottom-end" withinPortal shadow="md">
     <Menu.Target><Button variant="commit" size="xs">New…</Button></Menu.Target>
     <Menu.Dropdown mah={360} style={{ overflowY: "auto" }}>
       <Menu.Label>Create in the library</Menu.Label>
-      {entries.map(([toolId, view]) => <NewItem key={toolId} toolId={toolId} view={view} onPick={onPick} />)}
+      {entries.map(([toolId, view]) => <NewItem key={`${toolId}:${view.noun}`} toolId={toolId} view={view} onPick={onPick} />)}
     </Menu.Dropdown>
   </Menu>;
 }
@@ -93,6 +94,7 @@ export function LibraryHome({ principalKey }: { principalKey: string }) {
     navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, probe: linked }, { replace: true });
   }, [linked, target.data, navigation]);
   const startNew = (toolId: string, view: LibraryView) => {
+    if (toolId === "configurations") { navigation?.navigate({ area: "designs", lens: toolId, probe: null, filters: { status: "new", kind: view.noun === "option set" ? "option_set" : "configuration" } }); return; }
     const designForms: Record<string, string> = { cables: "new-cable", harnesses: "new-harness", assemblies: "new-assembly" };
     const designForm = designForms[toolId];
     navigation?.navigate({ area: areaOfTool(toolId).id, lens: designForm ?? toolId, probe: null, ...(["intents", "cable-test-intent", "facts", "occurrence-firmware"].includes(toolId) ? { filters: { status: "new", ...(toolId === "occurrence-firmware" ? { kind: "firmware" } : {}) } } : {}) });

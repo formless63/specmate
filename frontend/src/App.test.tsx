@@ -377,7 +377,7 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
     }
     if (toolId === "configurations") {
       for (const kind of ['option_set','configuration']) {
-        await act(async () => window.history.pushState(null, '', `/designs?tool=configurations&status=new&kind=${kind}`));
+        await act(async () => window.history.pushState(null, '', `/designs?tool=configurations&kind=${kind}&status=new`));
         const label=kind==='option_set'?'Option set':'Configuration';
         expect(await screen.findByRole('textbox',{name:`${label} name`})).toBeTruthy();
         expect(screen.getByRole('button',{name:'Freeze saved draft'})).toHaveProperty('disabled',true);
@@ -609,4 +609,14 @@ test('an exact secondary source review opens independently of unavailable broade
   vi.stubGlobal('fetch',vi.fn(async(path:string,options?:RequestInit)=>{paths.push(path);if(path.startsWith(`/api/v0/workspace/library/${definition}`))return reply({error:{message:'Broader current metadata unavailable'}},403);if(path.includes(`/catalog/definitions/${definition}/record?`))return reply({definition_id:definition,workspace_id:'w1',kind:'pcb_assertion',name:'Exact historic secondary',selected:{kind:'revision',revision_id:'historic-review',number:7,snapshot_id:'historic-snapshot',sha256:'c'.repeat(64),content}});if(path.includes('/pcb-disagreement/revisions/historic-review'))return reply({revision_id:'historic-review',definition_id:definition,sha256:'c'.repeat(64),content,projection:{parity:'not_evaluated',physical_qualification:'not_evaluated'}});return fallback(path,options);}));
   window.history.pushState(null,'',`/library/boards/${definition}@7/~/slot?tool=pcb-disagreement`);window.dispatchEvent(new PopStateEvent('popstate'));renderApp();
   expect(await screen.findByRole('heading',{name:'Exact historic secondary'})).toBeTruthy();expect(paths.some(path=>path.includes(`/catalog/definitions/${definition}/record?revision_number=7`))).toBe(true);expect(screen.queryByText('Opening the exact board section…')).toBeNull();expect(window.location.pathname).toContain(`${definition}@7/~/slot`);
+});
+
+
+test('Home New opens independent option-set and configuration forms without an empty-device detour',async()=>{
+ server({authenticated:true,role:'editor'});renderApp();await screen.findByRole('button',{name:'Account menu, signed in as local-user'});
+ for(const [menu,kind] of [['Option set','option_set'],['Configuration','configuration']]){
+  await act(async()=>window.history.pushState(null,'','/library'));
+  fireEvent.click(await screen.findByRole('button',{name:'New…'}));fireEvent.click(await screen.findByRole('menuitem',{name:menu}));
+  expect(await screen.findByRole('textbox',{name:`${menu} name`})).toBeTruthy();expect(new URLSearchParams(window.location.search).get('kind')).toBe(kind);expect(new URLSearchParams(window.location.search).get('status')).toBe('new');expect(screen.queryByRole('heading',{name:'No designs yet'})).toBeNull();
+ }
 });

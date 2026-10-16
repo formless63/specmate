@@ -42,7 +42,7 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   pcb: { ...definitions(["board", "pcb_population"], "Boards", "board record"), create: "item.create" },
   "pcb-disagreement": definitions(["pcb_assertion", "pcb_comparison"], "PCB source reviews", "PCB review"),
   "occurrence-firmware": { ...definitions(["firmware"], "Firmware", "firmware definition"), create: "item.create" },
-  configurations: definitions(["option_set", "configuration"], "Options and configurations", "configuration"),
+  configurations: { ...definitions(["option_set", "configuration"], "Options and configurations", "configuration"), create: "design.edit" },
   "mechanical-sources": definitions(["mechanical_source"], "Mechanical sources", "mechanical source"),
   bom: definitions(["bom_plan"], "BOM plans", "BOM plan"),
   "material-accounting": definitions(["material_plan"], "Material plans", "material plan"),

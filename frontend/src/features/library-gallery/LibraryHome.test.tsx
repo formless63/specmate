@@ -58,7 +58,7 @@ function serve(role = "viewer") {
 function show(role = "viewer", at = "/library") {
   const history = createMemoryHistory({ initialEntries: [at] });
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={cache}><NavigationProvider history={history}><PermissionsProvider permissions={ROLE_PERMISSIONS[role]!}>
+  render(<MantineProvider env="test"><QueryClientProvider client={cache}><NavigationProvider history={history}><PermissionsProvider permissions={ROLE_PERMISSIONS[role]!}>
     <LibraryHome principalKey="7" /></PermissionsProvider></NavigationProvider></QueryClientProvider></MantineProvider>);
   return history;
 }
@@ -194,4 +194,14 @@ test.each([
   fireEvent.click(await screen.findByRole('button', { name: 'New…' }));
   fireEvent.click(await screen.findByRole('menuitem', { name: label }));
   expect(`${history.location.pathname}${history.location.search}`).toBe(expected);
+});
+
+test.each([['Option set','option_set'],['Configuration','configuration']])('Home New %s explicitly opens its own typed form',async(label,kind)=>{
+ serve('editor');const history=show('editor');fireEvent.click(await screen.findByRole('button',{name:'New…'}));fireEvent.click(await screen.findByRole('menuitem',{name:label}));
+ expect(`${history.location.pathname}${history.location.search}`).toBe(`/designs?tool=configurations&kind=${kind}&status=new`);
+});
+test('Home distinguishes contributor option-set creation from configuration editing',async()=>{
+ serve('contributor');show('contributor');fireEvent.click(await screen.findByRole('button',{name:'New…'}));
+ const config=await screen.findByRole('menuitem',{name:'Configuration'}),option=await screen.findByRole('menuitem',{name:'Option set'});
+ expect(config.getAttribute('data-disabled')==='true'||config.hasAttribute('disabled')).toBe(true);expect(option.hasAttribute('disabled')||option.getAttribute('data-disabled')==='true').toBe(false);
 });
