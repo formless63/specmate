@@ -1,5 +1,4 @@
-import { apiErrorMessage } from "../../lib/api-errors";
-import { randomUUID } from '../../lib/random-id';
+import { runOperation } from "../workspace/api";
 
 export type Pin = { revision_id: string; definition_id: string; kind: string; name: string; number: number; snapshot_sha256: string };
 export type DecisionStatus = 'resolved' | 'none' | 'unresolved' | 'invalid';
@@ -105,14 +104,5 @@ export type AdoptionReview = {
 export type AdoptionResult = { draft_id: string; state: string; definition_id: string; adoption_id: string; created_draft: boolean; changes: AdoptionChange[]; propagated: Propagated[] };
 
 export async function operation<T>(name: string, payload: object, submission?: { state?: string | null; key?: string }): Promise<T> {
-  const csrf = document.cookie.split('; ').find((cookie) => cookie.startsWith('csrftoken='))?.split('=')[1];
-  const response = await fetch('/api/v0/operations', {
-    method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(csrf ?? '') },
-    body: JSON.stringify({ operation: name, payload, request_id: randomUUID(),
-      ...(submission?.state ? { expected_state: submission.state } : {}), ...(submission?.key ? { idempotency_key: submission.key } : {}) }),
-  });
-  const body = await response.json();
-  if (!response.ok) throw new Error(apiErrorMessage(body, `Operation failed (${response.status})`));
-  return body.result as T;
+  return runOperation<T>(name,payload,{expectedState:submission?.state??undefined,idempotencyKey:submission?.key}).then(response=>response.result);
 }

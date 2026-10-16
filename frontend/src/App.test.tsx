@@ -356,6 +356,16 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       expect(screen.queryByRole("region", { name: `${view.title} editor` })).toBeNull();
       continue;
     }
+    if (toolId === "configurations") {
+      for (const kind of ['option_set','configuration']) {
+        await act(async () => window.history.pushState(null, '', `/designs?tool=configurations&status=new&kind=${kind}`));
+        const label=kind==='option_set'?'Option set':'Configuration';
+        expect(await screen.findByRole('textbox',{name:`${label} name`})).toBeTruthy();
+        expect(screen.getByRole('button',{name:'Freeze saved draft'})).toHaveProperty('disabled',true);
+        expect(screen.queryByRole('region',{name:`${view.title} editor`})).toBeNull();
+      }
+      continue;
+    }
     if (toolId === "cables") {
       fireEvent.click(screen.getByRole("button", { name: "Designs" }));
       fireEvent.click(await screen.findByRole("button", { name: "New design" }));

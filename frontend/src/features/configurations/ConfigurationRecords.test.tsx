@@ -3,7 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
 import type { BuildInput, ConstraintEvaluation, DraftResolution } from './api';
-import { ConfigurationsPanel } from './ConfigurationsPanel';
+import { configurationConfig } from './ConfigurationRecords';
+import { SecondaryRecordPage } from '../records/SecondaryRecordPage';
+import { QueryClient,QueryClientProvider } from '@tanstack/react-query';
 
 function constraints(finish: string | null): ConstraintEvaluation {
   return {
@@ -52,10 +54,20 @@ function response(value: unknown, status = 200) { return new Response(JSON.strin
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function setup(permissions: string[]) {
+function mountRecord(permissions:string[],creating=false) {
+ const created=vi.fn();render(<MantineProvider env="test"><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><PermissionsProvider permissions={permissions}><SecondaryRecordPage {...configurationConfig('configuration','owner:ws-1','project-a')} active principalKey="owner" workspaceId="ws-1" definitionId={creating?null:'cfg'} revisionNumber={null} draftRequested onBack={()=>{}} onCreated={created} onSelect={()=>{}}/></PermissionsProvider></QueryClientProvider></MantineProvider>);return created;
+}
+function pinRead(url:string,body=resolution(null).configuration){
+ if(url.includes('/record?'))return response({definition_id:'cfg',workspace_id:'ws-1',name:'Synthetic configuration',kind:'configuration',selected:{kind:'draft',draft_id:'cfg-draft',state:body.selections.length?'draft-v2':'draft-v1',content:{configuration:body},base_revision_id:null}});
+ if(url.includes('revision-labels')){const p=new URL(url,'http://synthetic').searchParams;return response({labels:p.getAll('revision_ids').map(revision_id=>({revision_id,readable:true,name:'Synthetic pin',number:1})),source_labels:[]});}
+ if(url.includes('/snapshot'))return response({content:{option_set:{schema_version:'0.1',target_revision_id:null,options:resolution(null).available.map(option=>({...option,key:option.option_key,path:null,choices:option.choices.map(choice=>({...choice,revision_id:null,population_option_id:null,value:choice.key}))})),constraints:[]}}});
+ return null;
+}
+function setup(permissions: string[],creating=false) {
   const bodies: Record<string, any>[] = [];
   let saved: string | null = null;
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    const pinned=pinRead(url);if(pinned)return pinned;
     if (url.includes('/catalog/definitions?')) return response({ workspace_id: 'ws-1', project_id: 'project-a', results: [], next_after: null });
     if (url.includes('/access/projects/project-a')) return response({ project_id: 'project-a', state: 'project-v1' });
     if (url.endsWith('/definitions')) return response([{ definition_id: 'cfg', name: 'Synthetic configuration', kind: 'configuration' }, { definition_id: 'set', name: 'Synthetic options', kind: 'option_set' }]);
@@ -64,21 +76,19 @@ function setup(permissions: string[]) {
     if (url.endsWith('/operations')) {
       const body = JSON.parse(String(init?.body)); bodies.push(body);
       if (body.operation === 'configuration.resolve') return response({ result: resolution(saved) });
-      if (body.operation === 'draft.update') { saved = body.payload.changes.configuration.selections[0]?.choice_key ?? null; return response({ result: {} }); }
+      if (body.operation === 'draft.update') { saved = body.payload.changes.configuration.selections[0]?.choice_key ?? null; return response({ result: {draft_id:'cfg-draft',state:'draft-v2',content:body.payload.changes} }); }
       if (body.operation === 'configuration.capture') return response({ result: { resolved_configuration_id: 'resolved-1' } });
       if (body.operation === 'configuration.build_input') return response({ result: buildInput });
-      if (body.operation === 'definition.create') return response({ result: { definition_id: 'cfg' } });
+      if (body.operation === 'definition.create') return response({ result: {definition_id:'cfg',draft_id:'cfg-draft',state:'draft-v1',content:body.payload.content} });
       if (body.operation === 'project.add_reference') return response({ result: {} });
     }
     throw new Error(`Unexpected request ${url}`);
   }));
-  render(<MantineProvider><PermissionsProvider permissions={permissions}><ConfigurationsPanel projectId="project-a" /></PermissionsProvider></MantineProvider>);
+  mountRecord(permissions,creating);
   return bodies;
 }
 
 async function openDraft() {
-  fireEvent.change(await screen.findByLabelText('Configuration'), { target: { value: 'cfg' } });
-  fireEvent.change(await screen.findByLabelText('Configuration draft'), { target: { value: 'cfg-draft' } });
   await screen.findByText('Default declared by option-set revision 1.');
 }
 
@@ -90,7 +100,7 @@ test('shows explicit decisions, saves selections under CAS and captures a review
   expect(screen.getByText('Option-set default')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Selection for Enclosure finish'), { target: { value: 'paint' } });
   expect((screen.getByRole('button', { name: 'Capture resolved snapshot' }) as HTMLButtonElement).disabled).toBe(true);
-  fireEvent.click(screen.getByRole('button', { name: 'Save selections' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await screen.findByText('Explicitly selected.');
   const update = bodies.find((body) => body.operation === 'draft.update')!;
   expect(update.expected_state).toBe('draft-v1');
@@ -125,24 +135,21 @@ test('shows each constraint outcome with rule and fact reasons; a missing rating
 test('read-only principals review resolutions without mutating controls', async () => {
   const bodies = setup(['workspace.read']);
   await openDraft();
-  expect(screen.queryByLabelText('Selection for Enclosure finish')).toBeNull();
+  expect(screen.getByRole('combobox',{name:'Selection for Enclosure finish'}).getAttribute('aria-readonly')).toBe('true');
   expect(screen.queryByRole('button', { name: 'Capture resolved snapshot' })).toBeNull();
-  expect((screen.getByRole('button', { name: 'Create configuration' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'Save draft' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getAllByText('Read-only access: requires Edit').length).toBeGreaterThan(0);
   expect(bodies.every((body) => body.operation === 'configuration.resolve')).toBe(true);
 });
 
-test('creates a configuration in the workspace library and references it from the project', async () => {
-  const bodies = setup(['workspace.read', 'item.create', 'design.edit']);
-  fireEvent.change(await screen.findByLabelText('Option set'), { target: { value: 'set' } });
-  await screen.findByRole('option', { name: 'Revision 1' });
-  fireEvent.change(screen.getByLabelText('Frozen option-set revision'), { target: { value: 'set-rev' } });
-  fireEvent.change(screen.getByLabelText('Configuration name'), { target: { value: 'Synthetic build' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create configuration' }));
-  await waitFor(() => expect(bodies.some((body) => body.operation === 'project.add_reference')).toBe(true));
-  const created = bodies.find((body) => body.operation === 'definition.create')!;
-  expect(created.payload).toEqual({ workspace_id: 'ws-1', kind: 'configuration', name: 'Synthetic build', content: { configuration: { option_set_revision_id: 'set-rev', selections: [] } } });
-  expect(bodies.find((body) => body.operation === 'project.add_reference')!.payload).toMatchObject({ project_id: 'project-a', kind: 'definition', target_id: 'cfg' });
+test('creates an independent workspace configuration with an exact option-set pin', async () => {
+ const bodies=setup(['workspace.read','item.create','design.edit'],true);
+ fireEvent.change(screen.getByLabelText('Configuration name'),{target:{value:'Synthetic build'}});
+ fireEvent.click(await screen.findByRole('button',{name:'Advanced: paste exact revision ID for Option set'}));
+ fireEvent.change(screen.getByLabelText('Option set exact revision ID'),{target:{value:'set-rev'}});
+ await waitFor(()=>expect((screen.getByRole('button',{name:'Save draft'}) as HTMLButtonElement).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Save draft'}));await screen.findByText('Saved working draft.');
+ expect(bodies.find(body=>body.operation==='definition.create')?.payload).toEqual({workspace_id:'ws-1',kind:'configuration',name:'Synthetic build',content:{configuration:{schema_version:'0.1',option_set_revision_id:'set-rev',selections:[]}}});
+ expect(bodies.some(body=>['draft.freeze','configuration.capture','project.add_reference'].includes(body.operation))).toBe(false);
 });
 
 function invalidSetup(permissions: string[], linked: boolean) {
@@ -159,6 +166,7 @@ function invalidSetup(permissions: string[], linked: boolean) {
   const hidden = { ...link, can_unlink: false, link_id: 'link-2', rule_key: 'sensor-current', observed_outcome: 'unknown', current_outcome: 'unknown', target: { kind: 'mechanical_proposal', readable: false, proposal_draft_id: 'mp-1' } };
   const development = () => ({ constraint_outcome: 'invalid', outcome: proposed ? 'invalid_with_proposal' : 'invalid', links: proposed ? [link, hidden] : [], note: 'Linked proposals never change a rule outcome.' });
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    const pinned=pinRead(url,base.configuration);if(pinned)return pinned;
     if (url.includes('/catalog/definitions?')) return response({ workspace_id: 'ws-1', project_id: 'project-a', results: [], next_after: null });
     if (url.includes('/access/projects/project-a')) return response({ project_id: 'project-a', state: 'project-v1' });
     if (url.endsWith('/definitions')) return response([{ definition_id: 'cfg', name: 'Synthetic configuration', kind: 'configuration' }]);
@@ -175,7 +183,7 @@ function invalidSetup(permissions: string[], linked: boolean) {
     }
     throw new Error(`Unexpected request ${url}`);
   }));
-  render(<MantineProvider><PermissionsProvider permissions={permissions}><ConfigurationsPanel projectId="project-a" /></PermissionsProvider></MantineProvider>);
+  mountRecord(permissions);
   return bodies;
 }
 

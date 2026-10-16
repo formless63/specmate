@@ -2,7 +2,7 @@ import { Alert, Button, Checkbox, Group, Menu, SegmentedControl, Select, Stack, 
 import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { usePermission } from "../../lib/permissions";
+import { usePermission, type PermissionName } from "../../lib/permissions";
 import { ItemCard } from "../../features/library-gallery/ItemCard";
 import { requestNew, useNewRequest } from "../../features/library-gallery/newRequest";
 import { listLibraryTable, type LibraryTableRecord } from "../../features/library-gallery/table-api";
@@ -44,9 +44,9 @@ export function LibrarySections({ toolId }: { toolId: string }) {
 }
 
 /** Typed collection browsing. A project filters rows; it never owns or resets an editor. */
-export function LibraryList({ toolId, projectFilterId, projects, principalKey, onOpenInProject, editor }: {
+export function LibraryList({ toolId, projectFilterId, projects, principalKey, onOpenInProject, editor, createPermission }: {
   toolId: string; projectFilterId: string | null; projects: Project[]; principalKey: string;
-  onOpenInProject: (projectId: string, record: LibraryRecord) => void; editor?: EditorActions;
+  onOpenInProject: (projectId: string, record: LibraryRecord) => void; editor?: EditorActions; createPermission?: PermissionName;
 }) {
   const view = TYPED_LIBRARY_VIEWS[toolId] ?? LIBRARY_VIEWS[toolId]!;
   const cache = useQueryClient();
@@ -60,7 +60,7 @@ export function LibraryList({ toolId, projectFilterId, projects, principalKey, o
   const [selected, setSelected] = useProbeOrLocal();
   const [picked, setPicked] = useState<LibraryTableRecord[]>([]);
   const [comparing, setComparing] = useState(false);
-  const create = usePermission(view.create);
+  const create = usePermission(createPermission ?? view.create);
   const source = usePermission("source.register");
   const itemCreate = usePermission("item.create");
   const projectEdit = usePermission("project.edit");

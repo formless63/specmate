@@ -72,7 +72,7 @@ const ReleasesPanel = lazy(() => import("./features/releases/ReleasesPanel").the
 const FirmwarePanel = lazy(() => import("./features/firmware/FirmwarePanel").then((module) => ({ default: module.FirmwarePanel })));
 const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
 const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/FirmwareImpactPanel").then((module) => ({ default: module.FirmwareImpactPanel })));
-const ConfigurationsPanel = lazy(() => import("./features/configurations/ConfigurationsPanel").then((module) => ({ default: module.ConfigurationsPanel })));
+const ConfigurationLibrary = lazy(() => import("./features/configurations/ConfigurationRecords").then(module => ({ default: module.ConfigurationLibrary })));
 const MechanicalSourcesPanel = lazy(() => import("./features/mechanical-sources/MechanicalSourcesPanel").then((module) => ({ default: module.MechanicalSourcesPanel })));
 const SharedScenePanel = lazy(() => import("./features/shared-scene/SharedScenePanel").then((module) => ({ default: module.SharedScenePanel })));
 const ContextualInspectionWorkspace = lazy(() => import("./features/context-selection/ContextualInspectionWorkspace").then((module) => ({ default: module.ContextualInspectionWorkspace })));
@@ -250,6 +250,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
   if (["preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(toolId) && !["board", "pcb_population"].includes(record?.kind ?? "")) return <EngineeringSecondaryLibrary active={lens.active === toolId} toolId={toolId} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(projectId, item) => onOpenInProject(projectId, toolId, item)} />;
+  if (toolId === "configurations" && record?.kind !== "assembly") return <ConfigurationLibrary active={lens.active === toolId} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(projectId,item)=>onOpenInProject(projectId,toolId,item)} />;
   if (BOARD_RECORD_SECTIONS[toolId] && (!record || ["board", "pcb_population"].includes(record.kind ?? ""))) return <Text role="status">Opening the exact board section…</Text>;
   if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
@@ -326,7 +327,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   switch (toolId) {
     // Firmware definitions are declared here; per-occurrence firmware choices follow.
     case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;
-    case "configurations": return <ConfigurationsPanel projectId={projectId} />;
     case "mechanical-sources": return <MechanicalSourcesPanel workspaceId={workspaceId} />;
     case "bom": return <BomPanel active={active === toolId} projectId={projectId} workspaceId={workspaceId} />;
     case "material-accounting": return <MaterialAccountingPanel active={active === toolId} projectId={projectId} />;

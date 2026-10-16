@@ -2,7 +2,7 @@ import { Stack, Text } from '@mantine/core';
 import { useState } from 'react';
 import { RecordSections } from '../../components/record';
 import { RevisionLabel } from '../../lib/IdentityLabel';
-import { ConfigurationsPanel } from '../configurations/ConfigurationsPanel';
+import { configurationConfig } from '../configurations/ConfigurationRecords';
 import { FirmwarePanel } from '../firmware/FirmwarePanel';
 import { FirmwareOccurrencesPanel } from '../firmware-occurrences/FirmwareOccurrencesPanel';
 import { FirmwareImpactPanel } from '../firmware-impact/FirmwareImpactPanel';
@@ -20,7 +20,7 @@ export function DeviceSections(props: DeviceSectionProps) {
     {props.revisionId && <RevisionLabel id={props.revisionId} role="Open device basis" snapshotId={props.snapshotId ?? undefined} />}
     <Text size="xs">These tools manage separate records with their own exact inputs and editing tokens. Choose the target in each tool; opening a device does not change those records.</Text>
     {props.section === 'interfaces' && <EmbeddedRecords active={props.active} principalKey={props.principalKey} workspaceId={props.workspaceId} choices={[{kind:'interface_map',label:'Interface mapping',config:interfaceConfig('interface_map')},{kind:'interface_assessment',label:'Interface assessment',config:interfaceConfig('interface_assessment')}]}/>}
-    {props.section === 'options' && <ConfigurationsPanel />}
+    {props.section === 'options' && <EmbeddedRecords active={props.active} principalKey={props.principalKey} workspaceId={props.workspaceId} choices={[{kind:'option_set',label:'Option set',config:configurationConfig('option_set',`${props.principalKey}:${props.workspaceId}`)},{kind:'configuration',label:'Configuration',config:configurationConfig('configuration',`${props.principalKey}:${props.workspaceId}`)}]}/>}
     {props.section === 'enclosure' && <MechanicalProposalFields active={props.active} workspaceId={props.workspaceId} principalKey={props.principalKey} />}
     {props.section === 'drawings' && <><Text size="sm">Drawing generation uses an explicitly chosen frozen scene snapshot. Captured draft previews are not frozen drawing inputs.</Text><SceneDrawingFields workspaceId={props.workspaceId} principalKey={props.principalKey} active={props.active} /></>}
     {props.section === 'firmware' && <RecordSections sections={[
