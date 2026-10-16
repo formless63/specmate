@@ -10,6 +10,7 @@ const RecordHistory = lazy(() => import("../../features/history/History").then(m
 export type RecordState = { kind: "new" } | { kind: "draft"; id: string; version: number; dirty: boolean } | { kind: "revision"; id: string; number: number };
 export type RecordSection = { id: string; label: string; content: () => ReactNode };
 export type RecordPageProps = {
+  layout?: 'workbench' | 'section';
   active: boolean;
   identity: { id?: string; name: string; kind: string; pn?: string };
   state: RecordState;
@@ -26,10 +27,10 @@ export type RecordPageProps = {
 };
 
 /** Shared drawing-first record frame. Domain state, authority and writes stay in its controller. */
-export function RecordPage({ active, identity, state, actions, revisions, facts, notice, views, view, onView, inspector: givenInspector, inspectorTab, onInspectorTab }: RecordPageProps) {
+export function RecordPage({ layout = 'workbench', active, identity, state, actions, revisions, facts, notice, views, view, onView, inspector: givenInspector, inspectorTab, onInspectorTab }: RecordPageProps) {
   const historyIdentity = useHistoryIdentity();
   const inspector = historyIdentity && identity.id && !givenInspector.some(section => section.id === "history") ? [...givenInspector, { id: "history", label: "History", content: () => <Suspense fallback={<Text>Reading history…</Text>}><RecordHistory definitionId={identity.id!} active={active && tab === "history" && (!compact || sheet)} /></Suspense> }] : givenInspector;
-  const compact = useMediaQuery("(max-width: 48em)");
+  const phone = useMediaQuery("(max-width: 48em)"), compact = layout !== 'section' && phone;
   const [sheet, setSheet] = useState(false);
   const [ownTab, setOwnTab] = useState(inspector[0]?.id ?? "");
   const requestedTab = inspectorTab ?? ownTab;
@@ -42,7 +43,7 @@ export function RecordPage({ active, identity, state, actions, revisions, facts,
     <Tabs.List aria-label="Record inspector">{inspector.map(section => <Tabs.Tab key={section.id} value={section.id}>{section.label}</Tabs.Tab>)}</Tabs.List>
     {inspector.map(section => <Tabs.Panel value={section.id} key={section.id}><ScrollArea className="record-inspector-scroll" type="auto">{visited.has(section.id) && section.content()}</ScrollArea></Tabs.Panel>)}
   </Tabs>;
-  return <section className="record-page" aria-label={`${identity.name} record`}>
+  return <section className={`record-page${layout === 'section' ? ' record-section-page' : ''}`} aria-label={`${identity.name} record`}>
     <header className="record-head"><div className="record-heading"><Title order={1}>{identity.name}</Title><span className="sb-tag">{identity.kind.replaceAll("_", " ")}</span><SbIdentityBadge kind={state.kind === "revision" ? "frozen" : "draft"}>{label}</SbIdentityBadge>
       {identity.pn !== undefined && <Text size="xs" className="sb-mono" title="Part number">PN {identity.pn}</Text>}</div><Group gap="xs">{compact && <Button className="record-inspector-trigger" aria-haspopup="dialog" variant="quiet" onClick={() => setSheet(true)}>Inspector · {inspector.find(section => section.id === tab)?.label}</Button>}{actions}</Group></header>
     {notice}
@@ -53,7 +54,7 @@ export function RecordPage({ active, identity, state, actions, revisions, facts,
         <Tabs.List aria-label="Record views">{views.map(item => <Tabs.Tab key={item.id} value={item.id}>{item.label}</Tabs.Tab>)}</Tabs.List>
         {views.map(item => <Tabs.Panel key={item.id} value={item.id}>{item.content}</Tabs.Panel>)}
       </Tabs></div>
-      {!compact && <aside className="record-inspector" aria-label="Record inspector panel">{panel}</aside>}
+      {layout === 'section' ? <details className="record-section-details"><summary>Record details</summary>{panel}</details> : !compact && <aside className="record-inspector" aria-label="Record inspector panel">{panel}</aside>}
     </div>
     {compact && <><Drawer opened={active && sheet} onClose={() => setSheet(false)} position="bottom" size="72dvh" title="Record inspector" closeButtonProps={{ "aria-label": "Close record inspector" }} keepMounted transitionProps={{ duration: active ? 200 : 0 }} styles={active ? undefined : { inner: { display: "none" }, overlay: { display: "none" } }}>{panel}</Drawer></>}
   </section>;

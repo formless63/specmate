@@ -14,4 +14,8 @@
 .record-sections summary { cursor:pointer; color:var(--sb-text-primary); }
 .record-section-content { padding-top:10px; min-width:0; }
 .record-inspector-trigger { background:var(--sb-surface-panel); }
+.record-section-page .record-workbench { display:block; }
+.record-section-page .record-heading h1 { font-size:16px; }
+.record-section-details { margin-top:10px; border-top:1px solid var(--sb-border-subtle); padding-top:8px; }
+.record-section-details .record-inspector-scroll { height:280px; }
 @media (max-width:48em) { .record-workbench { display:block; } .record-head { align-items:flex-start; } .record-inspector-scroll { height:calc(72dvh - 110px); } }

@@ -36,3 +36,9 @@ test("compact inspector portals close while a retained record is inactive", asyn
   view.rerender(tree(false)); expect(screen.queryByRole('dialog')).toBeNull();
   const overlay = document.querySelector('.mantine-Drawer-overlay'); if (overlay) expect(getComputedStyle(overlay).display).toBe('none');
 });
+
+test.each([false,true])('embedded section uses one inline disclosure without a nested inspector drawer (phone %s)',async phone=>{
+ vi.stubGlobal('matchMedia',(query:string)=>({matches:phone&&query.includes('max-width'),media:query,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}}));
+ render(<MantineProvider env="test"><RecordPage layout="section" active identity={{name:'Secondary declaration',kind:'interface_map'}} state={{kind:'new'}} views={[{id:'content',label:'Mapping',content:<input aria-label="Own declaration" defaultValue="retained"/>}]} view="content" onView={vi.fn()} inspector={[{id:'identity',label:'Exact identity',content:()=> <p>Independent exact pins</p>}]}/></MantineProvider>);
+ expect(document.querySelector('.record-section-page')).not.toBeNull();expect(screen.queryByRole('button',{name:/Inspector ·/})).toBeNull();expect(screen.queryByRole('dialog')).toBeNull();expect(screen.queryByRole('complementary',{name:'Record inspector panel'})).toBeNull();fireEvent.click(screen.getByText('Record details'));expect(await screen.findByText('Independent exact pins')).toBeTruthy();expect((screen.getByRole('textbox',{name:'Own declaration'}) as HTMLInputElement).value).toBe('retained');
+});
