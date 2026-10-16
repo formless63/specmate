@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
 import { ConnectorRecordPage, type ConnectorRecordProps } from './ConnectorRecordPage';
 import { initialInterface } from './api';
+vi.mock('../parts/RevisionModels', () => ({ RevisionModels: ({ active, revisionId }: { active: boolean; revisionId: string }) => active ? <p>Exact model revision {revisionId}</p> : null }));
 const reply = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} unobserve() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -47,4 +48,13 @@ test('principal replacement clears same-ID unsaved buffer; hidden/reactivated de
   const field = await screen.findByLabelText('Body family (blank = unknown)'); fireEvent.change(field, { target: { value: 'Owner local secret' } });
   rerender({ draftRequested: true, revisionNumber: null, principalKey: 'viewer' }); await waitFor(() => expect((screen.getByLabelText('Body family (blank = unknown)') as HTMLInputElement).value).toBe(''));
   rerender({ active: false, draftRequested: true, revisionNumber: null, principalKey: 'viewer' }); api.deny(true); rerender({ active: true, draftRequested: true, revisionNumber: null, principalKey: 'viewer' }); await screen.findByText('Connector unavailable'); expect(screen.queryByRole('textbox', { name: 'Body family (blank = unknown)' })).toBeNull();
+});
+
+test('body models pin the selected frozen revision for a viewer and release on hide', async () => {
+  const api = server(); const page = mount({}, ['workspace.read']);
+  fireEvent.click(await screen.findByRole('tab', { name: /^Model$/ }));
+  expect(await screen.findByText('Exact model revision r1')).toBeTruthy();
+  page.rerender({ active: false });
+  await waitFor(() => expect(screen.queryByText('Exact model revision r1')).toBeNull());
+  expect(api.calls.some(path => path.includes('/operations'))).toBe(false);
 });

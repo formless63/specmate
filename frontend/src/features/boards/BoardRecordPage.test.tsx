@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
 import { BoardRecordPage } from './BoardRecordPage';
 import { emptyBoard, type Board } from './api';
+vi.mock('../parts/RevisionModels', () => ({ RevisionModels: ({ active, revisionId }: { active: boolean; revisionId: string }) => active ? <p>Exact model revision {revisionId}</p> : null }));
 const grants = ['workspace.read', 'item.create', 'design.edit', 'design.freeze'];
 const board = (label = 'Historic contact'): Board => ({ ...emptyBoard(), terminals: [{ terminal_id: 'stable-id', label, kind: 'solder_pad', group: null, side: 'top', native_pad_ids: [], note: null }] });
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
@@ -51,4 +52,12 @@ test('New board edits one dedicated drawing buffer and Save carries stable termi
 test('viewer can inspect historic pads but has no creation, continuation, save or freeze actions', async () => {
   const api = server(); setup({}, ['workspace.read']); const drawing = await screen.findByRole('group', { name: 'Synthetic board drawing' }); fireEvent.click(within(drawing).getByRole('button', { name: 'Pad Historic contact' }));
   expect(screen.queryByRole('button', { name: 'Duplicate' })).toBeNull(); expect(screen.queryByRole('button', { name: 'Continue draft' })).toBeNull(); expect(screen.queryByRole('button', { name: 'Save board' })).toBeNull(); expect(screen.queryByRole('button', { name: 'Draw path' })).toBeNull(); expect(screen.getByLabelText('Pad label').matches(':disabled')).toBe(true); expect(api.posts).toHaveLength(0);
+});
+
+test('frozen board models pin the selected historic revision and withdraw when record becomes inactive', async () => {
+  server(); const page = setup({}, ['workspace.read']);
+  fireEvent.click(await screen.findByRole('tab', { name: /^Model$/ }));
+  expect(await screen.findByText('Exact model revision r1')).toBeTruthy();
+  page.rerender(page.tree({ active: false }));
+  await waitFor(() => expect(screen.queryByText('Exact model revision r1')).toBeNull());
 });

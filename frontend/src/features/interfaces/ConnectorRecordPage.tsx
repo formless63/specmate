@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Alert, Button, Group, MantineThemeProvider, Select, Stack, Table, Text, TextInput } from '@mantine/core';
 import { DefinitionPickerScope } from '../../components/library/DefinitionSelect';
 import { RecordPage, type RecordState } from '../../components/record';
@@ -18,6 +18,7 @@ import type { ConnectorKind, ConnectorValue, Relation } from './connector-api';
 import type { Inspection, Pinout, Port } from './api';
 import type { EndAssembly } from '../end-assemblies/api';
 import './connector-record.css';
+const RevisionModels = lazy(() => import('../parts/RevisionModels').then(module => ({ default: module.RevisionModels })));
 
 export type ConnectorRecordProps = ConnectorSessionProps & {
   projects: Project[]; onBack: () => void; onOpen: (relation: Relation) => void;
@@ -51,6 +52,7 @@ function ConnectorRecordSession(props: ConnectorRecordProps) {
     : value?.kind === 'port' ? <PermissionsProvider permissions={permitted ? undefined : []}><InspectionScope permission="design.edit"><fieldset disabled={session.busy} style={{ border: 0, padding: 0, minWidth: 0 }}><PortEditor value={value} onChange={change} mode={mode} /></fieldset></InspectionScope></PermissionsProvider>
     : value?.kind === 'end_assembly' ? <><StackDiagram label="Saved end stack" layers={value.stack.layers.map(layer => ({ kind: layer.kind, name: layer.layer_id }))} />{session.frozen?.end_stack && <StackView resolved={session.frozen.end_stack} label="Saved end stack" />}<Text>{value.description || 'Description unknown'}</Text><Text size="sm">Continuity is not evaluated.</Text></> : null;
   const views = [{ id: 'body', label: value?.kind === 'pinout' ? 'Pinout' : value?.kind === 'port' ? 'Device port' : value?.kind === 'end_assembly' ? 'End stack' : 'Body', content: <div className="connector-record-drawing">{draw}</div> }];
+  if (value?.kind === 'connector_body' && revisionId) views.push({ id: 'model', label: 'Model', content: <Suspense fallback={<Text>Loading model view…</Text>}><RevisionModels active={props.active && session.ready && view === 'model'} revisionId={revisionId} principalKey={props.principalKey} workspaceId={props.workspaceId} onAccessLost={() => void session.refresh()} /></Suspense> });
   if (value?.kind === 'connector_body') for (const [kind, label] of [['pinout', 'Pinouts'], ['port', 'Device ports'], ['end_assembly', 'Saved end stacks']] as const) views.push({ id: kind, label, content: revisionId ? <Stack>{kind === 'pinout' && create.allowed && <Button onClick={() => props.onNew('pinout', { ...blankConnector('pinout') as Pinout, body_revision_id: revisionId }, `${session.name} pinout`)}>New pinout variant from body r{session.number}</Button>}<ConnectorRelations key={`${revisionId}:${kind}`} active={props.active && session.ready && view === kind} bodyRevisionId={revisionId} kind={kind} onOpen={props.onOpen} onAccessLost={() => { void session.refresh(); }} onNewPort={row => newPort(row.revision_id, row.name)} onNewStack={row => newStack(row.revision_id, row.body_revision_ids[0] ?? '', row.name)} /></Stack> : <Text>Freeze the body to create and browse exact related records.</Text> });
   return <MantineThemeProvider theme={{ components: { Select: Select.extend({ defaultProps: { comboboxProps: { withinPortal: false } } }) } }}><DefinitionPickerScope.Provider value={{ key: `${props.principalKey}:${props.workspaceId}`, active: props.active && session.ready }}>
     {session.needsDraftChoice && <Stack><Alert title="Choose a connector draft">Several editable drafts exist. Choose an exact draft; their catalog order does not identify the newest.</Alert><Select label="Connector draft" value={null} onChange={id => id && session.chooseDraft(id)} data={session.draftChoices.map(draft => ({ value: draft.draft_id, label: `${draft.state} · ${draft.draft_id}` }))} /><Group><Button variant="quiet" disabled={session.draftOffset === 0} onClick={() => { void session.loadDraftChoices(Math.max(0, session.draftOffset - 50)); }}>Previous connector drafts</Button><Button variant="quiet" disabled={session.draftChoices.length < 50} onClick={() => { void session.loadDraftChoices(session.draftOffset + 50); }}>More connector drafts</Button><Button variant="quiet" onClick={props.onBack}>Back to list</Button></Group></Stack>}
