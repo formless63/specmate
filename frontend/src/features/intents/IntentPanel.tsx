@@ -74,6 +74,14 @@ export function IntentEditor({ value, onChange, definitions, permission = "desig
   </Stack>;
 }
 
+/** Review known exact ends inside a recipe without repeating their pickers. */
+export function IntentReview({ value, onChange }: { value: CableIntent; onChange?: (value: CableIntent) => void }) {
+  const from = useEnd(value.from_revision_id), to = useEnd(value.to_revision_id);
+  if (from.isError || to.isError) return <Alert color="red">Connection requirements are unavailable.</Alert>;
+  if (!from.data || !to.data) return <Text role="status">Reading exact device ports…</Text>;
+  return <IntentBench value={value} onChange={onChange} from={from.data} to={to.data} />;
+}
+
 /** Discrete meter cells over the drawing: rows, open questions (freeze gate), must-not-connect. */
 function MeterCells({ wiring, rows, extra }: { wiring: Wiring; rows: IntentRow[]; extra?: ReactNode }) {
   const answered = rows.filter((r) => r.pairing === "answered").length;

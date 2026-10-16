@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Drawer, Group, Menu, Popover, SegmentedControl, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Badge, Button, Drawer, Group, Popover, SegmentedControl, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -8,7 +8,7 @@ import { loadPreview } from "../library-gallery/api";
 import { ItemThumb } from "../library-gallery/thumbs";
 import { useNavigation } from "../navigation";
 import { ApiError, type LibraryRecord, type Project } from "../workspace/api";
-import { listDesigns, type DesignEnd, type DesignKind, type DesignRow } from "./api";
+import { listDesigns, type DesignEnd, type DesignRow } from "./api";
 import "./designs.css";
 
 const KIND_NAMES: Record<string, string> = { cable: "Cable", harness: "Harness", assembly: "Device" };
@@ -33,7 +33,7 @@ export function DesignList({ principalKey, projectFilterId, projects, onOpen, on
   projectFilterId: string | null;
   projects: Project[];
   onOpen: (record: LibraryRecord) => void;
-  onCreate: (kind: DesignKind) => void;
+  onCreate: () => void;
   active?: boolean;
   onAccessLost?: () => void | Promise<void>;
 }) {
@@ -78,9 +78,7 @@ export function DesignList({ principalKey, projectFilterId, projects, onOpen, on
         <SegmentedControl size="xs" aria-label="Design list layout" value={layout}
           data={[{ value: "table", label: "Table" }, { value: "gallery", label: "Gallery" }]}
           onChange={(value) => setFilter("layout", value === "table" ? null : value)} />
-        <Menu position="bottom-end"><Menu.Target><Button size="xs" variant="commit" {...create.props}>New design</Button></Menu.Target>
-          <Menu.Dropdown>{(["cable", "harness", "assembly"] as DesignKind[]).map((kind) => <Menu.Item key={kind} onClick={() => onCreate(kind)}>{KIND_NAMES[kind]}</Menu.Item>)}</Menu.Dropdown>
-        </Menu>
+        <Button size="xs" variant="commit" {...create.props} onClick={() => onCreate()}>New design</Button>
       </Group>
     </Group>
     <div className="design-toolbar" role="search" aria-label="Filter designs">

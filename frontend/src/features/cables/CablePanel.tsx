@@ -258,11 +258,11 @@ export function useCableSources(value: Cable, workspaceId: string | null | undef
 }
 
 /** The whole-cable fields: stock, intent, connector family filter, lengths and review. */
-export function CableFields({ value, onChange, definitions, sources, errors = {}, showReview = true }: { showReview?: boolean; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; sources: Sources; errors?: Record<string, string> }) {
+export function CableFields({ value, onChange, definitions, sources, errors = {}, showReview = true, showSelections = true }: { showSelections?: boolean; showReview?: boolean; value: Cable; onChange: (value: Cable) => void; definitions?: Definition[]; sources: Sources; errors?: Record<string, string> }) {
   const setStock = useCallback((stock_revision_id: string) => onChange({ ...value, stock_revision_id }), [onChange, value]);
   const { stock, denied, choices, families, family, familyFromPreference, chooseFamily } = sources;
   return <Stack gap="sm">
-    <Stack gap="xs" aria-label="Stock">
+    {showSelections && <><Stack gap="xs" aria-label="Stock">
       <Title order={4}>Stock</Title>
       <Text size="sm" c="dimmed">The wire material this cable is cut from.</Text>
       <RevisionPicker error={errors["cable.stock_revision_id"]} label="Stock" title="Stock" kind="wire_stock" value={value.stock_revision_id} onChange={setStock} definitions={definitions} />
@@ -273,7 +273,7 @@ export function CableFields({ value, onChange, definitions, sources, errors = {}
       <Text size="sm" c="dimmed">What this cable must connect, if stated. Checking the cable against it comes later; it never passes by itself.</Text>
       <RevisionPicker label="Intent" title="Cable intent (optional)" kind="cable_intent" value={value.intent_revision_id ?? ''} onChange={intent => onChange({ ...value, intent_revision_id: intent || null })} definitions={definitions} />
     </Stack>
-    {families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={chooseFamily} />
+    </>}{families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={chooseFamily} />
       {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => chooseFamily(null)} />}</Group>}
     {!denied && <LengthsEditor value={value.lengths} onChange={lengths => onChange({ ...value, lengths })} choices={choices} endpoints={value.endpoints.map(e => e.local_id)} />}
     {showReview && <Stack gap="xs" aria-label="Review">
@@ -298,7 +298,7 @@ const HIDDEN_LABEL = { position: 'absolute', width: 1, height: 1, overflow: 'hid
 const DEFAULT_NOTE = 'Declared in the cable editor';
 const letter = (index: number) => String.fromCharCode(65 + index);
 const STOCK_ENDS = [{ value: 'unknown', label: 'Stock end unknown' }, { value: 'a', label: 'Stock end A' }, { value: 'b', label: 'Stock end B' }];
-export function EndCard({ index, value, onChange, errors, family, definitions, choices, denied, resolved }: { index: number; value: Cable; onChange: (value: Cable) => void; errors: Record<string, string>; family: string | null; definitions: Definition[]; choices: Choice[]; denied: boolean; resolved: UseQueryResult<ResolvedStack> }) {
+export function EndCard({ index, value, onChange, errors, family, definitions, choices, denied, resolved }: { index: number; value: Cable; onChange: (value: Cable) => void; errors: Record<string, string>; family: string | null; definitions?: Definition[]; choices: Choice[]; denied: boolean; resolved: UseQueryResult<ResolvedStack> }) {
   const endpoint = value.endpoints[index]!;
   const [showId, setShowId] = useState(false);
   const [showLayers, setShowLayers] = useState(false);

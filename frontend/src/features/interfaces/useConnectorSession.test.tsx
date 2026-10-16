@@ -20,7 +20,7 @@ function server() {
       if (invalid) return reply({ error: { message: 'Invalid local contacts' } }, 422);
       version += 1;
       const draft = { draft_id: 'd1', state: `draft-v${version}`, content: { interface: command.payload.interface ?? initialInterface('connector_body') } };
-      return reply({ result: command.operation === 'interface.freeze' ? { number: 78, draft } : draft });
+      return reply({ result: command.operation === 'interface.freeze' ? { revision_id: 'r78-returned', number: 78, draft } : draft });
     }
     throw new Error(`Unexpected read ${path}`);
   }));
@@ -67,4 +67,14 @@ test('multiple editable drafts require an explicit exact choice instead of catal
   const api = server(); api.multiple(); const { result } = mount();
   await waitFor(() => expect(result.current.needsDraftChoice).toBe(true)); expect(result.current.ready).toBe(false); expect(api.calls.some(path => path.includes('/interfaces/drafts/'))).toBe(false);
   act(() => result.current.chooseDraft('d1')); await waitFor(() => expect(result.current.ready).toBe(true)); expect(api.calls.filter(path => path.includes('/interfaces/drafts/'))).toEqual(['/api/v0/interfaces/drafts/d1']);
+});
+
+
+test('creation caller receives only the exact returned frozen revision, never latest catalog state', async () => {
+  server(); const onFrozen = vi.fn(); const { result } = mount({ onFrozen }); await waitFor(() => expect(result.current.ready).toBe(true));
+  await act(() => result.current.freeze()); expect(onFrozen).toHaveBeenCalledWith({ definition_id: 'body', revision_id: 'r78-returned', number: 78, kind: 'connector_body', name: 'Synthetic body' });
+});
+test.each([{ active: false }, { principalKey: 'viewer' }])('held freeze cannot return a pick after scope/visibility change %j', async changes => {
+  const api = server(); const onFrozen = vi.fn(); const { result, rerender, props } = mount({ onFrozen }); await waitFor(() => expect(result.current.ready).toBe(true));
+  const release = api.hold(); let pending: Promise<void>; act(() => { pending = result.current.freeze(); }); rerender({ ...props, ...changes }); await act(async () => { release(); await pending!; }); expect(onFrozen).not.toHaveBeenCalled();
 });

@@ -5,7 +5,7 @@ import type { SpotlightActionGroupData } from "@mantine/spotlight";
 import { Component, Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { DesignList } from "./features/designs/DesignList";
+import { DesignHome } from "./features/designs/DesignHome";
 import { BOARD_RECORD_SECTIONS } from "./features/navigation/url";
 import { useNavigation } from "./features/navigation";
 import { toolForKind, toolForReference } from "./features/shell/scope";
@@ -60,6 +60,8 @@ const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/Physical
 const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
 const HistoryPage = lazy(() => import("./features/history/History").then(module => ({ default: module.HistoryPage })));
 const CableRecordHost = lazy(() => import("./features/cables/CableRecordEditor").then(module => ({ default: module.CableRecordHost })));
+const NewCable = lazy(() => import("./features/designs/NewCable").then(module => ({ default: module.NewCable })));
+const NewDesign = lazy(() => import("./features/designs/NewDesign").then(module => ({ default: module.NewDesign })));
 const CablePanel = lazy(() => import("./features/cables/CablePanel").then((module) => ({ default: module.CablePanel })));
 const MatchingWorkspace = lazy(() => import("./features/catalog-matching/MatchingWorkspace").then((module) => ({ default: module.MatchingWorkspace })));
 const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/CatalogPacksWorkspace").then((module) => ({ default: module.CatalogPacksWorkspace })));
@@ -191,9 +193,11 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
       activeTool={active} onToolChange={setActive} onAreaChange={tool => navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, project: null, probe: null })} chrome={chrome} extraActions={scopeActions} itemSearchKey={scope.principalKey}
       statusIndicator={scope.projectId ? <StatusIndicator workspaceId={scope.workspaceId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} /> : undefined}>
       <Fragment key={scopeKey}><RecordFocusContext.Provider value={activeFocus}>
-        <ToolPanel value="designs">{tools.has("designs") && (url.probe ? <Text role="status">{selected.isError ? "This design is not available." : "Opening design…"}</Text> : <DesignList onAccessLost={scope.refresh} active={active === "designs"} principalKey={scope.principalKey} projectFilterId={navigation?.location.project ?? null} projects={scope.projects}
+        <ToolPanel value="designs">{tools.has("designs") && (url.probe ? <Text role="status">{selected.isError ? "This design is not available." : "Opening design…"}</Text> : <DesignHome workspaceId={scope.workspaceId} onAccessLost={scope.refresh} active={active === "designs"} principalKey={scope.principalKey} projectFilterId={navigation?.location.project ?? null} projects={scope.projects}
           onOpen={record => navigation?.navigate({ area: "designs", lens: toolForKind(record.kind), project: null, probe: { object: record.record_id, rev: null, path: [] } })}
-          onCreate={openCreate} />)}</ToolPanel>
+          onCreate={() => navigation?.navigate({ area: "designs", lens: "new-design", project: null, probe: null, filters: {} })} />)}</ToolPanel>
+        <ToolPanel value="new-design">{tools.has("new-design") && <NewDesign onCreate={openCreate} />}</ToolPanel>
+        <ToolPanel value="intents">{tools.has("intents") && <LibraryTool toolId="intents" toolLabel="Recipe record" record={selected.isError ? undefined : selected.data} scope={scope} onOpenInProject={openInProject} lens={{ scope, projectId: null, active, setActive, onStatusChanged: () => {}, upgradeProposalId, setUpgradeProposalId }} />}</ToolPanel>
         <ToolPanel value="history">{tools.has("history") && <HistoryPage active={active === "history"} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />}</ToolPanel>
         {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
         {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
@@ -234,6 +238,7 @@ function FocusNote({ focus, onDismiss }: { focus: RecordFocus; onDismiss: () => 
 /** A lens at Library scope: the project list, workspace access, the lens's library, or an inline project chooser. */
 function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }: { record?: LibraryRecord; toolId: string; toolLabel: string; scope: WorkspaceScope; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void; lens: LensContext }) {
   const navigation = useNavigation();
+  if (toolId === "new-cable") return <NewCable active={lens.active === toolId} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />;
   if (toolId.startsWith("new-")) return <ProbeProvider probe={null} onProbe={() => {}}><LensEditor toolId={{ "new-cable": "cables", "new-harness": "harnesses", "new-assembly": "assemblies" }[toolId] ?? "cables"} scope={scope} projectId={null} active={lens.active} /></ProbeProvider>;
   if (toolId === "overview" && scope.project && scope.projectId) return <ProjectOverview key={scope.projectId} projectId={scope.projectId} projectName={scope.project.name} workspaceId={scope.workspaceId} permissions={scope.permissions} role={scope.role} active={lens.active === "overview"} onOpenTool={tool => { if (tool === "wire-stock") navigation?.navigate({ area: "library", lens: tool, project: null, probe: null, filters: { status: "new" } }); else lens.setActive(tool); }} onOpenReference={ref => {
     const tool = toolForReference(ref.kind, ref.item_kind);

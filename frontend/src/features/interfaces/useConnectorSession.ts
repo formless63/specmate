@@ -10,7 +10,7 @@ const revisionPageOffset = (number: number) => Math.floor((number - 1) / 50) * 5
 export function blankConnector(kind: ConnectorKind): ConnectorValue {
   return kind === 'end_assembly' ? { kind, description: null, stack: { layers: [], joins: [] }, review: 'unreviewed', review_basis: null } : initialInterface(kind) as ConnectorValue;
 }
-export function connectorReferences(value: ConnectorValue): string {
+export function connectorReferences(value: unknown): string {
   const refs: string[] = [];
   function visit(item: unknown) { if (item && typeof item === 'object') for (const [key, field] of Object.entries(item)) { if (key.endsWith('_revision_id') && typeof field === 'string') refs.push(`${key}:${field}`); else visit(field); } }
   visit(value); return refs.sort().join('|');
@@ -18,6 +18,7 @@ export function connectorReferences(value: ConnectorValue): string {
 export type ConnectorSessionProps = {
   definitionId: string | null; revisionNumber: number | null; draftRequested: boolean; active: boolean; workspaceId: string; principalKey: string;
   initial?: { kind: ConnectorKind; value?: ConnectorValue; name?: string }; onAccessLost?: () => void;
+  onFrozen?: (value: { definition_id: string; revision_id: string; number: number; kind: ConnectorKind; name: string }) => void;
   onSelect: (number: number | null, draft: boolean) => void; onCreated: (id: string, open: boolean) => void;
 };
 export function useConnectorSession(props: ConnectorSessionProps) {
@@ -126,10 +127,14 @@ export function useConnectorSession(props: ConnectorSessionProps) {
     setBusy(true); setError('');
     const payload = { draft_id: base.draft_id };
     try {
-      const result = await connectorCommand<{ number: number; draft: ConnectorDraft }>('interface.freeze', payload, base.state, key('interface.freeze', payload, base.state));
+      const result = await connectorCommand<{ revision_id: string; number: number; draft: ConnectorDraft }>('interface.freeze', payload, base.state, key('interface.freeze', payload, base.state));
       if (!safe(epoch)) return;
       setBase(previous => ({ ...previous!, ...result.draft })); setNotice(`Frozen r${result.number}.`);
-      if (active && latest.current.signature === selected) props.onSelect(result.number, false);
+      if (active && latest.current.signature === selected) {
+        const id = definitionId ?? base.definition_id;
+        if (id && result.revision_id) props.onFrozen?.({ definition_id: id, revision_id: result.revision_id, number: result.number, kind: buffer.kind, name });
+        props.onSelect(result.number, false);
+      }
     } catch (failure) { if (safe(epoch)) withdraw(failure, failure instanceof ApiError && [401, 403, 404].includes(failure.status)); }
     finally { if (safe(epoch)) setBusy(false); }
   }

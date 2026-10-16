@@ -78,13 +78,13 @@ test("viewer can inspect a selected row and open it but cannot create", async ()
   expect(open).toHaveBeenCalledWith(row);
 });
 
-test("new design offers each existing design kind without creating anything on selection of the menu", async () => {
+test("new design opens the chooser without creating engineering state", async () => {
   const { create } = show();
   await screen.findByRole("button", { name: "Bench lead" });
   fireEvent.click(screen.getByRole("button", { name: "New design" }));
-  expect(create).not.toHaveBeenCalled();
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Harness" }));
-  expect(create).toHaveBeenCalledWith("harness");
+  expect(create).toHaveBeenCalledOnce();
+  expect(create).toHaveBeenCalledWith();
+  expect(vi.mocked(fetch).mock.calls.filter(([,init]) => init?.method === "POST").map(([,init]) => JSON.parse(String(init!.body)).operation)).toEqual(["library.previews"]);
 });
 
 

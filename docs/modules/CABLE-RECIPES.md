@@ -25,3 +25,28 @@ are decoded; no whole-library content scan or per-row inspection loop is used. T
 are no hidden totals. Cursors bind actor, workspace, exact ordered selected port pair
 and time anchor, expire after one day, and obtain fresh closure authority on every page.
 Newer freezes after the anchor do not move an in-progress page to another revision.
+
+## Optional recipe authoring
+
+New design offers cable, harness, device, board and printed-part forms. Cable starts
+include a blank/freeform form and an optional two-device-port recipe. Opening a form,
+changing picks, or reading proposals does not create a cable. Device ports and pinout
+variants remain distinct exact records.
+
+The recipe bar uses bounded Library pickers for exact ports, end stacks and stock.
+New port/stack side sheets retain partial local forms when closed; only an explicitly
+successful freeze returns its exact revision to the caller. Saving a draft alone does
+not select an invented revision. Principal/workspace replacement clears private forms;
+inactive sheets hide their portals immediately.
+
+Connection requirements are reviewed before freezing a separate recipe record. The
+returned exact intent revision drives the wiring proposal. Apply is deliberate: existing
+manual landings and reasons remain unless checked replacements have explicit reasons.
+Stock-only re-proposal preserves endpoint identities, labels, stock ends and unrelated
+length fields. New cable edits made while a proposal is pending withdraw Apply until a
+new proposal is requested. Saving the cable is a separate explicit operation.
+
+Designs also offers a bounded Development needs view. Need records have no invented
+accept/decline state; enclosure proposal decisions use their existing purpose-specific
+workflow. Exact recipe record links remain available for inspection, including historic
+revision and occurrence paths; the former standalone Cable intents navigation is hidden.

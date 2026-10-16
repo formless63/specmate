@@ -109,8 +109,8 @@ test("selecting a card opens its canonical record route with the item probed", a
   const history = show();
   const attention = await screen.findByRole("list", { name: "Items needing attention" });
   fireEvent.click(within(attention).getByRole("button", { name: /Open Console to monitor/ }));
-  expect(history.location.pathname).toBe("/designs/new/i1");
-  expect(history.location.search).toBe("?tool=intents");
+  expect(history.location.pathname).toBe("/designs/recipes/i1");
+  expect(history.location.search).toBe("");
   fireEvent.click(within(attention).getByRole("button", { name: /Open Swapped lead/ }));
   expect(`${history.location.pathname}${history.location.search}`).toBe("/designs/c1");
 });

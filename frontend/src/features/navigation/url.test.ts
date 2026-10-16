@@ -23,7 +23,7 @@ const redirects: [string, string, string][] = [
   ["library", "identity", "/library/parts"], ["library", "wire-stock", "/library/wire-stocks"],
   ["library", "catalog-packs", "/extensions/packs"], ["library", "signals", "/library/vocabulary"],
   ["library", "conventions", "/library/vocabulary/conventions"], ["library", "workshop-profiles", "/library/vocabulary/workshop-profiles"],
-  ["library", "ports", "/library/connectors?tool=ports"], ["library", "intents", "/designs/new?kind=cable"],
+  ["library", "ports", "/library/connectors?tool=ports"], ["library", "intents", "/designs/new?kind=cable&start=ports"],
   ["design", "cables", "/designs"], ["design", "harnesses", "/designs"],
   ["design", "assemblies", "/designs"], ["design", "interfaces", "/library/connectors"],
   ["design", "pcb", "/library/boards"], ["sources", "builds", "/jobs/builds"],
@@ -123,4 +123,16 @@ test.each([['copper', 'more'], ['passive-passages', 'more'], ['pcb-disagreement'
 test('board inspector section and exact intake survive canonical reload', () => {
   expect(formatLocation(parseLocation('/library/boards/b1@2', '?section=more'))).toBe('/library/boards/b1@2?section=more');
   expect(formatLocation(parseLocation('/library/boards', '?view=intake&intake=source-intake'))).toBe('/library/boards?view=intake&intake=source-intake');
+});
+
+test("new chooser is internal and exact Recipe record links keep their pins and paths", () => {
+  expect(parseLocation("/designs/new", "").lens).toBe("new-design");
+  expect(formatLocation({ ...HOME, lens: "new-design" })).toBe("/designs/new");
+  expect(AREAS.flatMap(area => area.tools).map(tool => tool.id)).not.toContain("new-design");
+  expect(AREAS.flatMap(area => area.tools).map(tool => tool.id)).not.toContain("intents");
+  const legacy = parseLocation("/design/i1@4/~/end_a/contacts/1", "?lens=intents");
+  expect(legacy.probe).toEqual({ object: "i1", rev: 4, path: ["end_a", "contacts", "1"] });
+  expect(formatLocation(legacy)).toBe("/designs/recipes/i1@4/~/end_a/contacts/1");
+  expect(parseLocation("/designs/recipes/i1@4/~/end_a/contacts/1", "")).toEqual(legacy);
+  expect(parseLocation("/designs/new", "?kind=cable&start=ports").filters).toEqual({kind: "cable", start: "ports"});
 });

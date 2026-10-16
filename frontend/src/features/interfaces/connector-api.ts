@@ -16,7 +16,7 @@ export const readConnectorRelations = (id: string, after: string | null = null, 
 export const connectorCommand = <T,>(operation: string, payload: unknown, state: string | undefined, key: string) => runOperation<T>(operation, payload, { expectedState: state, idempotencyKey: key }).then(result => result.result);
 
 /** Only currently selected exact references are read, never rows of a collection. */
-export async function authorizeConnectorReferences(value: ConnectorValue) {
+export async function authorizeConnectorReferences(value: unknown) {
   const revisions = new Set<string>(), sources = new Set<string>();
   function visit(item: unknown) {
     if (!item || typeof item !== 'object') return;

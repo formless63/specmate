@@ -27,7 +27,7 @@ export type WorkspaceLocation = {
 
 /** Canonical homes for the existing tools while record editors are migrated. */
 export const TOOL_PATHS: Record<string, string> = {
-  "new-cable": "/designs/new", "new-harness": "/designs/new", "new-assembly": "/designs/new", designs: "/designs", cables: "/designs", harnesses: "/designs", assemblies: "/designs", intents: "/designs/new",
+  "new-design": "/designs/new", "new-cable": "/designs/new", "new-harness": "/designs/new", "new-assembly": "/designs/new", designs: "/designs", cables: "/designs", harnesses: "/designs", assemblies: "/designs", intents: "/designs/recipes",
   "library-home": "/library", interfaces: "/library/connectors", ports: "/library/connectors", "end-assemblies": "/library/connectors",
   pcb: "/library/boards", "pcb-disagreement": "/library/boards", copper: "/library/boards", "passive-passages": "/library/boards", sources: "/library", "mechanical-sources": "/library",
   "wire-stock": "/library/wire-stocks", preparation: "/library/wire-stocks", "end-preparation": "/library/wire-stocks",
@@ -42,15 +42,15 @@ export const TOOL_PATHS: Record<string, string> = {
   access: "/settings/people", preferences: "/settings/preferences", diagnostics: "/settings/system",
 };
 const HOME_TOOLS: Record<string, string> = Object.fromEntries(Object.entries(TOOL_PATHS).reverse().map(([tool, path]) => [path, tool]));
-Object.assign(HOME_TOOLS, { "/designs": "designs", "/designs/new": "intents", "/library": "library-home", "/library/connectors": "interfaces", "/library/boards": "pcb", "/library/wire-stocks": "wire-stock" });
+Object.assign(HOME_TOOLS, { "/designs": "designs", "/designs/new": "new-design", "/library": "library-home", "/library/connectors": "interfaces", "/library/boards": "pcb", "/library/wire-stocks": "wire-stock" });
 const LEGACY_AREAS = new Set(["project", "design", "sources", "inventory", "evidence"]);
 const LEGACY_DEFAULTS: Record<string,string> = { project: "overview", design: "assemblies", sources: "sources", inventory: "inventory", evidence: "facts", make: "bom", library: "library-home" };
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const BOARD_RECORD_SECTIONS: Record<string, string> = { copper: "more", "passive-passages": "more", "pcb-disagreement": "source-review" };
-const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake"];
+const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake", "start"];
 export const HOME: WorkspaceLocation = { area: "designs", lens: DEFAULT_TOOL, project: null, probe: null, malformed: false };
 function decode(segment: string): string | null { try { return decodeURIComponent(segment); } catch { return null; } }
-function knownTool(tool: string | null): tool is string { return !!tool && AREAS.some(area => area.tools.some(item => item.id === tool)); }
+function knownTool(tool: string | null): tool is string { return !!tool && (["new-design", "intents"].includes(tool) || AREAS.some(area => area.tools.some(item => item.id === tool))); }
 function parseProbe(head: string, rest: string[]): ProbeTarget | null {
   const at = head.lastIndexOf("@");
   const object = at < 0 ? head : head.slice(0, at);
@@ -95,7 +95,7 @@ export function parseLocation(pathname: string, search: string): WorkspaceLocati
   }
   if (legacy && !probe && ["cables", "harnesses", "assemblies"].includes(lens)) lens = "designs";
   if (!probe && ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(lens)) lens = "designs";
-  if (legacy && lens === "intents" && !probe) { lens = "new-cable"; filters.kind = "cable"; }
+  if (legacy && lens === "intents" && !probe) { lens = "new-cable"; filters.kind = "cable"; filters.start = "ports"; }
   if (!probe && BOARD_RECORD_SECTIONS[lens]) { filters.section = BOARD_RECORD_SECTIONS[lens]!; lens = "pcb"; }
   if (lens === "discovery") filters.palette = "open";
   return { area: areaOfTool(lens).id, lens, project, probe, malformed, ...(Object.keys(filters).length ? { filters } : {}) };
@@ -106,11 +106,10 @@ export function formatLocation(location: Omit<WorkspaceLocation, "malformed">): 
   const params = new URLSearchParams();
   const designEditor = ["cables", "harnesses", "assemblies"].includes(location.lens);
   if (location.probe && designEditor) path = "/designs";
-  const creating = location.lens.startsWith("new-");
+  const creating = ["new-cable", "new-harness", "new-assembly"].includes(location.lens);
   const defaultTool = HOME_TOOLS[path];
   if (location.lens !== defaultTool && !(designEditor && location.probe) && !creating) params.set("tool", location.lens);
   if (creating) params.set("kind", location.lens.slice(4));
-  if (location.lens === "intents") params.set("tool", "intents");
   if (["overview", "knowledge"].includes(location.lens) && location.project) {
     path = `/projects/${encodeURIComponent(location.project)}${location.lens === "knowledge" ? "/notes" : ""}`;
   } else if (location.project) params.set("project", location.project);

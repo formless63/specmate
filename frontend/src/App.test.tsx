@@ -318,7 +318,7 @@ test.each([
 });
 
 const libraryFamilies = [
-  ["designs", ["cables", "harnesses", "assemblies", "intents", "end-assemblies", "configurations"]],
+  ["designs", ["cables", "harnesses", "assemblies", "end-assemblies", "configurations"]],
   ["electrical", ["signals", "ports", "conventions", "interfaces", "passive-passages", "pcb", "pcb-disagreement"]],
   ["parts and sources", ["identity", "wire-stock", "workshop-profiles", "occurrence-firmware", "mechanical-sources", "sources", "facts"]],
   ["making", ["bom", "material-accounting", "preparation", "end-preparation", "inventory", "physical-units"]],
@@ -333,7 +333,8 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
     if (toolId === "cables") {
       fireEvent.click(screen.getByRole("button", { name: "Designs" }));
       fireEvent.click(await screen.findByRole("button", { name: "New design" }));
-      fireEvent.click(await screen.findByRole("menuitem", { name: "Cable" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Prepare cable" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Start blank cable" }));
     } else await openTool(tool.label);
     if (["cables", "harnesses", "assemblies"].includes(toolId)) {
       const create: Record<string, string> = { cables: "Create cable draft", harnesses: "Create harness draft", assemblies: "Create assembly draft" };
@@ -459,6 +460,7 @@ test("Library home creates cable, harness and assembly designs through their aut
     await openTool("Library home");
     fireEvent.click(await screen.findByRole("button", { name: "New…" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: noun! }));
+    if (noun === "Cable") fireEvent.click(await screen.findByRole("button", { name: "Start blank cable" }));
     expect(await screen.findByRole("button", { name: action! })).toBeTruthy();
   }
 });

@@ -122,7 +122,8 @@ test("confirmed cable frames omit the redundant selection strip while exact prob
   fireEvent.click(within(frame).getByRole("button", { name: "Show cable documents" }));
   await at("/designs/c1@2/~/ends/A?project=p1&view=documents");
   fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
-  expect(await screen.findByRole("menuitem", { name: "Cable intents" })).toBeTruthy();
+  expect(await screen.findByRole("menuitem", { name: "Enclosure proposals" })).toBeTruthy();
+  expect(screen.queryByRole("menuitem", { name: "Cable intents" })).toBeNull();
 });
 
 test("a retired document root link opens the same exact cable Documents view without a global picker or context strip", async () => {
