@@ -42,7 +42,7 @@ test("every existing tool has a stable reachable canonical home", () => {
   for (const tool of ROUTE_TOOLS) {
     const location = { ...HOME, area: tool.area, lens: tool.id };
     const expected = ["preparation", "end-preparation"].includes(tool.id) ? "wire-stock" : ["facts", "discovery", "matching", "revision-upgrades"].includes(tool.id) ? "library-home" : tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
-      : ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) ? "designs" : tool.id;
+      : ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages", "occurrence-firmware", "firmware-impact", "configurations", "shared-scene", "context-selection", "scene-drawings", "mechanical-proposals"].includes(tool.id) ? "designs" : tool.id;
     const [path, query] = formatLocation(location).split("?");
     expect(parseLocation(path!, query ? `?${query}` : "").lens, tool.id).toBe(expected);
   }
@@ -202,4 +202,16 @@ test('old Discovery opens the palette at Library and exact Discovery addresses r
  expect(formatLocation(landing)).toBe('/library?palette=open');
  expect(parseLocation('/library/stock@3/~/core/a','?lens=discovery')).toMatchObject({lens:'identity',probe:{object:'stock',rev:3,path:['core','a']}});
  for(const tool of ['matching','revision-upgrades']) expect(parseLocation('/library',`?lens=${tool}`)).toMatchObject({lens:'library-home',filters:{section:tool}});
+});
+
+test.each(['occurrence-firmware','firmware-impact','configurations','shared-scene','context-selection','scene-drawings','mechanical-proposals'])('retired Device %s picker opens Designs without changing exact secondary addresses',tool=>{
+ expect(formatLocation(parseLocation('/design',`?lens=${tool}`))).toBe('/designs');
+ expect(parseLocation('/designs',`?tool=${tool}&project=p1`)).toMatchObject({lens:'designs',project:'p1',probe:null});
+ const exact=parseLocation('/design/secondary-own-id@75/~/board/left%20copy',`?lens=${tool}&project=p1`);
+ expect(exact).toMatchObject({lens:tool,project:'p1',probe:{object:'secondary-own-id',rev:75,path:['board','left copy']}});
+ const [path,query]=formatLocation(exact).split('?');expect(parseLocation(path!,`?${query}`)).toEqual(exact);
+ expect(parseLocation('/design',`?lens=${tool}&status=new&kind=assembly`)).toMatchObject({lens:'designs',probe:null});
+});
+test.each([['occurrence-firmware','firmware'],['configurations','option_set'],['configurations','configuration']])('explicit New %s %s retains its legitimate independent record creator',(tool,kind)=>{
+ const next=parseLocation('/design',`?lens=${tool}&status=new&kind=${kind}`);expect(next).toMatchObject({lens:tool,probe:null,filters:{status:'new',kind}});const[path,query]=formatLocation(next).split('?');expect(parseLocation(path!,`?${query}`)).toEqual(next);
 });
