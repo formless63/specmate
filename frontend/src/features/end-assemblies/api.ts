@@ -6,7 +6,9 @@ export { command, read, type Definition, type Identity } from "../identity/api";
 /** Layers of one cable end, ordered from the wire outward (see docs/modules/WIRING.md). */
 export type ConnectorLayer = { kind: "connector"; layer_id: string; body_revision_id: string; pinout_revision_id: string };
 export type BoardLayer = { kind: "board"; layer_id: string; board_revision_id: string; carried_connector_id: string | null };
-export type InlinePart = { local_id: string; label: string | null; component: InlineComponent };
+/** Exact catalog provenance for an authored two-lead use; package pinout stays unassessed. */
+export type InlinePart = { local_id: string; label: string | null; component: InlineComponent; part_revision_id?: string | null };
+export type InlinePartIdentity = { revision_id: string; definition_id: string; name: string; number: number; package_pinout: "not_evaluated"; declared_use: "two_lead_inline"; behavior_source: "separate_authored_component" };
 export type InlineLayer = { kind: "inline"; layer_id: string; parts: InlinePart[] };
 export type ShellLayer = { kind: "shell"; layer_id: string; part_revision_id: string | null; label: string | null };
 export type StackLayer = ConnectorLayer | BoardLayer | InlineLayer | ShellLayer;
@@ -28,7 +30,7 @@ export type ResolvedTerminal = {
 export type ResolvedLayer = {
   layer_id: string; kind: LayerKind; name: string | null; terminals: ResolvedTerminal[];
   variant_label?: string | null; pinout_name?: string | null; carried_connector_id?: string | null; carried_status?: "reviewed" | "unknown" | null;
-  parts?: { local_id: string; name: string; summary: string }[]; electrical?: string;
+  parts?: { local_id: string; name: string; summary: string; part_identity?: InlinePartIdentity }[]; electrical?: string;
   paths?: { local_id: string; from_terminal: string; to_terminal: string; via: string; summary: string }[];
 };
 export type ResolvedJoin = {

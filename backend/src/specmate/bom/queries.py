@@ -241,6 +241,8 @@ def demand_quantities(demand, root_count):
 
 
 def project(closure, purpose):
+    from specmate.bom.inline_parts import inline_parts
+
     plan, root, nodes = closure.plan, closure.root, closure.assembly.nodes
     scopes = [tuple(p) for p in plan.scope_paths]
     policies = {tuple(p.path): p for p in plan.policies}
@@ -253,8 +255,15 @@ def project(closure, purpose):
     def address(path):
         return {"snapshot_id": str(root.snapshot_id), "path": list(path)}
 
-    def issue(path, reason, need_id=None):
-        unresolved.append({"address": address(path), "reason": reason, "need_id": need_id})
+    def issue(path, reason, need_id=None, inline_part=None):
+        unresolved.append(
+            {
+                "address": address(path),
+                "reason": reason,
+                "need_id": need_id,
+                **({"inline_part": inline_part} if inline_part else {}),
+            }
+        )
 
     def blocking(path, include_self=False):
         for size in range(0, len(path) + int(include_self)):
@@ -264,8 +273,8 @@ def project(closure, purpose):
                 return prefix, policy.decision if policy else "unknown"
         return None
 
-    def row(path, revision, reason, amount, need=None):
-        declaration = need or demands.get(path)
+    def row(path, revision, reason, amount, need=None, inline_part=None):
+        declaration = need or (demands.get(path) if inline_part is None else None)
         if declaration is None:
             declaration = SimpleNamespace(
                 quantity=DemandQuantity(status="known", amount=1),
@@ -287,6 +296,7 @@ def project(closure, purpose):
             "reason": reason,
             "need_id": need.local_id if need else None,
             "basis": need.basis if need else (policies[path].basis if path in policies else None),
+            **({"inline_part": inline_part} if inline_part else {}),
         }
 
     from types import SimpleNamespace
@@ -299,6 +309,16 @@ def project(closure, purpose):
             continue
         if purpose == "assembly_contents":
             rows.append(row(path, node.revision, "retained_occurrence", plan.quantity.amount))
+            for locator, part in inline_parts(node.revision, closure.revisions):
+                rows.append(
+                    row(
+                        path,
+                        part,
+                        "declared_inline_part",
+                        plan.quantity.amount,
+                        inline_part=locator,
+                    )
+                )
             continue
         block = blocking(path)
         if block:
@@ -320,10 +340,13 @@ def project(closure, purpose):
             boundaries.append({"address": address(path), "decision": "buy"})
             if purpose == "procurement":
                 rows.append(row(path, node.revision, "buy_boundary", plan.quantity.amount))
-        elif not any(p[:-1] == path for p in nodes) and not any(
-            tuple(n.context_path) == path for n in plan.needs
-        ):
-            issue(path, "make_inputs_unspecified")
+        else:
+            for locator, _part in inline_parts(node.revision, closure.revisions):
+                issue(path, "inline_part_material_policy_unspecified", inline_part=locator)
+            if not any(p[:-1] == path for p in nodes) and not any(
+                tuple(n.context_path) == path for n in plan.needs
+            ):
+                issue(path, "make_inputs_unspecified")
     if purpose != "assembly_contents":
         for need in plan.needs:
             path = tuple(need.context_path)
@@ -359,9 +382,19 @@ def project(closure, purpose):
                 )
     for item in rows:
         if item["quantity"]["status"] == "unknown":
-            issue(tuple(item["address"]["path"]), "quantity_unknown", item["need_id"])
+            issue(
+                tuple(item["address"]["path"]),
+                "quantity_unknown",
+                item["need_id"],
+                item.get("inline_part"),
+            )
         if purpose != "assembly_contents" and item["required_quantity"]["status"] == "unknown":
-            issue(tuple(item["address"]["path"]), "required_quantity_unknown", item["need_id"])
+            issue(
+                tuple(item["address"]["path"]),
+                "required_quantity_unknown",
+                item["need_id"],
+                item.get("inline_part"),
+            )
     return {
         "purpose": purpose,
         "rows": rows,
@@ -377,6 +410,17 @@ def project(closure, purpose):
             "allowance leaves gross required demand unknown.",
             "Process needs are explicit declarations, not validated PCB fabrication "
             "or population instructions.",
+            *(
+                [
+                    "Pinned inline Parts have no procurement policy in this plan. Their physical "
+                    "uses are counted in assembly contents; buying, waste and material needs "
+                    "remain unresolved."
+                ]
+                if any(
+                    row["reason"] == "inline_part_material_policy_unspecified" for row in unresolved
+                )
+                else []
+            ),
         ],
     }
 

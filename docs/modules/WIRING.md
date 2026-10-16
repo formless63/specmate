@@ -272,10 +272,27 @@ An end stack is ordered from the wire outward and has at most one layer of each 
   pads to the connector layer. An unreviewed correspondence reads `unknown`.
 - **inline**: hand-soldered parts (for example a series or blanking resistor), each with
   the shared `InlineComponent` description and two leads, `<part>.1` and `<part>.2`.
+  An optional `part_revision_id` pins an exact catalog Part as provenance of this
+  explicitly declared two-lead use. The Part's metadata does not establish terminal
+  count or package pinout; those remain not evaluated. Authored component behavior
+  stays independent: category, value, name and package never select an electrical
+  kind or parameter. An absent pin is omitted from serialized content. Exact pins
+  participate in current source authority and snapshot dependencies for cables,
+  harnesses and reusable end assemblies.
 - **connector**: an exact connector body revision and its chosen pinout variant; the
   pinout must pin that exact body revision. Contacts show the variant's typed signals.
 - **shell**: an optional exact part revision. It is mechanical: its single terminal,
   `body`, joins nothing unless a `bond` join or a termination names it.
+
+Assembly-contents BOM rows count one pinned inline Part per declared physical use
+and root assembly, keeping repeated cable occurrences and repeated saved ends
+separate. A derived row retains its owning occurrence address and adds the
+`inline_part` locator (`endpoint_id`, `layer_id`, `part_local_id`); these are not
+new assembly occurrence paths. Counts remain separate from cable length demand.
+Procurement respects bought or unknown ancestor boundaries. A made cable or harness
+with inline pins has unresolved inline material policy until a supported explicit
+policy exists; ordinary missing make inputs remain unresolved too. Board-contained
+components are not counted again as hand-soldered inline uses.
 
 Every other connection is an explicit join (`solder`, `crimp`, `mated`, `integrated` or
 `bond`) between terminals of two layers, with a basis; nothing is joined by label. A

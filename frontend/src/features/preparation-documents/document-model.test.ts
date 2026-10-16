@@ -4,6 +4,14 @@ import { labelLbx, labelsLbx } from "../../../../packages/docs/src/lbx";
 import { workingSheet } from "./working-sheet";
 import { cable, boardEnd, inlineEnd, stock } from "../cable-workbench/fixtures";
 
+test("pinned inline BOM rows keep physical endpoint locators and explicit procurement gaps", () => {
+  const input = sections();
+  input.procurement = { rows: ["a", "b"].map(endpoint_id => ({ address: { snapshot_id: "snapshot", path: ["cable"] }, inline_part: { endpoint_id, layer_id: "inline", part_local_id: "r1" }, revision_id: "exact-r1", name: "Synthetic catalog Part", quantity: { status: "known", amount: 3, unit: "ea" }, reason: "declared_inline_part" })), unresolved: [{ address: { path: ["cable"] }, inline_part: { endpoint_id: "a", layer_id: "inline", part_local_id: "r1" }, reason: "inline_part_material_policy_unspecified" }] };
+  const sheet = frozenSheet("Synthetic cable", "exact-root", input);
+  expect(sheet.tables.find(table => table.name === "BOM")?.rows.map(row => row[0])).toEqual(["cable · inline a/inline/r1", "cable · inline b/inline/r1"]);
+  expect(sheet.notices).toContain("cable · inline a/inline/r1 · procurement policy and material needs unresolved");
+});
+
 const at = { path: ["repeat-2", "cable"], revision_id: "exact-r1" };
 export const sections = (): DocumentSections => ({
   revision_specifications: [], specifications: [], schematic: [],

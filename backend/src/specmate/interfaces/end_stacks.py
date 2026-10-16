@@ -26,6 +26,8 @@ def stack_references(stack: EndStack):
             refs.append(layer.board_revision_id)
         elif layer.kind == "shell" and layer.part_revision_id:
             refs.append(layer.part_revision_id)
+        elif layer.kind == "inline":
+            refs.extend(part.part_revision_id for part in layer.parts if part.part_revision_id)
     return refs
 
 
@@ -147,12 +149,29 @@ class ResolvedStack:
                 parts = []
                 for part in layer.parts:
                     name = part.label or part.component.reference or part.local_id
+                    identity = {}
+                    if part.part_revision_id:
+                        revision = lookup.revisions.get(part.part_revision_id)
+                        if revision is None or revision.definition.kind != "part":
+                            raise ValidationFailed(
+                                "An inline catalog pin requires an exact Part revision."
+                            )
+                        identity["part_identity"] = {
+                            "revision_id": str(revision.id),
+                            "definition_id": str(revision.definition_id),
+                            "name": revision.definition.name,
+                            "number": revision.number,
+                            "package_pinout": "not_evaluated",
+                            "declared_use": "two_lead_inline",
+                            "behavior_source": "separate_authored_component",
+                        }
                     parts.append(
                         {
                             "local_id": part.local_id,
                             "name": name,
                             "summary": component_text(part.component),
                             "component": part.component.model_dump(mode="json"),
+                            **identity,
                         }
                     )
                     for pin in INLINE_PINS:

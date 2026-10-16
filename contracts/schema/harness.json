@@ -390,7 +390,7 @@
     },
     "InlinePart": {
       "additionalProperties": false,
-      "description": "One hand-soldered part with two terminals, ``<local_id>.1`` and ``<local_id>.2``.",
+      "description": "An explicitly declared two-lead use, ``<local_id>.1`` and ``<local_id>.2``.\n\nAn optional catalog pin records provenance. It never establishes the package's\nterminal count, pinout, electrical behavior, fit or compatibility.",
       "properties": {
         "component": {
           "$ref": "#/$defs/InlineComponent"
@@ -413,6 +413,19 @@
           "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
           "title": "Local Id",
           "type": "string"
+        },
+        "part_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Part Revision Id"
         }
       },
       "required": [
