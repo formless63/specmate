@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
-import { RevisionPicker } from '../harnesses/RevisionPicker';
+import { RevisionPicker } from '../cables/RevisionPicker';
 import { getIntake, listIntakes } from '../pcb/api';
 import { blankInput, blankSource, isUuid, label, read, terminalLabel, type Assertion, type Comparison, type Definition, type FilePin, type Frozen, type Input, type NativeAccepted, type NativeAttempts, type Projection, type SourceFiles, type Terminal } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";

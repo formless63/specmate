@@ -65,3 +65,13 @@ test('an unrelated denied later draft never participates in an old exact device 
   setup({ revisionNumber: 75, draftRequested: false }); await screen.findByText(/Historical A/); await ready();
   expect(current.sceneBasis).toBe('snapshot-r75'); expect(api.calls.some(url => url.includes('/assemblies/drafts/'))).toBe(false); expect(current.identity.isPending).toBe(true);
 });
+
+test('lost saved placement replay keeps the reviewed payload and CAS through source withdrawal',async()=>{
+ const api=server();setup();await saved();const placement={status:'known' as const,translation:[77,2,3] as [number,number,number],rotation_xyzw:[0,0,1,0] as [number,number,number,number]};act(()=>current.change({...declarations(),occurrences:[{...declarations().occurrences[0]!,placement}]}));await ready();api.lose();fireEvent.click(screen.getByText('Save'));await screen.findByText('Committed response lost');api.deny(true);fireEvent(window,new Event('focus'));await screen.findByText('Withdrawn');api.deny(false);fireEvent.click(screen.getByText('Refresh'));await ready();expect(current.current?.state).toBe('draft-v4');fireEvent.click(screen.getByText('Save'));await waitFor(()=>expect(current.current?.state).toBe('draft-v5'));expect(api.posts[1]).toMatchObject({idempotency_key:api.posts[0]!.idempotency_key,expected_state:'draft-v4',payload:{assembly:{occurrences:[{placement}]}}});
+});
+test('lost Freeze response retries its original saved baseline and adopts only its own accepted token',async()=>{
+ const api=server();setup();await saved();api.lose();fireEvent.click(screen.getByText('Freeze'));await screen.findByText('Committed response lost');api.remoteRemovesChild();fireEvent(window,new Event('focus'));await ready();expect(current.current?.state).toBe('draft-v4');fireEvent.click(screen.getByText('Freeze'));await waitFor(()=>expect(current.current?.state).toBe('draft-v6'));expect(api.posts[1]).toMatchObject({operation:'assembly.freeze',expected_state:'draft-v4',idempotency_key:api.posts[0]!.idempotency_key});
+});
+test('accepted save from a replaced principal cannot disclose or overwrite the new session',async()=>{
+ const api=server();const view=setup();await saved();act(()=>current.change(declarations('Old private edit')));await ready();api.hold();fireEvent.click(screen.getByText('Save'));await waitFor(()=>expect(api.posts).toHaveLength(1));view.rerender(view.tree({principalKey:'replacement'}));await act(async()=>api.release());await ready();expect(current.message).not.toBe('Saved device draft.');
+});

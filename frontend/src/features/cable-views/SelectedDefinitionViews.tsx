@@ -8,7 +8,7 @@ import { read as readIdentity, type Identity } from '../identity/api';
 import { CableInspector } from '../cables/CableInspector';
 import { CableSummary } from '../cables/CableSummary';
 import type { Draft as CableDraft } from '../cables/api';
-import { HarnessInspector } from '../harnesses/HarnessPanel';
+import { HarnessInspector } from '../harnesses/HarnessInspector';
 import { read as readHarness, type Draft as HarnessDraft } from '../harnesses/api';
 import { HarnessViews } from '../harness-views/HarnessViews';
 import { loadFrozenStock } from '../wire-stock/viewer-api';

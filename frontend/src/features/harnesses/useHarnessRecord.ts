@@ -39,7 +39,7 @@ export function useHarnessRecord(props: HarnessRecordProps) {
     if (!definitionId) { const access = await requestJson<{ workspace_id: string }>('/api/v0/access/workspace', { signal, cache: 'no-store' }); if (access.workspace_id !== workspaceId) throw new ApiError(404, 'Workspace unavailable.'); }
     await authorizeConnectorReferences({ value, base_revision_id: current?.base_revision_id }); return true;
   } });
-  useEffect(() => { if (editing && state?.kind === 'draft' && !(dirty && current?.draft_id === state.draft_id)) { setCurrent({ definition_id: definitionId!, draft_id: state.draft_id, state: state.state, base_revision_id: state.base_revision_id, content: state.content }); setValue(structuredClone(state.content.harness)); setDirty(false); } }, [selected.data]);
+  useEffect(() => { if (editing && state?.kind === 'draft' && current?.draft_id !== state.draft_id) { setCurrent({ definition_id: definitionId!, draft_id: state.draft_id, state: state.state, base_revision_id: state.base_revision_id, content: state.content }); setValue(structuredClone(state.content.harness)); setDirty(false); } }, [selected.data]);
   const checking = !!definitionId && !needsChoice && (selected.isPending || selected.isFetching) || editing && (working.isPending || working.isFetching);
   const unavailable = blocked || !needsChoice && selected.isError || editing && working.isError;
   const enabled = useRef({ active, checking, unavailable, edit: edit.allowed, freeze: freezeGate.allowed }); enabled.current = { active, checking, unavailable, edit: edit.allowed, freeze: freezeGate.allowed };

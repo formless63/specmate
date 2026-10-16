@@ -65,7 +65,7 @@ export function useDeviceRecord(props: DeviceRecordProps) {
     return preview;
   } });
   const revisions = useQuery({ queryKey: [...base, 'identity', offset], enabled: active && history && !!definitionId, retry: false, queryFn: ({ signal }) => requestJson<Identity>(`/api/v0/catalog/definitions/${definitionId}?offset=${offset}&limit=50`, { signal }) });
-  useEffect(() => { if (draft.isSuccess && draft.data && !(dirty && current?.draft_id === draft.data.draft_id)) { setCurrent(draft.data); setAssembly(structuredClone(draft.data.content.assembly)); setDirty(false); } }, [draft.data, draft.isSuccess]);
+  useEffect(() => { if (draft.isSuccess && draft.data && current?.draft_id !== draft.data.draft_id) { setCurrent(draft.data); setAssembly(structuredClone(draft.data.content.assembly)); setDirty(false); } }, [draft.data, draft.isSuccess]);
   const choosingDraft = editing && !draftId && identity.isSuccess && identity.data.drafts.length > 1;
   const checking = !!definitionId && (!choosingDraft && (selected.isPending || selected.isFetching) || editing && (identity.isPending || identity.isFetching || !!draftId && (draft.isPending || draft.isFetching))) || editing && (working.isPending || working.isFetching) || captureWanted && captured.isFetching;
   const unavailable = blocked || !choosingDraft && selected.isError || editing && (identity.isError || draft.isError || working.isError) || captureWanted && captured.isError;

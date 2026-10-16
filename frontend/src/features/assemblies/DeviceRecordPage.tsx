@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { DefinitionPickerScope } from '../../components/library/DefinitionSelect';
 import { RecordPage, RecordSections, type RecordState } from '../../components/record';
 import { RootDocuments } from '../../components/editor/Documents';
-import { usePermission } from '../../lib/permissions';
+import { InspectionScope, usePermission } from '../../lib/permissions';
 import { ContextSelectionProvider, useContextSelection } from '../context-selection/ContextSelectionProvider';
 import { TreeView, BoardView, CableView, InspectorView, SchematicView, BomView } from '../context-selection/views';
 import { useNavigation } from '../navigation';
@@ -15,6 +15,7 @@ import type { LibraryRecord, Project } from '../workspace/api';
 import { useDeviceRecord, type DeviceRecordProps } from './useDeviceRecord';
 import { OccurrenceControls, RelationshipControls, WorkingFirmware, WorkingTree } from './DeviceWorking';
 import type { Assembly } from './api';
+import { MountingDetails, MountingEditor } from './MountingEditor';
 import './device-record.css';
 const Viewport = lazy(() => import('../shared-scene/SceneViewport'));
 const DeviceSections = lazy(() => import('./DeviceSections').then(module => ({ default: module.DeviceSections })));
@@ -75,7 +76,7 @@ function DeviceSurface(props: Props & { record: ReturnType<typeof useDeviceRecor
         ]}
         inspectorTab={tab} onInspectorTab={chooseTab} inspector={[
           { id: 'occurrence', label: 'Occurrence', content: () => <Stack gap="xs">{!definitionId && <TextInput size="xs" label="Device name" value={record.enteredName} disabled={!editable} onChange={event => record.setName(event.currentTarget.value)} />}{frozen && context.state.scene ? <InspectorView /> : sceneSelected && geometry && sceneSelected.path.length > 1 ? <><CapturedOccurrence scene={geometry} selected={sceneSelected} /><Button size="xs" variant="quiet" onClick={() => choose(sceneSelected.path[0]!)}>Inspect containing working occurrence</Button></> : assembly ? <OccurrenceControls newRecord={!definitionId} assembly={assembly} selected={selectedWorking} onSelect={choose} editable={editable} onChange={record.change} staged={staged} epoch={record.editorEpoch} onStaged={id => { setStaged(prior => new Set([...prior, id])); record.markStaged(); }} onApplied={id => setStaged(prior => new Set([...prior].filter(value => value !== id)))} /> : null}</Stack> },
-          { id: 'relationships', label: 'Relationships', content: () => assembly ? <RelationshipControls assembly={assembly} editable={editable} onChange={record.change} paths={paths} /> : null },
+          { id: 'relationships', label: 'Relationships', content: () => assembly ? <Stack><RelationshipControls assembly={assembly} editable={editable} onChange={record.change} paths={paths} /><div hidden={!record.editing} inert={!record.editing}>{record.current && <InspectionScope permission="design.edit"><fieldset className="device-fields" disabled={!editable}><MountingEditor key={record.editorEpoch} draft={{ ...record.current, content: { assembly: record.editing ? assembly : record.current.content.assembly } }} busy={record.busy} authorized={frameActive && record.editing && edit.allowed && tab === 'relationships'} onDenied={record.failAuthority} onSave={record.change} /></fieldset></InspectionScope>}</div>{!record.editing && <MountingDetails relationships={assembly.relationships} />}</Stack> : null },
           ...(['interfaces', 'options', 'enclosure', 'drawings'] as const).map(section => ({ id: section, label: { interfaces: 'Interfaces', options: 'Options', enclosure: 'Enclosure', drawings: 'Drawings' }[section], content: () => <Suspense fallback={<Text>Loading {section}…</Text>}><DeviceSections section={section} active={frameActive && tab === section} principalKey={principalKey} workspaceId={workspaceId} definitionId={definitionId} revisionId={frozen ? content?.pin?.revision_id ?? null : null} snapshotId={frozen ? content?.pin?.snapshot_id ?? null : null} /></Suspense> })),
           { id: 'firmware', label: 'Firmware', content: () => <Stack gap="xs">{assembly && <WorkingFirmware assembly={assembly} editable={editable} paths={paths} onChange={record.change} />}<Suspense fallback={<Text>Loading firmware context…</Text>}><DeviceSections section="firmware" active={frameActive && tab === 'firmware'} principalKey={principalKey} workspaceId={workspaceId} definitionId={definitionId} revisionId={frozen ? content?.pin?.revision_id ?? null : null} snapshotId={frozen ? content?.pin?.snapshot_id ?? null : null} draftId={record.current?.draft_id ?? null} draftDirty={record.dirty} /></Suspense></Stack> },
           ...(frozen && context.state.scene ? [{ id: 'context', label: 'Context', content: () => <RecordSections sections={[{ id: 'board', label: 'Selected native board context', content: () => <BoardView /> }, { id: 'cable', label: 'Selected cable context', content: () => <CableView /> }, { id: 'schematic', label: 'Selected schematic context', content: () => <SchematicView /> }, { id: 'bom', label: 'Exact frozen BOM context', content: () => <BomView /> }]} /> }] : []),

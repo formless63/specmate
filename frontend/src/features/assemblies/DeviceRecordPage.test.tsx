@@ -31,7 +31,7 @@ function server() {
     if (path.includes('/shared-scenes/snapshots/')) return response(denied ? { error: { message: 'Scene unavailable' } } : scene, denied ? 403 : 200);
     if (path.includes('/bom/revisions/')) return response(contextBom().inspection);
     if (path.includes('/revisions/root-r1')) return response(contextBom().root);
-    if (path.endsWith('/operations')) { const body = JSON.parse(String(init?.body)); posts.push(body); if (conflict) return response({ error: { message: 'Competing device edit' } }, 409); if (body.operation === 'assembly.snapshot') return response({ result: { snapshot_id: scene.snapshot_id, sha256: scene.sha256 } }); assembly = body.payload.assembly; state = 'draft-v5'; return response({ result: { definition_id: scene.root.definition_id, draft_id: 'd1', state, content: { assembly } } }); }
+    if (path.endsWith('/operations')) { const body = JSON.parse(String(init?.body)); if (body.operation === 'assembly.placement_inputs') return response(denied ? { error: { message: 'Mounting source denied' } } : { result: { draft_id: 'd1', state, occurrences: assembly.occurrences.map(row => ({ path: [row.local_id], revision_id: row.revision_id, snapshot_sha256: 'child-hash', name: row.display_ref, kind: 'board', display_ref: row.display_ref, placement: row.placement })) } }, denied ? 403 : 200); posts.push(body); if (conflict) return response({ error: { message: 'Competing device edit' } }, 409); if (body.operation === 'assembly.snapshot') return response({ result: { snapshot_id: scene.snapshot_id, sha256: scene.sha256 } }); assembly = body.payload.assembly; state = 'draft-v5'; return response({ result: { definition_id: scene.root.definition_id, draft_id: 'd1', state, content: { assembly } } }); }
     return response({});
   }));
   return { scene, posts, deny: (value: boolean) => { denied = value; }, conflict: () => { conflict = true; } };
@@ -96,4 +96,19 @@ test('phone draft keeps Save and Capture in the header and deliberately disclose
   server(); setup(); expect(await screen.findByRole('button', { name: 'Capture saved assembly' })).toBeTruthy(); expect(screen.getByRole('button', { name: 'Save device' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Freeze saved device' })).toBeNull(); fireEvent.click(screen.getByRole('button', { name: 'Device actions' }));
   expect(await screen.findByRole('menuitem', { name: 'Freeze saved device' })).toBeTruthy(); expect(screen.getByRole('menuitem', { name: 'Reload saved draft (discard local edits)' })).toBeTruthy();
+});
+
+test('current Relationships hosts exact mounting choices, stages locally and blocks dirty Freeze', async () => {
+ const api=server();setup();await screen.findByRole('button',{name:'Save device'});tab('Relationships');
+ const mounted=await screen.findByLabelText('Mounted contextual occurrence');await waitFor(()=>expect(mounted.querySelectorAll('option')).toHaveLength(4));
+ fireEvent.change(mounted,{target:{value:'["left"]'}});fireEvent.change(screen.getByLabelText('Supporting contextual occurrence'),{target:{value:'["right"]'}});fireEvent.change(screen.getByLabelText('Mounting declaration local ID'),{target:{value:'mount-left'}});fireEvent.change(screen.getByLabelText('Mounted unverified stable feature ID (optional)'),{target:{value:'hole-a'}});fireEvent.click(screen.getByRole('button',{name:'Add mounting declaration'}));
+ expect(api.posts).toHaveLength(0);expect((screen.getByRole('button',{name:'Freeze saved device'}) as HTMLButtonElement).disabled).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'Save device'}));await waitFor(()=>expect(api.posts).toHaveLength(1));expect(api.posts[0]).toMatchObject({operation:'assembly.update',expected_state:'draft-v4',payload:{assembly:{relationships:[{local_id:'mount-left',kind:'mounting',mounted:{path:['left'],feature_id:'hole-a'},support:{path:['right'],feature_id:null}}]}}});
+});
+test('viewer Relationships never opens mounting authoring',async()=>{
+ const api=server();setup({viewer:true});await screen.findByRole('button',{name:'Save device'});tab('Relationships');expect(screen.queryByLabelText('Mounting declaration local ID')).toBeNull();expect(api.posts).toHaveLength(0);
+});
+
+test('current mounting source denial conceals retained fields and restores local intent without advancing CAS',async()=>{
+ const api=server();setup();await screen.findByRole('button',{name:'Save device'});tab('Relationships');const local=await screen.findByLabelText('Mounting declaration local ID');fireEvent.change(local,{target:{value:'private-retained-mount'}});api.deny(true);fireEvent.click(screen.getByRole('button',{name:'Refresh mounting choices'}));await screen.findByText(/Selected drawings and facts are hidden/);expect(screen.queryByLabelText('Mounting declaration local ID')).toBeNull();api.deny(false);fireEvent.click(screen.getByRole('button',{name:'Refresh device'}));await waitFor(()=>expect((screen.getByLabelText('Mounting declaration local ID') as HTMLInputElement).value).toBe('private-retained-mount'));expect(api.posts).toHaveLength(0);
 });
