@@ -80,7 +80,7 @@ const CollaborationPanel = lazy(() => import("./features/collaboration/Collabora
 const KnowledgeSearchPanel = lazy(() => import("./features/knowledge/KnowledgeSearchPanel").then((module) => ({ default: module.KnowledgeSearchPanel })));
 const KnowledgePanel = lazy(() => import("./features/knowledge/KnowledgePanel").then((module) => ({ default: module.KnowledgePanel })));
 const PreparationDocumentsPanel = lazy(() => import("./features/preparation-documents/PreparationDocumentsPanel").then((module) => ({ default: module.PreparationDocumentsPanel })));
-const MechanicalProposalsPanel = lazy(() => import("./features/mechanical-proposals/MechanicalProposalsPanel").then((module) => ({ default: module.MechanicalProposalsPanel })));
+const MechanicalProposalFields = lazy(() => import("./features/mechanical-proposals/MechanicalProposalFields").then((module) => ({ default: module.MechanicalProposalFields })));
 const LibraryHome = lazy(() => import("./features/library-gallery/LibraryHome").then((module) => ({ default: module.LibraryHome })));
 const SceneDrawingFields = lazy(() => import("./features/scene-drawings/SceneDrawingFields").then((module) => ({ default: module.SceneDrawingFields })));
 
@@ -167,7 +167,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["scene-drawings", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles", "intents", "cable-test-intent", "preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["mechanical-proposals", "scene-drawings", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles", "intents", "cable-test-intent", "preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -298,7 +298,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "matching": return <MatchingWorkspace projectId={projectId} />;
     case "catalog-packs": return <CatalogPacksWorkspace projectId={projectId} />;
     case "firmware-impact": return <FirmwareImpactPanel workspaceId={workspaceId} />;
-    case "mechanical-proposals": return <MechanicalProposalsPanel workspaceId={workspaceId} principalKey={principalKey} />;
+    case "mechanical-proposals": return <MechanicalProposalFields active={active === "mechanical-proposals"} workspaceId={workspaceId} principalKey={principalKey} />;
     case "builds": return <BuildsPanel onAccessLost={onAccessChanged} workspaceId={workspaceId} principalKey={principalKey} active={active === "builds"} />;
     case "evidence-kinds": return <EvidencePanel workspaceId={workspaceId} projectId={optional} />;
     case "shared-scene": return <SharedScenePanel projectId={projectId} />;

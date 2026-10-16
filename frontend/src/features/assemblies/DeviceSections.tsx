@@ -8,7 +8,7 @@ import { FirmwareOccurrencesPanel } from '../firmware-occurrences/FirmwareOccurr
 import { FirmwareImpactPanel } from '../firmware-impact/FirmwareImpactPanel';
 import { interfaceConfig } from '../interfaces/InterfaceRecords';
 import { EmbeddedRecords } from './EmbeddedRecords';
-import { MechanicalProposalsPanel } from '../mechanical-proposals/MechanicalProposalsPanel';
+import { MechanicalProposalFields } from '../mechanical-proposals/MechanicalProposalFields';
 import { ProbeProvider } from '../probe';
 import type { ProbeTarget } from '../navigation/url';
 import { SceneDrawingFields } from '../scene-drawings/SceneDrawingFields';
@@ -21,7 +21,7 @@ export function DeviceSections(props: DeviceSectionProps) {
     <Text size="xs">These tools manage separate records with their own exact inputs and editing tokens. Choose the target in each tool; opening a device does not change those records.</Text>
     {props.section === 'interfaces' && <EmbeddedRecords active={props.active} principalKey={props.principalKey} workspaceId={props.workspaceId} choices={[{kind:'interface_map',label:'Interface mapping',config:interfaceConfig('interface_map')},{kind:'interface_assessment',label:'Interface assessment',config:interfaceConfig('interface_assessment')}]}/>}
     {props.section === 'options' && <ConfigurationsPanel />}
-    {props.section === 'enclosure' && <MechanicalProposalsPanel workspaceId={props.workspaceId} principalKey={props.principalKey} />}
+    {props.section === 'enclosure' && <MechanicalProposalFields active={props.active} workspaceId={props.workspaceId} principalKey={props.principalKey} />}
     {props.section === 'drawings' && <><Text size="sm">Drawing generation uses an explicitly chosen frozen scene snapshot. Captured draft previews are not frozen drawing inputs.</Text><SceneDrawingFields workspaceId={props.workspaceId} principalKey={props.principalKey} active={props.active} /></>}
     {props.section === 'firmware' && <RecordSections sections={[
       { id: 'declarations', label: 'Firmware declarations and builds', content: () => <FirmwarePanel workspaceId={props.workspaceId} /> },

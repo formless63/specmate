@@ -1,10 +1,11 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
 import { SourceError } from '../sources/api';
 import * as api from './api';
-import { MechanicalProposalsPanel } from './MechanicalProposalsPanel';
+import { ProbeProvider } from '../probe';
+import { MechanicalProposalFields } from './MechanicalProposalFields';
 
 vi.mock('./api', async original => ({
   ...(await original<typeof import('./api')>()),
@@ -33,7 +34,7 @@ const inputs: api.BoardInputs = { interpretation_id: 'board-1', sha256: 'a'.repe
   holes: [{ pad_id: pad, position: [13, 13], drill: [3.2, 3.2], mounting_status: 'candidate-not-reviewed' }],
   components: [{ component_id: 'comp-1', reference: 'J1', value: 'Header', footprint: 'Header', position: [59, 25], side: 'front' }] };
 
-const view = (permissions?: string[], workspaceId = 'project-1') => render(<MantineProvider env="test"><PermissionsProvider permissions={permissions}><MechanicalProposalsPanel workspaceId={workspaceId} principalKey="actor-1" /></PermissionsProvider></MantineProvider>);
+const view = (permissions?: string[], workspaceId = 'project-1') => render(<MantineProvider env="test"><PermissionsProvider permissions={permissions}><MechanicalProposalFields workspaceId={workspaceId} principalKey="actor-1" /></PermissionsProvider></MantineProvider>);
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -96,14 +97,14 @@ test('read-only members cannot create, edit, save or retain, with a visible reas
   expect(wall.disabled).toBe(false);
 });
 
-test('losing access clears the draft, board identities and proposal', async () => {
+test('losing access conceals the draft and proposal while retaining private manual inputs', async () => {
   view(['workspace.read', 'item.create', 'design.edit']); await open();
   vi.mocked(api.updateDraft).mockRejectedValue(new SourceError(404, 'Proposal draft not found.'));
   fireEvent.change(screen.getByLabelText(/Wall thickness/), { target: { value: '3' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save declarations' }));
-  await screen.findByText(/Access to this project or its board source changed/);
-  expect(screen.queryByText('Wall thickness is unknown.')).toBeNull();
-  expect(screen.queryByLabelText(/Wall thickness/)).toBeNull();
+  await screen.findByText(/Access to this workspace or its board source changed/);
+  expect(screen.getByText('Wall thickness is unknown.').closest('[hidden]')).not.toBeNull();
+  expect(screen.queryByRole('textbox',{name:/Wall thickness/})).toBeNull();
 });
 
 test('retaining reads the exact retained record and labels it as a record, not a fit', async () => {
@@ -186,4 +187,20 @@ test('linking offers a picker over workspace drafts and sends the chosen draft i
   vi.mocked(api.decideRetained).mockRejectedValue(new SourceError(409, 'x'));
   fireEvent.click(screen.getByRole('button', { name: 'Record decision' }));
   await waitFor(() => expect(api.decideRetained).toHaveBeenCalledWith('rev-1', { decision: 'accepted', reason: 'Fits intent.', linkDraftId: 'dr-9' }, 'decision-v0', expect.any(String)));
+});
+
+test('old retained proposal address loads its own exact record without current draft or workspace list reads',async()=>{
+ vi.mocked(api.readRetained).mockResolvedValue(retainedRecord());render(<MantineProvider env="test"><PermissionsProvider permissions={['workspace.read']}><ProbeProvider probe={{object:'rev-1',rev:1,path:['features','enclosure_outline']}} onProbe={vi.fn()}><MechanicalProposalFields workspaceId="project-1" principalKey="viewer"/></ProbeProvider></PermissionsProvider></MantineProvider>);await screen.findByText('Retained record 1');expect(api.readDraft).not.toHaveBeenCalled();expect(api.listDrafts).not.toHaveBeenCalled();expect(api.listBoards).not.toHaveBeenCalled();expect(api.readRetained).toHaveBeenCalledWith('rev-1','project-1');expect(screen.queryByRole('button',{name:'Save declarations'})).toBeNull();
+});
+test('held current read and source denial conceal fields, then exact recovery keeps local values and original CAS',async()=>{
+ view(['workspace.read','item.create','design.edit']);await open();fireEvent.change(screen.getByLabelText(/Wall thickness/),{target:{value:'3'}});let reject!:(reason:unknown)=>void;vi.mocked(api.readDraft).mockReturnValueOnce(new Promise((_resolve,fail)=>{reject=fail;}));fireEvent(window,new Event('focus'));await screen.findByText(/Proposal contents are hidden/);expect(screen.queryByRole('textbox',{name:/Wall thickness/})).toBeNull();await act(async()=>reject(new SourceError(403,'Source authority changed')));vi.mocked(api.readDraft).mockResolvedValue(draft({version:9,state:'proposal-v9'}));fireEvent.click(screen.getByRole('button',{name:'Refresh proposal access'}));await waitFor(()=>expect((screen.getByRole('textbox',{name:/Wall thickness/}) as HTMLInputElement).value).toBe('3'));vi.mocked(api.updateDraft).mockResolvedValue(draft({version:2,state:'proposal-v2',parameters:{...empty,shell:{...empty.shell,wall_mm:3}}}));fireEvent.click(screen.getByRole('button',{name:'Save declarations'}));await waitFor(()=>expect(api.updateDraft).toHaveBeenCalledWith('draft-1',expect.objectContaining({shell:expect.objectContaining({wall_mm:3})}),'proposal-v1',expect.any(String)));
+});
+test('own accepted Save advances its CAS while preserving later local declarations',async()=>{
+ view(['workspace.read','item.create','design.edit']);await open();fireEvent.change(screen.getByLabelText(/Wall thickness/),{target:{value:'3'}});let finish!:(value:api.Draft)=>void;vi.mocked(api.updateDraft).mockReturnValueOnce(new Promise(resolve=>{finish=resolve;}));fireEvent.click(screen.getByRole('button',{name:'Save declarations'}));await waitFor(()=>expect(api.updateDraft).toHaveBeenCalledTimes(1));fireEvent.change(screen.getByLabelText(/Wall thickness/),{target:{value:'4'}});await act(async()=>finish(draft({version:2,state:'proposal-v2',parameters:{...empty,shell:{...empty.shell,wall_mm:3}}})));expect((screen.getByLabelText(/Wall thickness/) as HTMLInputElement).value).toBe('4');expect((screen.getByRole('button',{name:'Retain proposal record'}) as HTMLButtonElement).disabled).toBe(true);vi.mocked(api.updateDraft).mockResolvedValue(draft({version:3,state:'proposal-v3'}));fireEvent.click(screen.getByRole('button',{name:'Save declarations'}));await waitFor(()=>expect(api.updateDraft).toHaveBeenLastCalledWith('draft-1',expect.objectContaining({shell:expect.objectContaining({wall_mm:4})}),'proposal-v2',expect.any(String)));
+});
+
+
+test('retaining the saved proposal preserves fields typed in flight and the original draft CAS',async()=>{
+ let finish!:(value:api.Retained)=>void;vi.mocked(api.retainDraft).mockReturnValue(new Promise(resolve=>{finish=resolve;}));vi.mocked(api.readRetained).mockResolvedValue(retainedRecord());vi.mocked(api.updateDraft).mockResolvedValue(draft({version:2,state:'proposal-v2'}));
+ view(['workspace.read','item.create','design.edit']);await open();fireEvent.click(screen.getByRole('button',{name:'Retain proposal record'}));await waitFor(()=>expect(api.retainDraft).toHaveBeenCalledTimes(1));fireEvent.change(screen.getByLabelText(/Wall thickness/),{target:{value:'4'}});await act(async()=>finish(retainedRecord()));await screen.findByText('Retained record 1');expect((screen.getByLabelText(/Wall thickness/)as HTMLInputElement).value).toBe('4');expect(screen.getByText('Unsaved edits')).toBeTruthy();expect(api.readDraft).toHaveBeenCalledTimes(1);fireEvent.click(screen.getByRole('button',{name:'Save declarations'}));await waitFor(()=>expect(api.updateDraft).toHaveBeenCalledWith('draft-1',expect.objectContaining({shell:expect.objectContaining({wall_mm:4})}),'proposal-v1',expect.any(String)));
 });

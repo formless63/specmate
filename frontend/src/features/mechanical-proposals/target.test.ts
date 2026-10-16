@@ -1,0 +1,20 @@
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { SourceError } from '../sources/api';
+import { readDraft, readRetained, type Draft, type Retained } from './api';
+import { resolveProposalTarget } from './target';
+vi.mock('./api',()=>({readDraft:vi.fn(),readRetained:vi.fn()}));
+const document={draft_id:'proposal-draft',draft_name:'Synthetic proposal',draft_version:4,parameters:{},proposal:{}} as Retained['document'];
+const retained=(over:Partial<Retained>={}):Retained=>({revision_id:'retained-r75',draft_id:'proposal-draft',workspace_id:'workspace',number:75,interpretation_id:'board',interpretation_sha256:'b'.repeat(64),generator:'parametric-planar-v1',draft_version:4,status:'incomplete',sha256:'a'.repeat(64),created_at:'2026-01-01T00:00:00Z',document,...over});
+beforeEach(()=>{vi.mocked(readDraft).mockRejectedValue(new SourceError(404,'Not a proposal draft'));vi.mocked(readRetained).mockRejectedValue(new SourceError(404,'Not a retained record'));});afterEach(()=>{vi.resetAllMocks();vi.unstubAllGlobals();});
+test('retained own identity reads no current draft and mismatched exact number cannot fall forward',async()=>{
+ vi.mocked(readRetained).mockResolvedValue(retained());expect((await resolveProposalTarget('retained-r75',75,'workspace')).kind).toBe('retained');await expect(resolveProposalTarget('retained-r75',150,'workspace')).rejects.toMatchObject({status:404});expect(readDraft).not.toHaveBeenCalled();expect(readRetained).toHaveBeenCalledTimes(2);
+});
+test('draft exact revision resolves only the named retained record, including numbers beyond the first page',async()=>{
+ vi.mocked(readDraft).mockResolvedValue({draft_id:'proposal-draft',workspace_id:'workspace',revisions:[{revision_id:'retained-r2',number:2},{revision_id:'retained-r75',number:75}]} as Draft);vi.mocked(readRetained).mockImplementation(async id=>{if(id==='retained-r75')return retained();throw new SourceError(404,'Not a retained record');});const target=await resolveProposalTarget('proposal-draft',75,'workspace');expect(target.kind==='retained'&&target.retained.revision_id).toBe('retained-r75');await expect(resolveProposalTarget('proposal-draft',150,'workspace')).rejects.toMatchObject({status:404});expect(vi.mocked(readRetained).mock.calls.some(([id])=>id==='retained-r2')).toBe(false);
+});
+test('accepted definition reads exact catalog state then verifies every retained adoption pin',async()=>{
+ vi.mocked(readRetained).mockImplementation(async id=>{if(id==='retained-r75')return retained();throw new SourceError(404,'Not a retained record');});let hash='a'.repeat(64);const paths:string[]=[];vi.stubGlobal('fetch',vi.fn(async(path:string)=>{paths.push(path);return new Response(JSON.stringify({definition_id:'accepted-definition',workspace_id:'workspace',name:'Synthetic accepted reference',kind:'enclosure_proposal',selected:{kind:'revision',number:3,revision_id:'accepted-r3',snapshot_id:'accepted-s3',sha256:'c'.repeat(64),content:{proposal_adoption:{retained_proposal_id:'retained-r75',retained_sha256:hash,proposal_draft_id:'proposal-draft',interpretation_id:'board',interpretation_sha256:'b'.repeat(64)}}}}));}));const result=await resolveProposalTarget('accepted-definition',3,'workspace');expect(result.kind==='retained'&&result.adoption?.selected.kind).toBe('revision');expect(paths).toEqual(['/api/v0/catalog/definitions/accepted-definition/record?include_content=true&revision_number=3']);hash='d'.repeat(64);await expect(resolveProposalTarget('accepted-definition',3,'workspace')).rejects.toMatchObject({status:404});
+});
+test('current denial and wrong-workspace records cannot trigger namespace or head fallback',async()=>{
+ vi.mocked(readRetained).mockRejectedValueOnce(new SourceError(403,'Source access denied'));await expect(resolveProposalTarget('retained-r75',null,'workspace')).rejects.toMatchObject({status:403});expect(readDraft).not.toHaveBeenCalled();vi.mocked(readRetained).mockResolvedValueOnce(retained({workspace_id:'elsewhere'}));await expect(resolveProposalTarget('retained-r75',null,'workspace')).rejects.toMatchObject({status:404});expect(readDraft).not.toHaveBeenCalled();
+});
