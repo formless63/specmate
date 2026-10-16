@@ -5,6 +5,7 @@ import { usePermission } from '../../lib/permissions';
 import { useNewRequest } from '../library-gallery/newRequest';
 import { useNavigation } from '../navigation';
 import { useProbe } from '../probe';
+import { areaOfTool } from '../shell/areas';
 import { LIBRARY_VIEWS } from '../shell/scope';
 import type { LibraryRecord, Project } from '../workspace/api';
 import { SecondaryRecordPage, type SecondaryRecordProps } from './SecondaryRecordPage';
@@ -27,7 +28,7 @@ function SecondaryLibrarySession({ active, principalKey, workspaceId, toolId, pr
   if (active && !chosen) listFilters.current = Object.fromEntries(Object.entries(filters).filter(([key]) => !['status', 'view'].includes(key)));
   if (chosen) targets.current.set(chosen, { number: probe?.probe?.rev ?? null, working: filters.status === 'draft' });
   useEffect(() => { if (chosen) setVisits(current => current.some(v => v.key === chosen) ? current : [...current, { key: chosen, id: creating ? null : object, initial: structuredClone(config.initial) }]); }, [chosen, creating, object]);
-  const go = (id: string | null, number: number | null = null, working?: string) => nav?.navigate({ area: 'library', lens: toolId, probe: id ? { object: id, rev: number, path: id === probe?.probe?.object ? probe.probe.path : [] } : null, filters: { ...listFilters.current, ...(working ? { status: working } : {}) } });
+  const go = (id: string | null, number: number | null = null, working?: string) => nav?.navigate({ area: areaOfTool(toolId).id, lens: toolId, probe: id ? { object: id, rev: number, path: id === probe?.probe?.object ? probe.probe.path : [] } : null, filters: { ...listFilters.current, ...(working ? { status: working } : {}) } });
   useNewRequest(LIBRARY_VIEWS[toolId]!, active && !!chosen && create.allowed, () => go(null, null, 'new'));
   return <>
     {active && !chosen && <LibraryList toolId={toolId} principalKey={principalKey} projectFilterId={projectFilterId} projects={projects} onOpenInProject={onOpenInProject} editor={{ reveal: startNew => { if (startNew) go(null, null, 'new'); } }} />}
