@@ -1,6 +1,6 @@
 /** Transient illustration math. Canonical matrices, sources and measurements are inputs only. */
 import * as THREE from 'three';
-import type { Address, Matrix, SharedScene, Vec3 } from './api';
+import type { Address, Matrix, GeometryScene, Vec3 } from './api';
 
 export type Axis = 'x' | 'y' | 'z';
 export type CameraView = 'isometric' | 'top' | 'front' | 'end';
@@ -19,7 +19,7 @@ export const toMatrix = (value: Matrix) => new THREE.Matrix4().set(...value.flat
 const belongs = (path: string[], branch: string[]) => branch.length <= path.length && branch.every((id, i) => path[i] === id);
 const validNumber = (value: number) => Number.isFinite(value) && Math.abs(value) <= 1e9;
 
-export function openingOperator(scene: SharedScene, display: Display): THREE.Matrix4 | null {
+export function openingOperator(scene: GeometryScene, display: Display): THREE.Matrix4 | null {
   const opening = display.opening;
   if (!opening || opening.address.snapshot_id !== scene.snapshot_id || opening.address.feature_id ||
       !validNumber(opening.angle_deg) || !opening.pivot_local_mm.every(validNumber)) return null;
@@ -36,7 +36,7 @@ export function openingOperator(scene: SharedScene, display: Display): THREE.Mat
  * Descendants inherit one chosen opening and their root branch's world-axis offset.
  * Missing canonical transforms never acquire a position from these adjustments.
  */
-export function displayMatrix(scene: SharedScene, address: Address, transform: Matrix | null,
+export function displayMatrix(scene: GeometryScene, address: Address, transform: Matrix | null,
   display: Display, allowOpening = true): THREE.Matrix4 | null {
   if (transform === null || address.snapshot_id !== scene.snapshot_id) return null;
   const result = toMatrix(transform), opening = allowOpening ? openingOperator(scene, display) : null;

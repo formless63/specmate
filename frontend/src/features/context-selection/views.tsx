@@ -70,7 +70,7 @@ function FeatureButtons({ node, features = node.features }: { node: SceneNode; f
     {features.length > 50 && <Group><Button disabled={!page} onClick={() => setPage(p => p - 1)}>Previous contextual features</Button><Button disabled={(page + 1) * 50 >= features.length} onClick={() => setPage(p => p + 1)}>Next contextual features</Button></Group>}
   </Stack>;
 }
-function TreeView() {
+export function TreeView() {
   const { state } = useContextSelection();
   const [filter, setFilter] = useState(''), [page, setPage] = useState(0);
   const rows = state.scene!.nodes.filter(node => `${node.address.path.join('/')} ${node.display_ref} ${node.name}`.toLowerCase().includes(filter.toLowerCase()));
@@ -87,7 +87,7 @@ function point(feature: Feature): [number, number] | null {
   if (!['native_component', 'native_pad'].includes(feature.role) || !Array.isArray(position) || position.length !== 2 || !position.every(n => typeof n === 'number' && Number.isFinite(n))) return null;
   return [position[0] as number, -(position[1] as number)];
 }
-function BoardView() {
+export function BoardView() {
   const { state, controller } = useContextSelection();
   const [role, setRole] = useState('native_component');
   const node = selectedNode(state), selected = selectedFeature(state);
@@ -123,7 +123,7 @@ function relationshipsFor(node: SceneNode | null, featureOnly: string | null = n
     return JSON.stringify([...prefix, ...value.path]) === JSON.stringify(node.address.path) && (!featureOnly || ('feature_id' in value && value.feature_id === featureOnly));
   });
 }
-function CableView() {
+export function CableView() {
   const { state } = useContextSelection();
   const node = selectedNode(state), feature = selectedFeature(state);
   const cables = state.scene!.nodes.filter(n => ['cable', 'harness'].includes(n.kind));
@@ -154,7 +154,7 @@ function SceneView() {
     {open && <ViewerBoundary><Suspense fallback={<Text>Loading connected scene…</Text>}><Viewport scene={state.scene!} arrangement={arrangement} selected={visualAddress} related={related} onSelect={address => controller.selectOccurrence(address)} onRestoreCanonical={() => setArrangement('canonical')} /></Suspense></ViewerBoundary>}
   </Stack>;
 }
-function InspectorView() {
+export function InspectorView() {
   const { state } = useContextSelection();
   const node = selectedNode(state), feature = selectedFeature(state);
   return <Stack><Title order={3}>Exact contextual inspector</Title>
@@ -167,7 +167,7 @@ function InspectorView() {
     </> : <Text>No occurrence inspector is selected. A reusable revision selection has no containing placement or contextual firmware assignment.</Text>}
   </Stack>;
 }
-function SchematicView() {
+export function SchematicView() {
   const { state } = useContextSelection();
   const node = selectedNode(state), feature = selectedFeature(state);
   const relationships = state.scene!.relationships.filter(rel => rel.kind === 'electrical').filter(relationshipsFor(node));
@@ -182,7 +182,7 @@ function SchematicView() {
   </Stack>;
 }
 
-function BomView() {
+export function BomView() {
   const { state, controller } = useContextSelection();
   const [id, setId] = useState(''), [purpose, setPurpose] = useState<Purpose>('assembly_contents');
   const [loaded, setLoaded] = useState<LoadedBom | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);

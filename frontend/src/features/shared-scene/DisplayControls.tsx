@@ -1,5 +1,5 @@
 import { Button, Checkbox, Group, NumberInput, Select, Stack, Text } from '@mantine/core';
-import type { Address, SharedScene, Vec3 } from './api';
+import type { Address, GeometryScene, Vec3 } from './api';
 import type { Arrangement } from './geometry';
 import type { Axis, Display } from './display';
 
@@ -10,7 +10,7 @@ const number = (value: string | number) => typeof value === 'number' ? value : N
 const visible = (value: number) => Number.isFinite(value) ? value : '';
 
 export function DisplayControls({ scene, arrangement, selected, display, setDisplay, input, setInput, restore }: {
-  scene: SharedScene; arrangement: Arrangement; selected: Address | null;
+  scene: GeometryScene; arrangement: Arrangement; selected: Address | null;
   display: Display; setDisplay: (next: Display) => void; input: OpeningInput; setInput: (next: OpeningInput) => void; restore: () => void;
 }) {
   const node = selected && !selected.feature_id && selected.snapshot_id === scene.snapshot_id

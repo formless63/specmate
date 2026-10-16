@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { sectionLayout } from '../../../../packages/section-layout/src';
 import { unpreparedProfile, wireModel } from '../../../../packages/wire-geometry/src/model';
 import { buildWireObject } from '../../../../packages/wire-geometry/src/scene';
-import type { Address, Geometry, Matrix, SharedScene, Vec3 } from './api';
+import type { Address, Geometry, Matrix, GeometryScene, Vec3 } from './api';
 import { selectionKey } from './api';
 import { closedDisplay, displayMatrix } from './display';
 import type { Display } from './display';
@@ -85,7 +85,7 @@ function geometryObject(resource: Geometry): { group: THREE.Group; unknown: stri
 /** One resource's geometry is shared by clones, but selection stays occurrence-specific.
  * Inspection layout is ephemeral and never fills in an unknown canonical placement.
  */
-export function buildSceneObject(scene: SharedScene, arrangement: Arrangement, display: Display = closedDisplay()): SceneObject {
+export function buildSceneObject(scene: GeometryScene, arrangement: Arrangement, display: Display = closedDisplay()): SceneObject {
   const group = new THREE.Group(), objects = new Map<string, THREE.Object3D>(), unknown: string[] = [];
   const resources = new Map(scene.geometry.map(g => [g.geometry_id, g]));
   const built = new Map<string, ReturnType<typeof geometryObject>>();

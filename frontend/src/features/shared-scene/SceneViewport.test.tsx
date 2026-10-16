@@ -115,3 +115,14 @@ test('theme changes redraw in place via media query and color-scheme attribute, 
     expect(lifecycle.draw.mock.calls.length).toBe(after); document.documentElement.removeAttribute('data-mantine-color-scheme');
   });
 });
+
+
+test('explicit inactive record stops even nonzero-width rendering and resumes the retained context', () => {
+  const showActive = (active: boolean) => <MantineProvider><SceneViewport active={active} scene={scene} arrangement="canonical" selected={null} onSelect={vi.fn()} /></MantineProvider>;
+  const view = render(showActive(true)); const initial = lifecycle.draw.mock.calls.length;
+  view.rerender(showActive(false)); fireEvent.click(screen.getByRole('button', { name: 'Fit scene' }));
+  act(() => window.dispatchEvent(new Event('resize')));
+  expect(lifecycle.draw).toHaveBeenCalledTimes(initial);
+  view.rerender(showActive(true)); expect(lifecycle.draw.mock.calls.length).toBeGreaterThan(initial);
+  expect(lifecycle.construct).toHaveBeenCalledTimes(1);
+});
