@@ -119,7 +119,7 @@ async function openTool(label: string) {
   if (label === "Mechanical sources") return openTool("Shells & hardware");
   if (["Conductor conventions", "Workshop profiles", "Evidence kinds"].includes(label)) {
     await openTool("Vocabulary");
-    fireEvent.click(screen.getByRole("button", { name: label === "Conductor conventions" ? "Conventions" : label }));
+    fireEvent.click(await screen.findByRole("button", { name: label === "Conductor conventions" ? "Conventions" : label }));
     return;
   }
   const area = AREAS.find((item) => item.tools.some((tool) => tool.label === label));
@@ -392,6 +392,12 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       const list = await screen.findByRole("region", { name: current.title });
       expect(within(list).getByRole("button", { name: `New ${current.noun}` })).toBeTruthy();
       expect(screen.queryByRole("region", { name: `${current.title} editor` })).toBeNull();
+      continue;
+    }
+    if (["signals", "conventions", "workshop-profiles"].includes(toolId)) {
+      const list = await screen.findByRole("region", { name: typed!.title });
+      expect(within(list).getByRole("button", { name: `New ${typed!.noun}` })).toBeTruthy();
+      expect(screen.queryByRole("region", { name: `${typed!.title} editor` })).toBeNull();
       continue;
     }
     if (["interfaces", "ports", "end-assemblies", "pcb"].includes(toolId)) {

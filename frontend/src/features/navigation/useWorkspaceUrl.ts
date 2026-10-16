@@ -46,8 +46,11 @@ export function useWorkspaceUrl(scope: ScopeLike): WorkspaceUrl {
     const area = areaOfTool(toolId).id;
     const projectPage = ["overview", "knowledge"].includes(location.lens) && ["overview", "knowledge"].includes(toolId);
     const sameList = ["library", "designs"].includes(area) && location.area === area && !location.probe;
-    navigate({ area, lens: toolId, project: projectPage || sameList ? location.project : null });
-  }, [navigate, location.area, location.lens, location.project, location.probe]);
+    const filters = { ...location.filters };
+    // New belongs to the originating record type, never the next collection tab.
+    if (toolId !== location.lens && filters.status === "new") delete filters.status;
+    navigate({ area, lens: toolId, project: projectPage || sameList ? location.project : null, filters });
+  }, [navigate, location.area, location.lens, location.project, location.probe, location.filters]);
   const setProbe = useCallback((target: ProbeTarget | null) => navigate({ probe: target }, probeNavigateOptions(probe, target)), [navigate, probe]);
   const openInProject = useCallback((target: string, toolId: string, object?: string) => {
     setProjectLost(false);

@@ -6,10 +6,6 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "../../App";
 import { project, reply, workspaceServer } from "../../test/workspaceServer";
 
-vi.mock("../cables/CablePanel", () => ({ CablePanel: ({ projectId }: { projectId: string | null }) => {
-  const [text, setText] = useState("");
-  return <><input aria-label="Unsaved cable buffer" value={text} onChange={event => setText(event.currentTarget.value)} /><output aria-label="Editor project">{projectId ?? "none"}</output></>;
-} }));
 // Keep this integration check focused on shell lifetime; cable editing is covered by its mounted tests.
 vi.mock("../designs/NewCable", () => ({ NewCable: () => {
   const [text, setText] = useState("");
