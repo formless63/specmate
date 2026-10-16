@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { ProbeProvider, useProbe } from '../probe';
 import { DeviceSections } from './DeviceSections';
-vi.mock('../configurations/ConfigurationsPanel', () => ({ ConfigurationsPanel: () => {
+vi.mock('./EmbeddedRecords', () => ({ EmbeddedRecords: () => {
   const shared = useProbe(); const [text, setText] = useState('');
   return <><input aria-label="Independent option buffer" value={text} onChange={event => setText(event.currentTarget.value)} /><button onClick={() => shared?.setProbe({ object: 'configuration', rev: 3, path: [] })}>Choose separate configuration</button><output data-testid="section-probe">{shared?.probe?.object ?? 'None'}</output></>;
 } }));
