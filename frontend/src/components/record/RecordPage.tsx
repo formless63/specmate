@@ -6,6 +6,7 @@ import { SbIdentityBadge } from "../sb";
 import "./record.css";
 
 const RecordHistory = lazy(() => import("../../features/history/History").then(module => ({ default: module.RecordHistory })));
+const Provenance = lazy(() => import("../../features/identity/Provenance").then(module => ({ default: module.Provenance })));
 
 export type RecordState = { kind: "new" } | { kind: "draft"; id: string; version: number; dirty: boolean } | { kind: "revision"; id: string; number: number };
 export type RecordSection = { id: string; label: string; content: () => ReactNode };
@@ -29,7 +30,9 @@ export type RecordPageProps = {
 /** Shared drawing-first record frame. Domain state, authority and writes stay in its controller. */
 export function RecordPage({ layout = 'workbench', active, identity, state, actions, revisions, facts, notice, views, view, onView, inspector: givenInspector, inspectorTab, onInspectorTab }: RecordPageProps) {
   const historyIdentity = useHistoryIdentity();
-  const inspector = historyIdentity && identity.id && !givenInspector.some(section => section.id === "history") ? [...givenInspector, { id: "history", label: "History", content: () => <Suspense fallback={<Text>Reading history…</Text>}><RecordHistory definitionId={identity.id!} active={active && tab === "history" && (!compact || sheet)} /></Suspense> }] : givenInspector;
+  const inspector = historyIdentity && identity.id ? [...givenInspector,
+    ...(!givenInspector.some(section => section.id === 'provenance') ? [{ id: 'provenance', label: 'Provenance', content: () => <Suspense fallback={<Text>Reading provenance…</Text>}><Provenance definitionId={identity.id!} revisionId={state.kind === 'revision' ? state.id : undefined} active={active && tab === 'provenance' && (!compact || sheet)} scopeKey={`${historyIdentity.principalKey}:${historyIdentity.workspaceId}`} /></Suspense> }] : []),
+    ...(!givenInspector.some(section => section.id === 'history') ? [{ id: "history", label: "History", content: () => <Suspense fallback={<Text>Reading history…</Text>}><RecordHistory definitionId={identity.id!} active={active && tab === "history" && (!compact || sheet)} /></Suspense> }] : [])] : givenInspector;
   const phone = useMediaQuery("(max-width: 48em)"), compact = layout !== 'section' && phone;
   const [sheet, setSheet] = useState(false);
   const [ownTab, setOwnTab] = useState(inspector[0]?.id ?? "");

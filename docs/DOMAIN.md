@@ -3,6 +3,22 @@
 This document sets semantic rules. Concrete table/class names may evolve before v1.0.0;
 the rules do not silently change with implementation convenience.
 
+## Source origins and catalog lifecycle
+
+Any engineering content can retain `source_origins`: bounded typed exact file pins,
+including namespace, upstream record/revision, converter version, original status,
+hash and rights. Shared draft, capture and read operations validate these against the
+same workspace's immutable source files. The pins travel in frozen canonical content
+and selected-source exports. Conversion provenance is not a qualification or rights clearance.
+
+Current catalog disposition is separate append-only history. `catalog.set_lifecycle`
+requires a current lifecycle token and an explicit basis; `superseded` also requires
+an exact replacement revision in the same workspace. Self-replacement and cycles fail.
+Superseded identities leave default new-item choices, while exact links, historic
+revisions, inventory and pinned consumers remain unchanged. Adoption by projects and
+consumers is a separate reviewed operation. `catalog.lifecycle` reads the disposition
+without selecting a different revision or reading an unrelated working draft.
+
 ## Workspace, collections and projects
 
 Status: accepted target model. Until the workspace-collections migration lands, the

@@ -1,0 +1,92 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "converter": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Converter",
+      "type": "string"
+    },
+    "namespace": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Namespace",
+      "type": "string"
+    },
+    "record_key": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Record Key",
+      "type": "string"
+    },
+    "rights": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Rights",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "source_bundle_revision_id": {
+      "format": "uuid",
+      "title": "Source Bundle Revision Id",
+      "type": "string"
+    },
+    "source_path": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Source Path",
+      "type": "string"
+    },
+    "source_status": {
+      "default": "unknown",
+      "enum": [
+        "active",
+        "development",
+        "legacy",
+        "retired",
+        "unknown"
+      ],
+      "title": "Source Status",
+      "type": "string"
+    },
+    "synthetic_example": {
+      "default": false,
+      "title": "Synthetic Example",
+      "type": "boolean"
+    },
+    "upstream_revision": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Upstream Revision"
+    }
+  },
+  "required": [
+    "namespace",
+    "record_key",
+    "converter",
+    "source_bundle_revision_id",
+    "source_path",
+    "sha256",
+    "rights"
+  ],
+  "title": "SourceOrigin",
+  "type": "object"
+}

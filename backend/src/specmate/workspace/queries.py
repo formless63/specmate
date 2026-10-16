@@ -113,6 +113,11 @@ def _definitions(workspace, payload, context):
         latest_revision_id=Subquery(latest.values("id")[:1]),
         changed_at=Subquery(changed.values("updated_at")[:1]),
     )
+    from specmate.catalog.lifecycle import annotate_status
+
+    query = annotate_status(query)
+    if not payload.include_superseded:
+        query = query.exclude(catalog_status="superseded")
     if payload.kinds:
         query = query.filter(kind__in=payload.kinds)
     if payload.query:
@@ -131,6 +136,9 @@ def _definitions(workspace, payload, context):
             "latest_revision": row.latest_revision,
             "latest_revision_id": row.latest_revision_id,
             "changed_at": row.changed_at,
+            "detail": None
+            if row.catalog_status == "active"
+            else f"Catalog status: {row.catalog_status}",
         }
 
     def used_in(ids):
@@ -553,7 +561,9 @@ def library_record(user, record_id: UUID, payload: ResolveLibraryRecord) -> dict
     workspace = _workspace(actor, payload.workspace_id)
     context = _context(workspace, payload.project_id)
     for factory in FAMILIES.values():
-        query, referenced, render, loader = factory(workspace, ListLibrary(), context)
+        query, referenced, render, loader = factory(
+            workspace, ListLibrary(include_superseded=True), context
+        )
         if context is not None:
             query = query.annotate(referenced=_referenced_flag(referenced))
         row = query.filter(id=record_id).first()

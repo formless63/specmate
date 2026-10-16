@@ -6,6 +6,42 @@ from django.conf import settings
 from django.db import models
 
 
+class DefinitionLifecycle(models.Model):
+    """Append-only catalog disposition; exact historical revisions remain readable."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    definition = models.ForeignKey(
+        "design.Definition", on_delete=models.PROTECT, related_name="lifecycle_events"
+    )
+    sequence = models.PositiveIntegerField()
+    status = models.CharField(max_length=20)
+    replacement = models.ForeignKey(
+        "design.Revision", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    basis = models.TextField()
+    registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["definition", "sequence"], name="catalog_lifecycle_sequence"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sequence__gte=1)
+                & ~models.Q(basis="")
+                & (
+                    models.Q(status="superseded", replacement__isnull=False)
+                    | models.Q(
+                        status__in=["active", "development", "legacy", "retired"],
+                        replacement__isnull=True,
+                    )
+                ),
+                name="catalog_lifecycle_valid",
+            ),
+        ]
+
+
 class ManufacturerVariant(models.Model):
     """An asserted orderable identity associated with one exact design revision.
 

@@ -13,6 +13,7 @@ import json
 from django.db.models import Case, IntegerField, Value, When
 
 from specmate.access.permissions import Perm
+from specmate.catalog.lifecycle import current_definitions
 from specmate.catalog.models import ManufacturerVariant, SourceIdentifier
 from specmate.design.models import Definition, Draft, Revision
 from specmate.operations import Context, operation
@@ -118,6 +119,12 @@ def library_search(user, payload: SearchLibrary) -> dict:
     for definition_id, family in families.items():
         _consider(best, definition_id, "connector_family", family, query)
     ranked = sorted(best.items(), key=lambda pair: pair[1][0])
+    current_ids = set(
+        current_definitions(Definition.objects.filter(id__in=list(best))).values_list(
+            "id", flat=True
+        )
+    )
+    ranked = [pair for pair in ranked if pair[0] in current_ids]
     truncated = capped or len(ranked) > payload.limit
     ranked = ranked[: payload.limit]
     definitions = {d.id: d for d in Definition.objects.filter(id__in=[key for key, _ in ranked])}

@@ -37,6 +37,11 @@
       "title": "Family",
       "type": "string"
     },
+    "include_superseded": {
+      "default": false,
+      "title": "Include Superseded",
+      "type": "boolean"
+    },
     "kinds": {
       "items": {
         "type": "string"

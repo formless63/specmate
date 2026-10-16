@@ -328,6 +328,9 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    from specmate.design.source_origins import validate_content as validate_origins
+
+    content = validate_origins(content)
     if kind == "product_family" or "product_family" in content:
         from specmate.products.queries import validate_content as validate_product
 
@@ -442,8 +445,10 @@ def authorize_design_content(user, definition, content):
 
 def _authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
+    from specmate.design.source_origins import authorize_content as authorize_source_origins
 
     authorize_origin(user, definition)
+    authorize_source_origins(user, definition, content)
     if definition.kind == "product_family":
         from specmate.products.queries import dependency_revisions as product_dependencies
 

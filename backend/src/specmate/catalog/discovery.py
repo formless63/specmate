@@ -54,6 +54,7 @@ class SearchCatalog(BaseModel):
     project_id: UUID | None = None
     after: UUID | None = None
     limit: int = Field(default=25, ge=1, le=100)
+    include_superseded: bool = False
 
     @field_validator("query")
     @classmethod
@@ -146,6 +147,10 @@ def search_catalog(user, payload):
 
     elif kind == "definition":
         query = Definition.objects.filter(workspace__in=workspaces, name__icontains=text)
+        if not payload.include_superseded:
+            from specmate.catalog.lifecycle import current_definitions
+
+            query = current_definitions(query)
         if project is not None:
             referenced = references_definition(project)
 

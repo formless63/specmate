@@ -124,12 +124,13 @@ export type ProjectDetail = {
   can_delete: boolean;
 };
 
-export function listLibrary(params: { family: LibraryFamily; kinds: string[]; query: string; projectId: string | null; referencedOnly?: boolean; after: string | null; limit?: number }): Promise<LibraryPage> {
+export function listLibrary(params: { family: LibraryFamily; kinds: string[]; query: string; projectId: string | null; referencedOnly?: boolean; includeSuperseded?: boolean; after: string | null; limit?: number }): Promise<LibraryPage> {
   const search = new URLSearchParams({ family: params.family, limit: String(params.limit ?? 50) });
   for (const kind of params.kinds) search.append("kinds", kind);
   if (params.query) search.set("query", params.query);
   if (params.projectId) search.set("project_id", params.projectId);
   if (params.referencedOnly) search.set("referenced_only", "true");
+  if (params.includeSuperseded) search.set("include_superseded", "true");
   if (params.after) search.set("after", params.after);
   return requestJson(`/api/v0/workspace/library?${search.toString()}`);
 }

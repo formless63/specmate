@@ -14,6 +14,11 @@
       "default": null,
       "title": "After"
     },
+    "include_superseded": {
+      "default": false,
+      "title": "Include Superseded",
+      "type": "boolean"
+    },
     "kind": {
       "default": "definition",
       "enum": [

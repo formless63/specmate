@@ -8,6 +8,7 @@ class CatalogConfig(AppConfig):
     def ready(self):
         from specmate.catalog import (
             discovery,  # noqa: F401
+            lifecycle,  # noqa: F401
             operations,  # noqa: F401
         )
         from specmate.catalog.contracts import (
@@ -23,6 +24,7 @@ class CatalogConfig(AppConfig):
             WhereUsed,
         )
         from specmate.contracts import SCHEMAS
+        from specmate.design.source_origins import SourceOrigin
         from specmate.parts import membership, records  # noqa: F401
         from specmate.parts.contracts import CatalogRecord, Kit, Part, ReadKits, ReadRecord
         from specmate.products import queries as product_queries  # noqa: F401
@@ -36,6 +38,7 @@ class CatalogConfig(AppConfig):
 
         SCHEMAS.update(
             {
+                "design-source-origin": SourceOrigin,
                 "product-family": ProductFamily,
                 "products-lineup": LineupQuery,
                 "products-lineup-result": LineupResult,

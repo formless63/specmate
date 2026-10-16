@@ -1096,6 +1096,25 @@ def rights_section(scope, package):
                 "sha256": None,
             }
         )
+    from specmate.design.source_origins import parse as parse_origins
+
+    for revision in scope.revisions.values():
+        content = json.loads(bytes(revision.snapshot.canonical))["content"]
+        for index, origin in enumerate(parse_origins(content)):
+            items.append(
+                {
+                    "subject": f"source_origin:{revision.id}:{index}",
+                    "revision_id": str(revision.id),
+                    "definition_name": revision.definition.name,
+                    "record": "source_origin",
+                    "label": f"{origin.namespace}:{origin.record_key}",
+                    # A rights string is provenance, never a clearance review.
+                    "rights_status": "unknown",
+                    "declared_rights": origin.rights,
+                    "source_path": origin.source_path,
+                    "sha256": origin.sha256,
+                }
+            )
     items.extend(package.rights_items)
     items.sort(key=lambda row: row["subject"])
     counts = Counter(row["rights_status"] for row in items)

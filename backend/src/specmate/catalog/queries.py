@@ -66,6 +66,8 @@ def representation_result(representation):
 
 
 def get_identity(user, definition_id, *, offset=0, limit=50):
+    from specmate.catalog.lifecycle import result as lifecycle_result
+
     definition = Definition.objects.filter(id=definition_id).first()
     if definition is None:
         raise NotFound("Definition not found.")
@@ -75,6 +77,7 @@ def get_identity(user, definition_id, *, offset=0, limit=50):
         "definition_id": str(definition.id),
         "name": definition.name,
         "kind": definition.kind,
+        "lifecycle": lifecycle_result(definition),
         "revisions": [{"revision_id": str(r.id), "number": r.number} for r in revisions],
         "drafts": [
             draft_summary(user, draft)
@@ -88,6 +91,9 @@ def get_identity(user, definition_id, *, offset=0, limit=50):
 
 
 def get_revision_catalog(user, revision_id, *, offset=0, limit=50):
+    import json
+
+    from specmate.design.source_origins import parse as parse_origins
     from specmate.queries import get_revision
 
     revision = get_revision(user, revision_id)
@@ -105,6 +111,12 @@ def get_revision_catalog(user, revision_id, *, offset=0, limit=50):
         revision=revision
     )
     return {
+        "source_origins": [
+            origin.model_dump(mode="json")
+            for origin in parse_origins(json.loads(bytes(revision.snapshot.canonical))["content"])[
+                offset : offset + limit
+            ]
+        ],
         "source_identifiers": [
             source_identifier_result(i)
             for i in identifiers.order_by("created_at", "id")[offset : offset + limit]
@@ -150,7 +162,16 @@ def draft_summary(user, draft):
     return {"draft_id": str(draft.id), "state": draft.state_token, "dependencies": dependencies}
 
 
-def list_definitions(user, *, workspace_id=None, project_id=None, kind=None, after=None, limit=50):
+def list_definitions(
+    user,
+    *,
+    workspace_id=None,
+    project_id=None,
+    kind=None,
+    after=None,
+    limit=50,
+    include_superseded=False,
+):
     """Library definitions of one workspace; a project context lists its references first.
 
     The project id never limits the list to "owned" definitions: definitions live in the
@@ -164,6 +185,10 @@ def list_definitions(user, *, workspace_id=None, project_id=None, kind=None, aft
     query = Definition.objects.filter(workspace=workspace).annotate(
         latest_number=Max("revisions__number")
     )
+    if not include_superseded:
+        from specmate.catalog.lifecycle import current_definitions
+
+        query = current_definitions(query)
     if kind is not None:
         query = query.filter(kind=kind)
     referenced = references_definition(project) if project is not None else None

@@ -1,4 +1,4 @@
-import { Alert, Button, Group, Popover, SegmentedControl, Select, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Checkbox, Group, Popover, SegmentedControl, Select, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -103,6 +103,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   // The typed text lives in FilterInput so a keystroke never re-renders the (possibly 250+ row) table;
   // only the debounced query comes back here.
   const [query, setQuery] = useState("");
+  const [includeSuperseded, setIncludeSuperseded] = useState(false);
   const [kindFilter, setKindFilter] = useState<string | null>(null);
   const [mode, setMode] = useState<"project" | "library">("project");
   const [layout, setLayout] = useListLayout();
@@ -113,8 +114,8 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   const kinds = kindFilter ? [kindFilter] : view.kinds;
   const referencedOnly = !!projectId && mode === "project";
   const records = useInfiniteQuery({
-    queryKey: ["workspace", "library", principalKey, view.family, kinds, query, projectId, referencedOnly],
-    queryFn: ({ pageParam }) => listLibrary({ family: view.family, kinds, query, projectId, referencedOnly, after: pageParam }),
+    queryKey: ["workspace", "library", principalKey, view.family, kinds, query, projectId, referencedOnly, includeSuperseded],
+    queryFn: ({ pageParam }) => listLibrary({ family: view.family, kinds, query, projectId, referencedOnly, includeSuperseded, after: pageParam }),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.next_after,
     retry: false,
@@ -175,6 +176,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
     {editor && projectId && <Text className="sb-dash-note">New items are added to the library and referenced by this project.</Text>}
     <div className="sb-ws-toolbar" role="search" aria-label={`Filter ${view.title}`}>
       <FilterInput onQuery={setQuery} />
+      {view.family === 'definition' && <Checkbox size="xs" label="Include superseded" checked={includeSuperseded} onChange={event => setIncludeSuperseded(event.currentTarget.checked)} />}
       {showKindFilter && <Select aria-label="Kind filter" size="xs" w={200} searchable clearable placeholder="every kind"
         data={kindOptions} value={kindFilter} onChange={setKindFilter} />}
     </div>

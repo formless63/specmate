@@ -45,6 +45,7 @@ class ListLibrary(Query):
     query: str = Field(default="", max_length=200)
     project_id: UUID | None = None
     referenced_only: bool = False
+    include_superseded: bool = False
     after: str | None = Field(default=None, max_length=300)
     limit: int = Field(default=50, ge=1, le=100)
 

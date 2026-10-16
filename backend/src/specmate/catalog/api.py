@@ -55,6 +55,7 @@ def library_definitions(
     kind: str | None = None,
     after: UUID | None = None,
     limit: int = 50,
+    include_superseded: bool = False,
 ):
     if not 1 <= limit <= 100:
         raise ValidationFailed("Pagination requires a limit between 1 and 100.")
@@ -65,6 +66,7 @@ def library_definitions(
         kind=kind,
         after=after,
         limit=limit,
+        include_superseded=include_superseded,
     )
 
 
