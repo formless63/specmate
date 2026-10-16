@@ -84,3 +84,17 @@ describe('shared stock section, drawing and geometry', () => {
     expect(renderSectionSvg(section, 'Synthetic')).not.toContain('onload');
   });
 });
+
+it('keeps copper and insulation geometry on one stable conductor identity without inventing unknown bore', () => {
+  const stock=structuredClone(coax.stock) as StockSpecification;
+  const node=stock.structure.children[0]!;
+  if(node.kind==='group'||node.kind==='web')throw new Error('fixture');
+  node.insulated_diameter_mm=1.5;node.color_label='white-blue';node.stripe_colors=['#1f5fbf'];
+  const section=sectionLayout(stock), layers=section.features.filter(feature=>feature.path==='stock.center');
+  expect(layers).toHaveLength(2);expect(layers.map(feature=>feature.kind)).toEqual(['insulation','conductor']);
+  expect(section.rows.filter(row=>row.path==='stock.center')).toHaveLength(1);
+  expect(section.rows[0]!.insulatedDiameterMm).toBe(1.5);
+  node.outer_diameter_mm=null;
+  const unknown=sectionLayout(stock);expect(unknown.unknown.join(' ')).toContain('bare conductor diameter unknown');
+  expect(unknown.features.filter(feature=>feature.path==='stock.center')).toHaveLength(0);
+});

@@ -41,7 +41,7 @@ function leafOf(node: LeafElement, path: string, parent: string, x: number | nul
     const rOut = node.width_mm === null || node.height_mm === null ? null : Math.hypot(node.width_mm, node.height_mm) / 2;
     return { path, kind: 'web', parent, x, y, rOut, rIn: null, tube: false };
   }
-  const outer = node.outer_diameter_mm, inner = node.inner_diameter_mm;
+  const outer = node.insulated_diameter_mm ?? node.outer_diameter_mm, inner = node.inner_diameter_mm;
   const tube = (inner !== null && inner > 0) || (inner === null && TUBE_KINDS.has(node.kind));
   return { path, kind: node.kind, parent, x, y, rOut: outer === null ? null : outer / 2, rIn: inner === null ? null : inner / 2, tube };
 }

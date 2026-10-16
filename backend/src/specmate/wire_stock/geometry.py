@@ -77,7 +77,10 @@ def _leaf(node: dict, path: str, parent: str, x: float | None, y: float | None) 
         w, h = node.get("width_mm"), node.get("height_mm")
         r_out = None if w is None or h is None else math.hypot(w, h) / 2
         return Placed(path, "web", parent, x, y, r_out, None, False, node)
-    outer, inner = node.get("outer_diameter_mm"), node.get("inner_diameter_mm")
+    outer, inner = (
+        node.get("insulated_diameter_mm") or node.get("outer_diameter_mm"),
+        node.get("inner_diameter_mm"),
+    )
     tube = (inner is not None and inner > 0) or (inner is None and node["kind"] in TUBE_KINDS)
     return Placed(
         path,

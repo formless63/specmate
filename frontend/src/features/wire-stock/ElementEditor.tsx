@@ -58,7 +58,7 @@ export function ElementEditor({ node, path, onChange, color, marks, setMarks, pe
         <Button color="red" variant="subtle" size="xs" onClick={() => onChange(path, { children: node.children.filter(c => c.id !== child.id) })} {...structure.props}>Remove {path}.{child.id}</Button></Stack>)}
     </> : <>
       <Group>
-        {node.kind === 'web' ? <>{numberField('width mm', 'width_mm', node.width_mm)}{numberField('height mm', 'height_mm', node.height_mm)}</> : <>{numberField('outer diameter mm', 'outer_diameter_mm', node.outer_diameter_mm)}{numberField('inner diameter mm', 'inner_diameter_mm', node.inner_diameter_mm)}</>}
+        {node.kind === 'web' ? <>{numberField('width mm', 'width_mm', node.width_mm)}{numberField('height mm', 'height_mm', node.height_mm)}</> : <>{numberField('outer diameter mm', 'outer_diameter_mm', node.outer_diameter_mm)}{numberField('inner diameter mm', 'inner_diameter_mm', node.inner_diameter_mm)}{(node.kind === 'conductor' || node.kind === 'drain') && numberField('over-insulation diameter mm', 'insulated_diameter_mm', node.insulated_diameter_mm ?? null)}</>}
         <TextInput label={`${path} color`} value={node.color ?? ''} placeholder="Unknown (#RRGGBB)" onChange={e => { setMarks(({ [node.id]: _gone, ...rest }) => rest); onChange(path, { color: e.target.value || null }); }} />
         {marks[node.id] !== undefined && node.color === marks[node.id] && <FromPreference what={`${path} color`} onClear={() => { setMarks(({ [node.id]: _gone, ...rest }) => rest); onChange(path, { color: null }); }} />}
       </Group>

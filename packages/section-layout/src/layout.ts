@@ -42,23 +42,30 @@ export function sectionLayout(stock: StockSpecification): Section {
       widthMm: round ? node.outer_diameter_mm : node.width_mm,
       heightMm: round ? node.outer_diameter_mm : node.height_mm,
       outerDiameterMm: round ? node.outer_diameter_mm : null,
+      insulatedDiameterMm: round ? node.insulated_diameter_mm : null, colorLabel: node.color_label, stripeColors: node.stripe_colors,
       innerDiameterMm: round ? node.inner_diameter_mm : null,
       construction: round ? node.construction : null });
     if (px === null || py === null) {
       unknown.push(`${path}: position unknown`);
       continue;
     }
+    if (node.kind !== 'web' && node.insulated_diameter_mm) {
+      if (node.outer_diameter_mm === null) unknown.push(`${path}: bare conductor diameter unknown; insulation bore not evaluated`);
+      else features.push({ path, kind: 'insulation', colorLabel: node.color_label, stripeColors: node.stripe_colors, x: px, y: py, color: node.color, material: node.insulation_material ?? null,
+        shape: { type: 'ring', rOuter: node.insulated_diameter_mm / 2, rInner: node.outer_diameter_mm / 2 } });
+    }
     if (node.kind === 'web') {
       if (node.width_mm === null || node.height_mm === null) unknown.push(`${path}: web dimensions unknown`);
-      else features.push({ path, kind: node.kind, x: px, y: py, color: node.color, material: node.material, construction: null,
+      else features.push({ path, kind: node.kind, colorLabel: node.color_label, stripeColors: node.stripe_colors, x: px, y: py, color: node.color, material: node.material, construction: null,
         shape: { type: 'web', width: node.width_mm, height: node.height_mm } });
     } else if (node.outer_diameter_mm === null || node.inner_diameter_mm === null) {
       unknown.push(`${path}: layer dimensions unknown`);
     } else if (!Number.isFinite(node.outer_diameter_mm) || !Number.isFinite(node.inner_diameter_mm) || node.outer_diameter_mm <= 0 || node.inner_diameter_mm < 0 || node.inner_diameter_mm >= node.outer_diameter_mm) {
       unknown.push(`${path}: invalid layer boundaries`);
-    } else features.push({ path, kind: node.kind, x: px, y: py, color: node.color, material: node.material, construction: node.construction,
+    } else features.push({ path, kind: node.kind, colorLabel: node.color_label, stripeColors: node.stripe_colors, x: px, y: py, color: node.color, material: node.material, construction: node.construction,
       shape: { type: 'ring', rOuter: node.outer_diameter_mm / 2, rInner: node.inner_diameter_mm / 2 } });
   }
+  if (stock.lay) groups.push({ path: stock.structure.id, arrangement: stock.lay.arrangement === 'figure-8' ? 'figure-eight' : 'ring', direction: stock.lay.direction, members: [...stock.lay.ring] });
   const extent = features.map(f => {
     const rx = f.shape.type === 'ring' ? f.shape.rOuter : f.shape.width / 2;
     const ry = f.shape.type === 'ring' ? f.shape.rOuter : f.shape.height / 2;

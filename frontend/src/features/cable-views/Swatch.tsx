@@ -13,4 +13,4 @@ export function Swatch({ look, size = 14 }: { look: Appearance; size?: number })
     style={{ display: 'inline-block', width: size, height: size, borderRadius: '50%', verticalAlign: 'middle', marginRight: 6, background, border: `1px solid ${edge}`, boxSizing: 'border-box' }} />;
 }
 
-export const rowLook = (row: SectionRow): Appearance => appearanceOf({ kind: row.kind, color: row.color, material: row.material, construction: row.construction ?? null });
+export const rowLook = (row: SectionRow): Appearance => appearanceOf({ kind: row.kind, color: row.color, material: row.material, construction: row.construction ?? null, colorLabel: row.colorLabel, stripeColors: row.stripeColors });

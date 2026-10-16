@@ -6,6 +6,9 @@ export interface ElementBase {
   material: string | null;
   color: string | null;
   source: string | null;
+  color_label?: string | null;
+  stripe_colors?: string[];
+  facts?: Record<string, Fact>;
   /** Offset from the parent; null is unknown and leaves the position unknown. */
   x_mm: number | null;
   y_mm: number | null;
@@ -16,6 +19,8 @@ export interface RoundElement extends ElementBase {
   inner_diameter_mm: number | null;
   construction: 'solid' | 'stranded' | 'braid' | 'spiral' | 'foil' | 'tape' | null;
   area_mm2: number | null;
+  insulated_diameter_mm?: number | null;
+  insulation_material?: string | null;
 }
 export interface WebElement extends ElementBase {
   kind: 'web'; width_mm: number | null; height_mm: number | null;
@@ -41,6 +46,8 @@ export interface StockSpecification {
   viewed_from: 'a' | 'b' | 'unknown';
   structure: GroupElement;
   facts: Record<string, Fact>;
+  bonded_sets?: { local_id: string; element_paths: string[]; basis: string }[] | null;
+  lay?: { arrangement: 'pair' | '6-around-1' | '6-around-2' | '7-around-1' | 'figure-8'; direction: 'cw' | 'ccw'; viewed_from: 'a' | 'b' | 'unknown'; ring: string[]; center: string | null; inner: string[]; source: string; status: 'documented' | 'measured' | 'inferred' } | null;
 }
 export interface SectionRow {
   path: string;
@@ -52,6 +59,9 @@ export interface SectionRow {
   widthMm: number | null;
   heightMm: number | null;
   outerDiameterMm: number | null;
+  insulatedDiameterMm?: number | null;
+  colorLabel?: string | null;
+  stripeColors?: string[];
   innerDiameterMm: number | null;
   tag: string;
   construction?: RoundElement['construction'];
@@ -62,6 +72,8 @@ export interface SectionFeature {
   x: number;
   y: number;
   color: string | null;
+  colorLabel?: string | null;
+  stripeColors?: string[];
   /** Null means unknown material, distinct from the display fallback. */
   material: string | null;
   /** Recorded construction (stranded, braid, foil ...); null when unrecorded or not applicable. */

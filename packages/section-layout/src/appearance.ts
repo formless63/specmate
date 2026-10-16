@@ -153,7 +153,7 @@ function textureFor(feature: { kind: SectionFeature['kind']; construction?: Sect
 export const UNKNOWN_FILL = '#7d838b';
 
 /** The resolved display appearance of one stock element. */
-export function appearanceOf(feature: { kind: SectionFeature['kind']; color?: string | null; material?: string | null } & { construction?: SectionFeature['construction'] }): Appearance {
+export function appearanceOf(feature: { kind: SectionFeature['kind']; color?: string | null; material?: string | null } & { construction?: SectionFeature['construction']; stripeColors?: string[]; colorLabel?: string | null }): Appearance {
   const family = classifyMaterial(feature.material);
   let spec = SPEC[family];
   const color = resolveColor(feature.color);
@@ -176,10 +176,11 @@ export function appearanceOf(feature: { kind: SectionFeature['kind']; color?: st
     else { base = UNKNOWN_FILL; fillSource = 'unknown'; }
   }
   const texture = textureFor(feature, spec, metalLike);
+  if (feature.stripeColors?.[0] && /^#[0-9a-fA-F]{6}$/.test(feature.stripeColors[0])) stripe = feature.stripeColors[0];
   return { base, fillSource, ...(stripe ? { stripe } : {}), family, finish: spec.finish, texture,
     metalness: spec.metalness, roughness: spec.roughness, clearcoat: spec.clearcoat,
     materialLabel: family === 'unrecorded' ? 'Unknown' : feature.material!.trim(),
-    colorLabel: color.label, notes };
+    colorLabel: feature.colorLabel ?? color.label, notes };
 }
 
 /** True when nothing but the structural kind determined the drawn fill. */
