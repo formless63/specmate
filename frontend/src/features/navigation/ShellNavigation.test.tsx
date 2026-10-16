@@ -113,7 +113,7 @@ test.each([
 });
 
 
-test("confirmed cable frames omit the redundant selection strip while exact probe and Advanced remain reachable", async () => {
+test("confirmed cable frames retain the exact probe and contextual Documents without a global Advanced menu", async () => {
   workspaceServer({ projects: [project("p1", "Bench")] }, path => path === "/api/v0/workspace/library/c1" ? reply(record("c1", "Synthetic cable", { kind: "cable", latest_revision: 2 })) : undefined);
   start("/designs/c1@2/~/ends/A?project=p1");
   const frame = await screen.findByRole("region", { name: "Cable record frame" });
@@ -121,8 +121,7 @@ test("confirmed cable frames omit the redundant selection strip while exact prob
   expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
   fireEvent.click(within(frame).getByRole("button", { name: "Show cable documents" }));
   await at("/designs/c1@2/~/ends/A?project=p1&view=documents");
-  fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
-  expect(await screen.findByRole("menuitem", { name: "Enclosure proposals" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Designs advanced tools" })).toBeNull();
   expect(screen.queryByRole("menuitem", { name: "Cable intents" })).toBeNull();
 });
 
@@ -132,7 +131,7 @@ test("a retired document root link opens the same exact cable Documents view wit
   expect(await screen.findByRole("region", { name: "Cable record frame" })).toBeTruthy();
   expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
   expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/preparation-documents/workspace"))).toBe(false);
-  fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
+  expect(screen.queryByRole("button", { name: "Designs advanced tools" })).toBeNull();
   for (const name of ["Bench documents", "Cable test plans", "Selected packages", "Export packages"]) expect(screen.queryByRole("menuitem", { name })).toBeNull();
 });
 

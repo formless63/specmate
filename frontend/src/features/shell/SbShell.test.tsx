@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AREAS, DEFAULT_TOOL, areaOfTool, describeAccess, isReadOnly, LIBRARY_TABS } from "./areas";
 import { SbShell } from "./SbShell";
+import { ROUTE_TOOLS } from "./registry";
 
 function stubViewport(width: number) {
   vi.stubGlobal("matchMedia", (query: string) => {
@@ -18,11 +19,11 @@ function Harness() {
   const [active, setActive] = useState("identity"); const [visited, setVisited] = useState(() => new Set(["identity"]));
   return <MantineProvider env="test"><SbShell projectName="Demo workshop" permissions={["workspace.read"]} activeTool={active} chrome={chrome}
     onToolChange={id => { setActive(id); setVisited(current => new Set([...current, id])); }}>
-    {AREAS.flatMap(area => area.tools).map(tool => <Tabs.Panel key={tool.id} value={tool.id}>{visited.has(tool.id) && <input aria-label={`draft ${tool.id}`} />}</Tabs.Panel>)}
+    {ROUTE_TOOLS.map(tool => <Tabs.Panel key={tool.id} value={tool.id}>{visited.has(tool.id) && <input aria-label={`draft ${tool.id}`} />}</Tabs.Panel>)}
   </SbShell></MantineProvider>;
 }
 
-test("the fixed nine-entry rail owns every tool exactly once", () => {
+test("the fixed nine-entry rail has unique visible tools and every route has a home", () => {
   expect(AREAS.map(area => area.label)).toEqual(["Designs", "Library", "Make", "Jobs", "History", "Products & releases", "Projects", "Extensions", "Settings"]);
   expect(AREAS.map(area => area.key)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
   const ids = AREAS.flatMap(area => area.tools.map(tool => tool.id)); expect(new Set(ids).size).toBe(ids.length);
@@ -34,8 +35,8 @@ test("Library has its fixed typed tabs and remaining tools use Advanced", async 
   expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Home", "Connectors", "Boards", "Wire stocks", "Parts", "Shells & hardware", "Kits", "Vocabulary"]);
   expect(LIBRARY_TABS).toHaveLength(7);
   fireEvent.click(screen.getByRole("button", { name: "Library advanced tools" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Copper graph" }));
-  expect(screen.getByLabelText("draft copper")).toBeTruthy();
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Source bundles" }));
+  expect(screen.getByLabelText("draft sources")).toBeTruthy();
   expect(screen.queryByRole("tab", { name: "Copper graph" })).toBeNull();
 });
 test("the top bar uses breadcrumb and account controls without a context strip", () => {
@@ -83,4 +84,21 @@ test.each([1440, 390])("home link retains editors and theme choices are reachabl
     fireEvent.click(await screen.findByRole("menuitemradio", { name: theme }));
     expect(screen.getByRole("button", { name: `Theme: ${theme}` })).toBeTruthy();
   }
+});
+
+
+test('record-specific tools stay routable but are absent from global Advanced and Spotlight', async () => {
+  render(<Harness />);
+  const retired = ['Board firmware', 'Firmware impact', 'Options & choices', 'Shared scene', 'Connected views', 'Scene drawings', 'Enclosure proposals', 'Bench documents', 'Cable test plans', 'Selected packages', 'Export packages', 'Device ports', 'Saved end stacks', 'Conductor conventions', 'Workshop profiles', 'Evidence kinds', 'Where used', 'Copper graph', 'Source review', 'Paths and parts', 'Mechanical sources', 'Cut preparation', 'End preparation', 'Facts'];
+  const visible = AREAS.flatMap(area => area.tools.map(tool => tool.label));
+  for (const label of retired) { expect(visible).not.toContain(label); expect(ROUTE_TOOLS.some(tool => tool.label === label)).toBe(true); }
+  fireEvent.click(screen.getByRole('button', { name: 'Library advanced tools' }));
+  expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Source bundles', 'Revision upgrades', 'Reviewed matching']);
+  fireEvent.keyDown(document.body, { key: 'Escape' });
+  fireEvent.click(screen.getByRole('button', { name: 'Designs' }));
+  expect(screen.queryByRole('button', { name: 'Designs advanced tools' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Jump to a tool or area' }));
+  const search = await screen.findByRole('textbox', { name: 'Jump to an area or tool' });
+  fireEvent.change(search, { target: { value: 'Enclosure proposals' } });
+  expect(await screen.findByText('No matching area or tool')).toBeTruthy();
 });

@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import { AREAS } from "../shell/areas";
+import { AREAS, areaOfTool } from "../shell/areas";
+import { ROUTE_TOOLS } from "../shell/registry";
 import { formatLocation, HOME, parseLocation, sameTarget, targetKey } from "./url";
 
 test("the root redirects to Designs", () => {
@@ -38,8 +39,8 @@ test.each(redirects)("/%s?lens=%s redirects to %s", (area, lens, expected) => {
 });
 
 test("every existing tool has a stable reachable canonical home", () => {
-  for (const area of AREAS) for (const tool of area.tools) {
-    const location = { ...HOME, area: area.id, lens: tool.id };
+  for (const tool of ROUTE_TOOLS) {
+    const location = { ...HOME, area: tool.area, lens: tool.id };
     const expected = tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
       : ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) ? "designs" : tool.id;
     const [path, query] = formatLocation(location).split("?");
@@ -143,4 +144,24 @@ test('Products has Families, Lineup and exact frozen family routes while old Rel
   expect(formatLocation(parseLocation('/products/families/f1@3', ''))).toBe('/products/families/f1@3');
   expect(formatLocation(parseLocation('/evidence', '?lens=releases&release=retained-release&project=p1'))).toBe('/products/releases?project=p1&release=retained-release');
   expect(AREAS.find(area => area.id === 'products')?.tools.map(tool => tool.id)).toEqual(['families', 'lineup', 'releases']);
+});
+
+
+test('record route registry preserves all old exact pins and paths after removing global entries', () => {
+  const visible = new Set(AREAS.flatMap(area => area.tools.map(tool => tool.id)));
+  const records = ROUTE_TOOLS.filter(tool => !visible.has(tool.id) && !tool.id.startsWith('new-'));
+  expect(records.length).toBeGreaterThan(20);
+  expect(new Set(ROUTE_TOOLS.map(tool => tool.id)).size).toBe(ROUTE_TOOLS.length);
+  for (const tool of records) {
+    const expected = { object: 'opaque-record', rev: 7, path: ['repeated-board', 'unknown pin'] };
+    const legacy = parseLocation('/design/opaque-record@7/~/repeated-board/unknown%20pin', `?lens=${tool.id}&project=p1`);
+    expect(legacy.probe, tool.id).toEqual(expected);
+    expect(legacy.project, tool.id).toBe('p1');
+    expect(legacy.area, tool.id).toBe(areaOfTool(tool.id).id);
+    const [path, search] = formatLocation(legacy).split('?');
+    const reopened = parseLocation(path!, search ? `?${search}` : '');
+    expect(reopened.probe, tool.id).toEqual(expected);
+    // Design editor homes intentionally use a kind-neutral exact record address.
+    expect(reopened.lens, tool.id).toBe(['cables', 'harnesses', 'assemblies'].includes(legacy.lens) ? 'designs' : legacy.lens);
+  }
 });

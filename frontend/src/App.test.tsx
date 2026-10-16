@@ -1,12 +1,14 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { generate, exampleCoax } from "./features/wire-stock/builder";
 import { lazy } from "react";
 import { TYPED_LIBRARY_VIEWS } from "./components/library/LibraryList";
 import { App, ToolLoadingBoundary } from "./App";
-import { AREAS } from "./features/shell";
+import { AREAS, areaOfTool } from "./features/shell";
+import { ROUTE_TOOLS } from "./features/shell/registry";
+import { formatLocation, HOME } from "./features/navigation";
 import { primaryTools } from "./features/shell/areas";
 import { LIBRARY_VIEWS } from "./features/shell/scope";
 
@@ -121,7 +123,14 @@ async function openTool(label: string) {
     return;
   }
   const area = AREAS.find((item) => item.tools.some((tool) => tool.label === label));
-  if (!area) throw new Error(`Unknown tool ${label}`);
+  if (!area) {
+    // Retired global controls are exercised through their retained canonical route.
+    const tool = ROUTE_TOOLS.find(item => item.label === label);
+    if (!tool) throw new Error(`Unknown route ${label}`);
+    const href = formatLocation({ ...HOME, area: areaOfTool(tool.id).id, lens: tool.id });
+    await act(async () => window.history.pushState(null, '', href));
+    return;
+  }
   const rail = screen.getByRole("button", { name: area.label });
   if (rail.getAttribute("aria-current") !== "page") fireEvent.click(rail);
   if (primaryTools(area).some(tool => tool.label === label)) fireEvent.click(await screen.findByRole("tab", { name: label }));
@@ -338,7 +347,7 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   for (const toolId of toolIds) {
     const view = LIBRARY_VIEWS[toolId]!;
-    const tool = AREAS.flatMap((area) => area.tools).find((item) => item.id === toolId)!;
+    const tool = ROUTE_TOOLS.find(item => item.id === toolId)!;
     if (toolId === "cables") {
       fireEvent.click(screen.getByRole("button", { name: "Designs" }));
       fireEvent.click(await screen.findByRole("button", { name: "New design" }));
@@ -403,7 +412,7 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
   // Designs supplies the collection list; existing authoring controls remain reachable.
   fireEvent.click(screen.getByRole("button", { name: "Designs" }));
   expect(await screen.findByRole("button", { name: "Patch lead" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
+  expect(screen.queryByRole("button", { name: "Designs advanced tools" })).toBeNull();
   expect(screen.queryByRole("menuitem", { name: "Cables" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Create cable draft" })).toBeNull();
 });

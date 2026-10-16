@@ -12,7 +12,6 @@ import { AREAS, areaOfTool, describeAccess, primaryTools, toolLabel, type AreaDe
 
 const STATUS_LINE_HEIGHT = 24;
 const NO_ACTIONS: SpotlightActionGroupData[] = [];
-const RECORD_ONLY_TOOLS = new Set(["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages", "conventions", "workshop-profiles", "evidence-kinds", "mechanical-sources"]);
 
 type SbShellProps = {
   /** The current scope's name: "Library" or the project's name. */
@@ -41,7 +40,7 @@ type SbShellProps = {
 export function AppShell({ projectName, recordName, permissions, role = null, libraryScope = false, extraActions = NO_ACTIONS, itemSearchKey, activeTool, onToolChange, onAreaChange, chrome, statusIndicator, children }: SbShellProps) {
   const area = areaOfTool(activeTool);
   const visibleTools = primaryTools(area);
-  const advanced = area.tools.filter(tool => !visibleTools.some(item => item.id === tool.id) && !RECORD_ONLY_TOOLS.has(tool.id) && !["designs", "library-home", "history"].includes(tool.id) && !tool.id.startsWith("new-"));
+  const advanced = area.tools.filter(tool => !visibleTools.some(item => item.id === tool.id) && !["designs", "library-home", "history"].includes(tool.id) && !tool.id.startsWith("new-"));
   const wide = useMediaQuery(`(min-width: ${breakpoints.lg}px)`, false, { getInitialValueInEffect: false });
   const narrow = useMediaQuery(`(max-width: ${breakpoints.sm - 1}px)`, false, { getInitialValueInEffect: false });
   // The top bar switches to its compact form (project menu, account menu) before the area rail disappears.
@@ -72,7 +71,7 @@ export function AppShell({ projectName, recordName, permissions, role = null, li
     { group: "Actions", actions: [{ id: "new-design", label: "Browse designs", description: "Find a cable, harness or device", onClick: () => (onAreaChange ?? onToolChange)("designs") }] },
     { group: "Areas and tools", actions: AREAS.flatMap(item => [
       { id: `area:${item.id}`, label: item.label, description: `Area ${item.key}`, onClick: () => openAreaRef.current(item) },
-      ...item.tools.filter(tool => tool.id !== item.tools[0]?.id && !RECORD_ONLY_TOOLS.has(tool.id)).map(tool => ({ id: `tool:${tool.id}`, label: tool.label, description: item.label, onClick: () => onToolChange(tool.id) })),
+      ...item.tools.filter(tool => tool.id !== item.tools[0]?.id).map(tool => ({ id: `tool:${tool.id}`, label: tool.label, description: item.label, onClick: () => onToolChange(tool.id) })),
     ]) },
   ], [onToolChange]);
   const actions = useMemo<(SpotlightActionData | SpotlightActionGroupData)[]>(() => [...extraActions, ...toolActions], [toolActions, extraActions]);
@@ -94,7 +93,7 @@ export function AppShell({ projectName, recordName, permissions, role = null, li
           {!compact && <span className="sb-keycap" aria-hidden="true">Ctrl K</span>}
           {compact && <span className="sb-keycap" aria-hidden="true">K</span>}
         </button>
-        {advanced.length > 0 && <Menu position="bottom-end" withinPortal><Menu.Target><Button variant="quiet" size="xs" aria-label={`${area.label} advanced tools`}>Advanced</Button></Menu.Target><Menu.Dropdown mah={480} style={{ overflowY: "auto" }}><Menu.Label>Existing tools</Menu.Label>{advanced.map(tool => <Menu.Item key={tool.id} onClick={() => onToolChange(tool.id)}>{tool.label}</Menu.Item>)}</Menu.Dropdown></Menu>}
+        {advanced.length > 0 && <Menu position="bottom-end" withinPortal><Menu.Target><Button variant="quiet" size="xs" aria-label={`${area.label} advanced tools`}>Advanced</Button></Menu.Target><Menu.Dropdown mah={480} style={{ overflowY: "auto" }}><Menu.Label>Workspace tools</Menu.Label>{advanced.map(tool => <Menu.Item key={tool.id} onClick={() => onToolChange(tool.id)}>{tool.label}</Menu.Item>)}</Menu.Dropdown></Menu>}
         <span style={{ flex: 1 }} />
         {!narrow && (statusIndicator ?? <span className="sb-status" role="status" aria-label="Job status">
           <span className="sb-led" data-state="not-evaluated" aria-hidden="true" />

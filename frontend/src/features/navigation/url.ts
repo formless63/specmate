@@ -1,4 +1,5 @@
 import { AREAS, DEFAULT_TOOL, areaOfTool } from "../shell/areas";
+import { knownRouteTool } from "../shell/registry";
 
 /**
  * Canonical workspace routes use a fixed rail and typed Library sections. Record addresses
@@ -50,7 +51,7 @@ export const BOARD_RECORD_SECTIONS: Record<string, string> = { copper: "more", "
 const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake", "start"];
 export const HOME: WorkspaceLocation = { area: "designs", lens: DEFAULT_TOOL, project: null, probe: null, malformed: false };
 function decode(segment: string): string | null { try { return decodeURIComponent(segment); } catch { return null; } }
-function knownTool(tool: string | null): tool is string { return !!tool && (["new-design", "intents"].includes(tool) || AREAS.some(area => area.tools.some(item => item.id === tool))); }
+const knownTool = knownRouteTool;
 function parseProbe(head: string, rest: string[]): ProbeTarget | null {
   const at = head.lastIndexOf("@");
   const object = at < 0 ? head : head.slice(0, at);

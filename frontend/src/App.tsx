@@ -21,8 +21,9 @@ import { LibraryList, LibrarySections, TYPED_LIBRARY_VIEWS } from "./components/
 import { LibraryView } from "./features/scope/LibraryView";
 import { NavigationProvider, useWorkspaceUrl } from "./features/navigation";
 import { ProbeInspector, ProbeProvider } from "./features/probe";
-import { AREAS, SbShell, areaOfTool } from "./features/shell";
+import { SbShell, areaOfTool } from "./features/shell";
 import { libraryView } from "./features/shell/scope";
+import { ROUTE_TOOLS } from "./features/shell/registry";
 import { WorkspaceShell, type LibraryRecord, type ShellChrome, type WorkspaceScope } from "./features/workspace";
 
 const BuildsPanel = lazy(() => import("./features/builds/BuildsPanel").then((module) => ({ default: module.BuildsPanel })));
@@ -97,7 +98,7 @@ export function App() {
   return <NavigationProvider><WorkspaceShell>{(scope) => <ScopedWorkspace scope={scope} />}</WorkspaceShell></NavigationProvider>;
 }
 
-const ALL_TOOLS = AREAS.flatMap((area) => area.tools);
+const ALL_TOOLS = ROUTE_TOOLS;
 
 /**
  * The one shell for a signed-in member. The selected area and lens survive scope changes;
@@ -198,7 +199,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
         {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
         {['identity', 'hardware', 'kits', 'mechanical-sources'].some(tool => tools.has(tool)) && <div hidden={!['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)}><PartsLibrary active={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)} toolId={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active) ? active : 'identity'} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
         {["families", "lineup"].some(tool => tools.has(tool)) && <div hidden={!["families", "lineup"].includes(active)}><ProductsWorkspace active={["families", "lineup"].includes(active)} toolId={active} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectId={navigation?.location.project ?? null} /></div>}
-        {ALL_TOOLS.filter(tool => !["families", "lineup", "designs", "history", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
+        {ALL_TOOLS.filter(tool => !["new-design", "intents", "families", "lineup", "designs", "history", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
           {tools.has(tool.id) && (["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) && (!url.probe || url.lens !== tool.id || documentRoute || selected.isPending || selected.isError) ? url.lens !== tool.id || !url.probe ? null : selected.isError ? <Stack gap="xs">
             <Text role="status">This document context is unavailable.</Text><Group>
               <Button size="xs" onClick={() => void selected.refetch()}>Retry current record access</Button>
