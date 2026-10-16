@@ -1,13 +1,15 @@
-# Run the development foundation
+# Install Specmate from source
 
 This is an early source-built installation, not a prebuilt release or the complete
 Specmate product. Images are currently built locally from this source (`*:local` tags);
 publishing prebuilt release images is release engineering and remains a follow-up.
 
-It runs the application/API foundation, durable jobs, PostgreSQL,
-Temporal and its operator UI. Native tool authoring screens and qualified native tool
-packs are not included. A successful container or synthetic process test does not
-establish CAD compatibility or engineering validity.
+It runs the engineering application and API, durable jobs, PostgreSQL,
+Temporal and its operator UI. The interface includes Library and project workflows,
+cable/harness and board records, documents, inventory, and tool preparation screens.
+Native execution is optional and disabled by default. Each tool pack has its own
+supported inputs and qualification limits; a successful build is not engineering or
+manufacturing approval.
 
 ## Create a separate stack directory
 
@@ -29,10 +31,17 @@ docker compose ps
 
 The configuration command creates random secrets in a mode-0600 `.env`, records the
 absolute public checkout path as the build context, and creates an empty `{}` recipe
-registry in `recipes.json`. It also records an absolute sibling `runner-state` path
+registry in `recipes.json` and disabled-tool configuration in `tools-enabled.json`.
+It also records an absolute sibling `runner-state` path
 for optional execution. It refuses to replace an existing `.env`: retain that file
 across restarts and upgrades. Never copy generated configuration into the repository
 or share rendered `docker compose config` output containing credentials.
+
+The example uses fixed `specmate-*` container names, image tags and named volumes.
+Before running a second copy on the same Docker host, assign distinct project/container,
+image and volume names and non-conflicting ports; changing only the directory or Compose
+project name does not isolate explicitly named resources. Never reuse an existing stack's
+volumes for a new installation.
 
 The default stack has six services: `web`, `app`, `postgres`, `temporal`, `jobs` and
 `temporal-ui`. The optional `runner` profile adds a seventh. Images and native schema
@@ -69,8 +78,9 @@ before starting jobs.
 The operator command displays a single-use owner setup token valid for 30 minutes.
 Claim ownership through `POST /api/v0/setup/owner` with `request_id`, `token`,
 `username` and `password`; the API schema is available at `/api/docs`. No default
-owner/password or email service is required. The web frontend provides the first-owner
-setup and sign-in flow; the full engineering workflows are not all present. Treat the token and authenticated
+owner/password or email service is required. Open http://localhost:8080 to use the
+first-owner setup form and then sign in.
+The same setup operation is available to API clients. Treat the token and authenticated
 session cookies as credentials. Issuing another token revokes older unused tokens;
 issuing one after ownership is established is refused.
 
@@ -96,6 +106,8 @@ credentials: store it privately with the same care as the `.env`. From the stack
 directory of a running installation:
 
 ```bash
+umask 077
+set -o noclobber
 docker compose exec -T app python manage.py work_control drain --reason backup
 docker compose exec -T app python manage.py backup create --secrets-env - --output - \
   < .env > specmate-backup.tar
@@ -107,24 +119,27 @@ version-matched `pg_dump`, then copies the content-addressed byte store, verifyi
 hash of every byte object the snapshot references. It refuses while builds are queued,
 leased or running, or dispatch is undelivered; drain first, or pass
 `--allow-active-work` to accept that a restore will cancel or interrupt that work. The
-JSON report goes to standard error; the bundle goes to the output. `--output` with a
+JSON report goes to standard error; the bundle goes to the output. The Bash commands
+above use a private umask and refuse to overwrite an existing bundle. If backup fails,
+inspect the failure before resuming work. `--output` with a
 path writes a new mode-0600 file and never replaces an existing one.
 
 Restore into a new, empty environment with the **same application version**. From the
 checkout root, prepare a new stack directory from the bundle:
 
 ```bash
+backup_bundle="$(realpath specmate-backup.tar)"
 restore_stack="$HOME/stacks/specmate-restored"
 install -d -m 0700 "$restore_stack"
 cp compose.example.yaml "$restore_stack/compose.yaml"
 PYTHONPATH=backend/src python3 -m specmate.backups.bundle extract-config \
-  --input specmate-backup.tar --output-dir "$restore_stack"
+  --input "$backup_bundle" --output-dir "$restore_stack"
 cd "$restore_stack"
 # Review SPECMATE_SOURCE_DIR and SPECMATE_RUNNER_HOST_STATE_DIR in .env for this host.
 docker compose build
 docker compose up -d --wait postgres
 docker compose run --rm -T --no-deps app python manage.py backup restore --input - \
-  < specmate-backup.tar
+  < "$backup_bundle"
 docker compose up -d --wait
 docker compose exec app python manage.py work_control diagnose
 ```
