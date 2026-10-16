@@ -31,3 +31,19 @@ test('applying one occurrence keeps an independently staged sibling transform in
  fireEvent.change(screen.getByLabelText('left X (mm)'),{target:{value:'77'}});fireEvent.click(screen.getByRole('combobox',{name:'Selected occurrence'}));fireEvent.click(screen.getByRole('option',{name:'right · right'}));fireEvent.change(screen.getByLabelText('right Y (mm)'),{target:{value:'88'}});fireEvent.click(screen.getByRole('button',{name:'Apply right to working tree'}));let current=JSON.parse(screen.getByTestId('tree').textContent!) as Assembly;expect(current.occurrences[0]!.placement?.translation).toEqual([1,2,3]);expect(current.occurrences[1]!.placement?.translation).toEqual([1,88,3]);
  fireEvent.click(screen.getByRole('combobox',{name:'Selected occurrence'}));fireEvent.click(screen.getByRole('option',{name:'left · left'}));expect((screen.getByLabelText('left X (mm)') as HTMLInputElement).value).toBe('77');fireEvent.click(screen.getByRole('button',{name:'Apply left to working tree'}));current=JSON.parse(screen.getByTestId('tree').textContent!) as Assembly;expect(current.occurrences.map(row=>row.placement?.translation)).toEqual([[77,2,3],[1,88,3]]);
 });
+
+test('exact wiring picker keeps repeated revision paths distinct and excludes owned stock ends',async()=>{
+ const {QueryClient,QueryClientProvider}=await import('@tanstack/react-query');
+ const {RelationshipControls}=await import('./DeviceWorking');
+ const pin='00000000-0000-4000-8000-000000000001';
+ const material={kind:'segment',segment_id:'lead',end:'b',element_path:'stock.core'};
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({nodes:[{id:'free',occurrence_path:[],terminal:material,label:'Flying core',feature_kind:'conductor',provenance:{exposed_material_end:true}},{id:'owned',occurrence_path:[],terminal:{...material,end:'a'},label:'Already landed core',feature_kind:'conductor',provenance:{exposed_material_end:false}}]}),{status:200})));
+ function Form(){const [value,setValue]=useState<Assembly>({...emptyAssembly(),occurrences:['left','right'].map(local_id=>({local_id,revision_id:pin,display_ref:local_id}))});return <><RelationshipControls assembly={value} onChange={setValue} editable paths={['left','right'].map(id=>({path:[id],label:id}))}/><output data-testid="wired">{JSON.stringify(value)}</output></>;}
+ render(<MantineProvider env="test"><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><Form/></QueryClientProvider></MantineProvider>);
+ fireEvent.click(screen.getByText('Add typed relationship'));
+ for(const [name,option] of [['First occurrence','left'],['Second occurrence','right'],['Electrical address mode','Exact wiring terminals']]){fireEvent.click(screen.getByRole('combobox',{name:name!}));fireEvent.click(screen.getByRole('option',{name:option!}));}
+ for(const name of ['First exact wiring terminal','Second exact wiring terminal']){fireEvent.click(await screen.findByRole('combobox',{name}));fireEvent.click(await screen.findByRole('option',{name:'Flying core'}));expect(screen.queryByRole('option',{name:'Already landed core'})).toBeNull();}
+ fireEvent.change(screen.getByLabelText('Relationship local ID'),{target:{value:'join'}});fireEvent.change(screen.getByLabelText('Electrical join basis'),{target:{value:'Explicit assembly solder'}});fireEvent.click(screen.getByRole('button',{name:'Add relationship to working tree'}));
+ const result=JSON.parse(screen.getByTestId('wired').textContent!) as Assembly;
+ expect(result.relationships[0]).toMatchObject({kind:'electrical',a:{path:['left'],feature_id:null},b:{path:['right'],feature_id:null},a_terminal:material,b_terminal:material,basis:'Explicit assembly solder'});
+});

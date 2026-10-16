@@ -49,3 +49,18 @@ preserves selection across the occurrence tree, assembly contents and display la
 This is focused FND-003/FND-004 implementation evidence. Integrated geometry, firmware
 build assignments, BOM/document/export propagation and portable subassembly journeys
 are still required before full capability acceptance.
+
+
+Electrical relationships can declare exact wiring between reusable child products.
+In this form `a` and `b` identify occurrence paths without legacy `feature_id` strings,
+`a_terminal` and `b_terminal` identify contacts, exact stack terminals, or exposed
+segment/pigtail ends, and `basis` states the declaration. The complete pinned closure
+is authorized before terminal diagnostics. Material ends already owned by a child
+joint, preparation or breakout cannot be landed again by the parent. Repeated uses
+of one cable revision retain separate terminal identities and physical stock pieces.
+
+The copper graph connects these exact addresses as declared joins; matching labels
+never create continuity. Existing feature-string electrical relationships retain
+their unevaluated meaning. Device relationship controls offer exact terminal choices
+from the selected frozen children; saved inspection and coordinated schematic and
+termination documents retain both occurrence paths and the declaration basis.

@@ -329,7 +329,7 @@ def render(projection):
                 if relationship.get("label"):
                     drawing.append(label(40, y, relationship["label"]))
                     y += 25
-                if relationship["kind"] in {"stock_bond", "pigtail_preparation"}:
+                if relationship["kind"] in {"stock_bond", "pigtail_preparation", "assembly_join"}:
                     drawing.append(label(40, y, relationship["basis"]))
                     y += 25
                 for member in relationship["members"]:

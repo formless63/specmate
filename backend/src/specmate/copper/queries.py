@@ -29,6 +29,12 @@ def body(revision):
     return json.loads(bytes(revision.snapshot.canonical))["content"]
 
 
+def terminal_key_for_row(terminal):
+    if terminal["kind"] == "pigtail":
+        return ("pigtail", terminal["segment_id"], terminal["end"], terminal["pigtail_id"])
+    return ("segment", terminal["segment_id"], terminal["end"], terminal["element_path"])
+
+
 class Builder:
     def __init__(self, user, root):
         self.user, self.root = user, root
@@ -363,6 +369,7 @@ class Builder:
                 terminal,
                 " / ".join(str(v) for k, v in terminal.items() if k != "kind"),
                 row["feature_kind"],
+                exposed_material_end=terminal_key_for_row(terminal) not in closure.owners,
                 **{k: v for k, v in row.items() if k not in {"terminal", "feature_kind", "label"}},
             )
             terminals[json.dumps(terminal, sort_keys=True)] = key
@@ -731,6 +738,37 @@ def inspect_graph(user, query):
         if prefix[: len(scope)] != scope or relationship.kind not in {"electrical", "mating"}:
             continue
         owner = root if not prefix else assembly.nodes[prefix].revision
+        if relationship.kind == "electrical" and relationship.a_terminal is not None:
+            from specmate.assemblies.wiring import canonical_terminal
+
+            members = []
+            for ref, terminal in (
+                (relationship.a, relationship.a_terminal),
+                (relationship.b, relationship.b_terminal),
+            ):
+                exact_path = (*prefix, *ref.path)
+                declaration = canonical_terminal(user, assembly.nodes[exact_path], terminal)
+                candidates = [
+                    key
+                    for key, node in builder.nodes.items()
+                    if tuple(node["occurrence_path"]) == exact_path
+                    and node["terminal"] == declaration
+                ]
+                if len(candidates) != 1:
+                    raise ValidationFailed(
+                        "Exact assembly wiring terminal projection is unavailable."
+                    )
+                members.append(candidates[0])
+            builder.record(
+                owner,
+                prefix,
+                relationship.local_id,
+                "join",
+                members,
+                relationship.basis,
+                declaration=relationship.model_dump(mode="json"),
+            )
+            continue
         builder.record(
             owner,
             prefix,

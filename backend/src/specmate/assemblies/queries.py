@@ -12,6 +12,7 @@ from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.contracts import (
     AssemblyContent,
     Containment,
+    Electrical,
     OccurrenceRef,
     RevisionRef,
 )
@@ -271,6 +272,14 @@ class Closure:
                     path = (*prefix, *ref.path)
                     if path and path not in self.nodes:
                         raise ValidationFailed("Relationship occurrence does not resolve.")
+            if isinstance(relationship, Electrical) and relationship.a_terminal is not None:
+                from specmate.assemblies.wiring import canonical_terminal
+
+                for ref, terminal in (
+                    (relationship.a, relationship.a_terminal),
+                    (relationship.b, relationship.b_terminal),
+                ):
+                    canonical_terminal(self.user, self.nodes[(*prefix, *ref.path)], terminal)
             if isinstance(relationship, Containment):
                 parent = (*prefix, *relationship.parent.path)
                 child = (*prefix, *relationship.child.path)

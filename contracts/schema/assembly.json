@@ -151,8 +151,44 @@
         "a": {
           "$ref": "#/$defs/OccurrenceRef"
         },
+        "a_terminal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WiringTerminal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "b": {
           "$ref": "#/$defs/OccurrenceRef"
+        },
+        "b_terminal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WiringTerminal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
         },
         "kind": {
           "const": "electrical",
@@ -477,6 +513,137 @@
         "source"
       ],
       "title": "SourceDerivation",
+      "type": "object"
+    },
+    "WiringTerminal": {
+      "additionalProperties": false,
+      "description": "Exact electrical address on one pinned occurrence, independent of display labels.",
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contact Id"
+        },
+        "element_path": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Path"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "endpoint_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
+        },
+        "kind": {
+          "enum": [
+            "contact",
+            "segment",
+            "pigtail",
+            "stack_terminal"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer Id"
+        },
+        "pigtail_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pigtail Id"
+        },
+        "segment_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Segment Id"
+        },
+        "terminal_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminal Id"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "WiringTerminal",
       "type": "object"
     }
   },

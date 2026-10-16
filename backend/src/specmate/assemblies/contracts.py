@@ -109,15 +109,73 @@ class Containment(StrictModel):
         return self
 
 
+class WiringTerminal(StrictModel):
+    """Exact electrical address on one pinned occurrence, independent of display labels."""
+
+    kind: Literal["contact", "segment", "pigtail", "stack_terminal"]
+    contact_id: FeatureId | None = None
+    segment_id: LocalId | None = None
+    end: Literal["a", "b"] | None = None
+    element_path: Annotated[str, Field(min_length=1, max_length=1000)] | None = None
+    pigtail_id: LocalId | None = None
+    endpoint_id: LocalId | None = None
+    layer_id: LocalId | None = None
+    terminal_id: FeatureId | None = None
+
+    @model_validator(mode="after")
+    def exact_shape(self):
+        fields = {
+            "contact": {"contact_id"},
+            "segment": {"segment_id", "end", "element_path"},
+            "pigtail": {"segment_id", "end", "pigtail_id"},
+            "stack_terminal": {"endpoint_id", "layer_id", "terminal_id"},
+        }
+        supplied = {
+            name for name, value in self.__dict__.items() if name != "kind" and value is not None
+        }
+        if supplied != fields[self.kind]:
+            raise ValueError("A typed electrical terminal requires its exact address fields only.")
+        return self
+
+    @model_serializer(mode="wrap")
+    def omit_unrelated_addresses(self, handler):
+        return {key: value for key, value in handler(self).items() if value is not None}
+
+
 class Electrical(StrictModel):
     kind: Literal["electrical"]
     local_id: LocalId
     a: OccurrenceRef
     b: OccurrenceRef
 
+    a_terminal: WiringTerminal | None = None
+    b_terminal: WiringTerminal | None = None
+    basis: Annotated[str, Field(min_length=1, max_length=2000)] | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_legacy_unrecorded_terminals(self, handler):
+        data = handler(self)
+        for key in ("a_terminal", "b_terminal", "basis"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
+
     @model_validator(mode="after")
     def terminals(self):
-        if not self.a.feature_id or not self.b.feature_id:
+        if self.a_terminal is not None or self.b_terminal is not None:
+            if not (self.a_terminal and self.b_terminal and self.basis and self.basis.strip()):
+                raise ValueError(
+                    "Typed electrical relationships require two exact terminals and a basis."
+                )
+            if not self.a.path or not self.b.path or self.a.feature_id or self.b.feature_id:
+                raise ValueError(
+                    "Typed terminals require occurrence paths without legacy feature IDs."
+                )
+            if self.a.path == self.b.path and self.a_terminal == self.b_terminal:
+                raise ValueError("Electrical relationships require distinct exact terminals.")
+        elif self.basis is not None:
+            raise ValueError("A typed electrical basis requires exact terminal addresses.")
+        elif not self.a.feature_id or not self.b.feature_id:
             raise ValueError("Electrical relationships require two exact feature IDs.")
         return self
 

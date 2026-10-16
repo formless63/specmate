@@ -181,9 +181,11 @@ def project(user, configuration):
         "number": root.number,
     }
     contexts = {(): root}
+    assembly_relationships = []
     if root.definition.kind == "assembly":
         _, closure = get_snapshot(user, root.snapshot_id)
         contexts.update({path: node.revision for path, node in closure.nodes.items()})
+        assembly_relationships = closure.relationships
     bindings = {tuple(b.occurrence_path): b for b in configuration.bindings}
     for path in bindings:
         if path not in contexts or contexts[path].definition.kind not in {"cable", "harness"}:
@@ -658,6 +660,45 @@ def project(user, configuration):
                     "physical_continuity": "not_evaluated",
                 }
             )
+    for prefix, relationship in assembly_relationships:
+        if relationship.kind != "electrical" or relationship.a_terminal is None:
+            continue
+        members = [
+            {"occurrence_path": [*prefix, *ref.path], "terminal": terminal.model_dump(mode="json")}
+            for ref, terminal in (
+                (relationship.a, relationship.a_terminal),
+                (relationship.b, relationship.b_terminal),
+            )
+        ]
+        declared = {
+            "id": relationship.local_id,
+            "kind": "assembly_join",
+            "basis": relationship.basis,
+            "members": members,
+        }
+        address = {
+            "root_snapshot_id": str(root.snapshot_id),
+            "path": list(prefix),
+            "revision_id": str(contexts[prefix].id),
+            "snapshot_sha256": contexts[prefix].snapshot.sha256,
+        }
+        schematics.append(
+            {
+                "address": address,
+                "terminals": members,
+                "relationships": [declared],
+                "meaning": "exact_occurrence_wiring_join_only",
+            }
+        )
+        terminations.append(
+            {
+                "address": address,
+                "relationships": [declared],
+                "declared_relationship_count": 1,
+                "authority": "declared_exact_occurrence_terminals",
+                "physical_continuity": "not_evaluated",
+            }
+        )
     declarations = [
         {
             "revision_id": str(r.id),
