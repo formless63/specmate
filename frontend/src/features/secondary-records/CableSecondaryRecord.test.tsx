@@ -24,7 +24,7 @@ function server(kind: Kind) {
   let denied = false, domainDenied = false, conflict = false, multiple = false, wrongKind = false, state = 'draft-v1', hold = false;
   let release: ((response: Response) => void) | null = null;
   let content: Content = kind === 'cable_intent' ? { interface: intent() } : { test_plan: plan() };
-  const reads: string[] = [], writes: { operation: string; expected_state: string; payload: { changes: Content }; idempotency_key: string }[] = [];
+  const targets: { root_revision_id: string; occurrence_path: string[] }[] = [], reads: string[] = [], writes: { operation: string; expected_state: string; payload: { changes: Content }; idempotency_key: string }[] = [];
   const draft = () => ({ kind: 'draft', draft_id: 'working', definition_id: 'secondary', state, base_revision_id: 'secondary-r1', content });
   vi.stubGlobal('fetch', vi.fn(async (path: string, options?: RequestInit) => {
     if (path.includes('/catalog/revision-labels?')) return reply({ labels: [], source_labels: [] });
@@ -38,7 +38,7 @@ function server(kind: Kind) {
     }
     if (path.endsWith('/operations')) {
       const command = JSON.parse(String(options?.body));
-      if (command.operation === 'cable_test_plan.inspect_target') return domainDenied ? reply({ error: { message: 'Current target source denied' } }, 403) : reply({ result: target });
+      if (command.operation === 'cable_test_plan.inspect_target') { targets.push(command.payload); return domainDenied ? reply({ error: { message: 'Current target source denied' } }, 403) : reply({ result: target }); }
       writes.push(command);
       if (hold) return new Promise<Response>(resolve => { release = resolve; });
       if (conflict) return reply({ error: { message: 'Original draft token conflicts' } }, 409);
@@ -51,7 +51,7 @@ function server(kind: Kind) {
     if (path.includes('/cable-test-intent/revisions/')) return reply({ revision_id: 'secondary-r75', sha256: 'plan-hash', root_sha256: 'root-hash', root_snapshot_id: 'root-snapshot', cable_sha256: 'cable-hash', test_plan: plan(), evidence: [], physical_test: 'not_performed', physical_continuity: 'not_evaluated', physical_qualification: 'not_evaluated' });
     return reply({});
   }));
-  return { reads, writes, wrongKind: () => { wrongKind = true; }, deny: (value: boolean) => { denied = value; }, domainDeny: (value: boolean) => { domainDenied = value; }, conflict: (value: boolean) => { conflict = value; }, multiple: () => { multiple = true; }, questions: () => { content = { interface: { ...intent(), rows: [{ row_id: 'q', requirement: 'required', from_contact_id: '1', to_contact_ids: [], signal_ref: null, pairing: 'declared', return_policy: 'unknown', conductor: { kind: 'unknown', impedance_ohm: null, basis: null }, required_parts: [], question: { kind: 'name_and_type_only', text: 'Choose the declared destination', options: [{ contact_id: '1', label: 'Use declared contact 1' }] }, basis: null }] } }; }, advance: () => { state = 'draft-v9'; }, hold: () => { hold = true; }, held: () => release, release: () => release?.(reply({ result: draft() })) };
+  return { reads, writes, targets, wrongKind: () => { wrongKind = true; }, deny: (value: boolean) => { denied = value; }, domainDeny: (value: boolean) => { domainDenied = value; }, conflict: (value: boolean) => { conflict = value; }, multiple: () => { multiple = true; }, questions: () => { content = { interface: { ...intent(), rows: [{ row_id: 'q', requirement: 'required', from_contact_id: '1', to_contact_ids: [], signal_ref: null, pairing: 'declared', return_policy: 'unknown', conductor: { kind: 'unknown', impedance_ohm: null, basis: null }, required_parts: [], question: { kind: 'name_and_type_only', text: 'Choose the declared destination', options: [{ contact_id: '1', label: 'Use declared contact 1' }] }, basis: null }] } }; }, advance: () => { state = 'draft-v9'; }, hold: () => { hold = true; }, held: () => release, release: () => release?.(reply({ result: draft() })) };
 }
 function mount(kind: Kind, revision = '@75', permissions = ['workspace.read', 'design.edit', 'design.freeze', 'item.create']) {
   const exact = revision.startsWith('@') ? revision : '';
@@ -201,4 +201,26 @@ test('successful New promotes the same retained form to its returned record whil
   expect((await screen.findByRole('textbox', { name: 'Test plan name' }) as HTMLInputElement).value).toBe('');
   expect((screen.getByRole('textbox', { name: 'Exact cable revision ID' }) as HTMLInputElement).value).toBe('');
   expect(api.writes).toHaveLength(1); expect(api.writes[0]).toMatchObject({ operation: 'definition.create', payload: { kind: 'cable_test_plan', name: 'New local plan' } });
+});
+
+test('ordinary Recipe text keystrokes preserve visible focus and do not reauthorize reference reads', async () => {
+  const api = server('cable_intent'); mount('cable_intent', '?status=draft');
+  const field = await screen.findByRole('textbox', { name: 'Description' }); field.focus(); const baseline = api.reads.length;
+  for (const value of ['N', 'Ne', 'New', 'New ', 'New p', 'New purpose']) {
+    fireEvent.change(field, { target: { value } });
+    expect(screen.getByRole('textbox', { name: 'Description' })).toBe(field); expect(document.activeElement).toBe(field);
+  }
+  await act(async () => { await Promise.resolve(); });
+  expect(api.reads).toHaveLength(baseline); expect((field as HTMLInputElement).value).toBe('New purpose');
+});
+test('changing a plan root or occurrence path reauthorizes the saved state and retained local target', async () => {
+  const api = server('cable_test_plan'); mount('cable_test_plan', '?status=draft');
+  await screen.findByRole('textbox', { name: 'Pair stable ID' }); const baseline = api.reads.length;
+  fireEvent.change(screen.getByRole('textbox', { name: 'Exact scope root revision ID' }), { target: { value: 'root-r2' } });
+  await waitFor(() => expect(api.reads.length).toBeGreaterThan(baseline));
+  await waitFor(() => expect(api.targets.some(target => target.root_revision_id === 'root-r2')).toBe(true));
+  await screen.findByRole('textbox', { name: 'Pair stable ID' }); const afterRoot = api.reads.length;
+  fireEvent.change(screen.getByRole('textbox', { name: 'Occurrence path' }), { target: { value: 'changed/child' } });
+  await waitFor(() => expect(api.reads.length).toBeGreaterThan(afterRoot));
+  await waitFor(() => expect(api.targets.some(target => target.root_revision_id === 'root-r2' && target.occurrence_path.join('/') === 'changed/child')).toBe(true));
 });

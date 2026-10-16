@@ -2,6 +2,7 @@ import { Alert, MantineThemeProvider, MultiSelect, Select, Text } from '@mantine
 import { useState } from 'react';
 import { PlanEditor, PlanInspector } from '../cable-test-intent/PlanEditor';
 import { initialPlan, inspectTarget, type TestPlan } from '../cable-test-intent/api';
+import { connectorReferences } from '../interfaces/useConnectorSession';
 import { authorizeConnectorReferences } from '../interfaces/connector-api';
 import { IntentEditor, IntentInspector } from '../intents/IntentEditor';
 import { emptyIntent, type CableIntent } from '../intents/api';
@@ -31,7 +32,7 @@ function CableSecondarySession(props: Props) {
   return <MantineThemeProvider theme={{ components: { Select: Select.extend({ defaultProps: { comboboxProps: { withinPortal: false } } }), MultiSelect: MultiSelect.extend({ defaultProps: { comboboxProps: { withinPortal: false } } }) } }}>
     <SecondaryLibrary active={props.active} principalKey={principalKey} workspaceId={props.workspaceId} toolId={kind === 'cable_intent' ? 'intents' : 'cable-test-intent'} projectFilterId={null} projects={props.projects ?? []} onOpenInProject={(id, record) => props.onOpenInProject?.(id, record)} config={{
       title: labelFor(kind), collectionLabel: kind === 'cable_intent' ? 'recipes' : 'Designs', viewLabel: kind === 'cable_intent' ? 'Connection requirements' : 'Expectations & labels',
-      allowedKinds: [kind], initial: { kind, content: kind === 'cable_intent' ? { interface: emptyIntent() } : { test_plan: initialPlan() } }, authorizeContent,
+      allowedKinds: [kind], initial: { kind, content: kind === 'cable_intent' ? { interface: emptyIntent() } : { test_plan: initialPlan() } }, authorizeContent, contentSignature: content => JSON.stringify([connectorReferences(content), (content.test_plan as TestPlan | undefined)?.occurrence_path ?? []]),
       freezeOperation: kind === 'cable_intent' ? 'interface.freeze' : 'cable_test_plan.freeze',
       canSave: validTarget, canFreeze: context => validTarget(context) && !(context.workingContent.interface as CableIntent | undefined)?.rows.some(row => row.question),
       renderContent: context => {
