@@ -45,7 +45,7 @@ export function NavigationProvider({ history: given, children }: { history?: Rou
   const canonical = formatLocation(location);
   useEffect(() => {
     if (!location.malformed && canonical !== `${history.location.pathname}${history.location.search}`) history.replace(canonical, history.location.state);
-  }, [canonical, history, location.malformed]);
+  }, [canonical, history, href, location.malformed]);
 
   const navigate = useCallback((patch: Patch, options: NavigateOptions = {}) => {
     const current = history.location;
