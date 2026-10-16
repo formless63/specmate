@@ -347,6 +347,21 @@ Shield bonds accept shield, drain and shell features (including a shell layer's 
 carry connections. Group placement, matching labels, shared sections, pigtails and
 screen appearance create no electrical relationships.
 
+An explicit stock `bonded_sets` declaration names conductive leaf paths that belong to
+one inherent construction bond. It projects separately from manufactured joints at each
+segment end; omitted/null sets remain unknown, while an empty list explicitly records
+no construction bonds. Layout, colors and nearby coordinates never imply a bond.
+
+A segment can name end-local `pigtails`, each with an exact list of shield/drain paths,
+stable ID and preparation basis. Preparation gathers those ends into one addressable
+`pigtail` terminal and forbids separately landing its constituent ends. Landing that
+terminal records one joint. Pigtails add no stock piece or procurement length, and
+source-only preparation does not silently prepare the other end. Solder joints may
+explicitly name multiple material ends and board/connector terminals at one physical
+joint. Construction bonds, preparation and manufactured joints retain separate provenance.
+Scoped impedance facts resolve from the selected feature through its closest declared
+electrical ancestor; a sibling coax's impedance never applies to a power core.
+
 A breakout identifies its trunk and leg ends. Every recorded fate identifies an
 uncut trunk-to-leg correspondence, an existing joint, or an explicitly unconnected
 terminal with a basis. Uncut correspondence requires the same section and conductive

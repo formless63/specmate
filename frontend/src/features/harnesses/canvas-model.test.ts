@@ -61,3 +61,17 @@ test('same-end inline leads use the shared stack join while cross-end declaratio
 test('same-end saved stack join needs exact read-copy and preserves its pinned layer/Part identities',()=>{
  const harness={...initialHarness(),endpoints:[{local_id:'left',label:'Saved local end',end_assembly_revision_id:revision,stack:null}]};expect(()=>joinHarnessStack(harness,lead('r1.2'),lead('r2.1'),'Explicit solder','solder')).toThrow('exact saved stack');const next=joinHarnessStack(harness,lead('r1.2'),lead('r2.1'),'Explicit solder','solder',declaredInline);expect(next.endpoints[0]?.end_assembly_revision_id).toBeNull();expect(next.endpoints[0]?.stack?.layers).toEqual(declaredInline.layers);expect(harness.endpoints[0]?.end_assembly_revision_id).toBe(revision);expect(next.joints).toEqual([]);
 });
+
+test('named screen preparation exposes one landing and keeps construction bonds independent', async()=>{
+ const { stock } = await import('../cable-workbench/fixtures');
+ const specification = stock(); specification.bonded_sets = [{ local_id: 'screens', element_paths: ['stock.core-1.screen','stock.core-2.screen'], basis: 'Declared stock construction' }];
+ const raw: Terminal = { kind: 'segment', segment_id: 'lead', end: 'a', element_path: 'stock.core-1.screen' };
+ const tail: Terminal = { kind: 'pigtail', segment_id: 'lead', end: 'a', pigtail_id: 'return' };
+ const harness = { ...initialHarness(), sections: [{local_id:'piece',stock_revision_id:revision,planned_cut_length_mm:'100',cut_basis:'Independent cut'}], segments: [{local_id:'lead',section_id:'piece',label:null,element_paths:null,pigtails:[{local_id:'return',end:'a' as const,element_paths:['stock.core-1.screen','stock.core-2.screen'],basis:'Source end preparation',label:null}]}] };
+ const graph = harnessGraph(harness,{stocks:{[revision]:specification},ends:{}});
+ expect(graph.terminals.get(harnessHandle(tail))).toEqual(tail);
+ expect(graph.edges).toHaveLength(4);
+ expect(()=>addHarnessJoint(harness,raw,terminal('sink'),'termination','Cannot double land')).toThrow('named pigtail');
+ const landed=addHarnessJoint(harness,tail,terminal('sink'),'termination','One physical landing');
+ expect(landed.joints).toHaveLength(1); expect(landed.sections).toEqual(harness.sections);
+});

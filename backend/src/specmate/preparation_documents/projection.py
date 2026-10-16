@@ -426,6 +426,16 @@ def project(user, configuration):
                 {
                     "address": address,
                     "relationships": inspected["declared_relationships"],
+                    **(
+                        {"pigtail_preparations": inspected["pigtail_preparations"]}
+                        if inspected.get("pigtail_preparations")
+                        else {}
+                    ),
+                    **(
+                        {"stock_construction_bonds": inspected["construction_bonds"]}
+                        if inspected.get("construction_bonds")
+                        else {}
+                    ),
                     "breakout_fates": inspected["breakout_fates"],
                     "declared_relationship_count": len(inspected["declared_relationships"]),
                     "design_relationship_count": None
@@ -443,7 +453,19 @@ def project(user, configuration):
                     "address": address,
                     "terminals": inspected["terminals"],
                     "relationships": inspected["declared_relationships"],
-                    "meaning": "declared_relationships_only",
+                    **(
+                        {"pigtail_preparations": inspected["pigtail_preparations"]}
+                        if inspected.get("pigtail_preparations")
+                        else {}
+                    ),
+                    **(
+                        {"stock_construction_bonds": inspected["construction_bonds"]}
+                        if inspected.get("construction_bonds")
+                        else {}
+                    ),
+                    "meaning": "declared_relationships_and_stock_construction_only"
+                    if inspected.get("construction_bonds") or inspected.get("pigtail_preparations")
+                    else "declared_relationships_only",
                 }
             )
         for piece in pieces:

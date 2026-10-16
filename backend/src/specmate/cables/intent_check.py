@@ -18,6 +18,7 @@ from specmate.interfaces.intent_contracts import CableIntent
 from specmate.interfaces.intents import RETURN_LIKE, end_view
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 from specmate.pcb.component_values import parse_capacitance, parse_resistance
+from specmate.wire_stock.electrical import impedance_fact, ohm_value
 
 ALGORITHM = "cable_intent_check/0.1"
 MAX_DEPTH = 24
@@ -94,6 +95,8 @@ def mating_map(end_layer, end_body, intent_pinout, closure):
 
 def node_ref(node):
     """What a path node is in the cable (a terminal or a conductor end), for drawings."""
+    if node[0] == "p":
+        return {"segment_id": node[1], "end": node[2], "pigtail_id": node[3]}
     if node[0] == "s":
         return {"segment_id": node[1], "end": node[2], "element_path": node[3]}
     if node[0] == "t":
@@ -146,6 +149,17 @@ class Graph:
                     element.label,
                     {"kind": "conductor", "element_path": path},
                 )
+        for bond in closure.stock.bonded_sets or []:
+            for endpoint in closure.cable.endpoints:
+                members = [("c", endpoint.local_id, path) for path in bond.element_paths]
+                for target in members[1:]:
+                    self.edge(
+                        members[0],
+                        target,
+                        "declared",
+                        bond.basis,
+                        {"kind": "stock_bond", "local_id": bond.local_id},
+                    )
         for t in closure.cable.assignments:
             self.edge(
                 ("c", t.endpoint_id, t.element_path),
@@ -478,18 +492,19 @@ class Check:
                 return dim("fail", f"{path} is a {kind} conductor; the intent needs {need.kind}.")
         if need.impedance_ohm is None:
             return dim("pass", f"Conductor kind {need.kind} as required.", "stock structure")
-        fact = self.closure.stock.facts.get("impedance")
-        if fact is None or fact.status == "unknown" or not isinstance(fact.value, float | int):
-            return dim("unknown", "The stock declares no characteristic impedance.", "stock facts")
-        if abs(float(fact.value) - need.impedance_ohm) > 1e-9:
+        facts = [impedance_fact(self.closure.stock, path) for path in centers]
+        if any(ohm_value(fact) is None for fact in facts):
             return dim(
-                "fail",
-                f"Stock impedance {fact.value:g} ohm; the intent needs {need.impedance_ohm:g} ohm.",
+                "unknown",
+                "A traversed conductor has no known scoped impedance in ohms.",
+                "exact stock/feature facts",
             )
+        if any(abs(ohm_value(fact) - need.impedance_ohm) > 1e-9 for fact in facts):
+            return dim("fail", f"A conductor impedance differs from {need.impedance_ohm:g} ohm.")
         return dim(
             "pass",
-            f"{need.kind} at {fact.value:g} ohm ({fact.status}).",
-            f"stock fact: {fact.source}",
+            f"{need.kind} at {need.impedance_ohm:g} ohm as required.",
+            *[f"stock/feature fact: {fact.source}" for fact in facts],
         )
 
     def level_dim(self, row, far_side, far_contacts, components):

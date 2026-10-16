@@ -6,12 +6,13 @@ export type End = 'a' | 'b';
 export interface SegmentEnd { segment_id: string; end: End }
 export type HarnessTerminal =
   | { kind: 'segment'; segment_id: string; end: End; element_path: string }
+  | { kind: 'pigtail'; segment_id: string; end: End; pigtail_id: string }
   | { kind: 'endpoint'; endpoint_id: string; layer_id: string; terminal_id: string };
 export interface HarnessSection {
   local_id: string; stock_revision_id: string; planned_cut_length_mm: string | null; cut_basis: string | null;
   physical_ends?: { local_id: string; label: string | null; segment_ends: SegmentEnd[]; endpoint_id: string | null; basis: string; review: string }[];
 }
-export interface HarnessSegment { local_id: string; section_id: string; label: string | null; element_paths: string[] | null }
+export interface HarnessSegment { pigtails?: { local_id: string; end: End; element_paths: string[]; label: string | null; basis: string }[]; local_id: string; section_id: string; label: string | null; element_paths: string[] | null }
 export interface StackLayerPin { kind: 'board' | 'inline' | 'connector' | 'shell'; layer_id: string; body_revision_id?: string; pinout_revision_id?: string; board_revision_id?: string; part_revision_id?: string | null }
 /** One endpoint: a pinned end assembly or an ad-hoc stack ordered from the wire outward. */
 export interface HarnessEndpoint { local_id: string; label: string | null; end_assembly_revision_id: string | null; stack: { layers: StackLayerPin[] } | null }

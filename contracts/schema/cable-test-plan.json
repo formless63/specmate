@@ -290,7 +290,8 @@
             "contact",
             "stock_feature",
             "stack_terminal",
-            "segment"
+            "segment",
+            "pigtail"
           ],
           "title": "Kind",
           "type": "string"
@@ -307,6 +308,19 @@
           ],
           "default": null,
           "title": "Layer Id"
+        },
+        "pigtail_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pigtail Id"
         },
         "segment_id": {
           "anyOf": [

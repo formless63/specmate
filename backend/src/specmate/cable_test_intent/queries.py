@@ -70,7 +70,7 @@ def terminals(cable):
             original = row["terminal"]
             terminal = {
                 **original,
-                "kind": "stack_terminal" if original["kind"] == "endpoint" else "segment",
+                "kind": "stack_terminal" if original["kind"] == "endpoint" else original["kind"],
             }
             rows.append(
                 {

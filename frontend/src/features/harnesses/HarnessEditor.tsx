@@ -7,7 +7,7 @@ import { RevisionPicker as CatalogRevisionPicker } from '../cables/RevisionPicke
 import { connectorStack, resolveDenied, type ResolvedStack } from '../end-assemblies/api';
 import { StackDiagram, StackEditor, resolvedChips, useResolvedStacks } from '../end-assemblies/StackEditor';
 import { PhysicalEndsEditor } from './PhysicalEndsEditor';
-import { read, terminalKey, terminalLabel, type Breakout, type Definition, type Endpoint, type Fate, type Harness, type Joint, type SegmentEnd, type SegmentTerminal, type Terminal } from './api';
+import { read, terminalKey, terminalLabel, type Breakout, type Definition, type Endpoint, type Fate, type Harness, type Joint, type Segment, type SegmentEnd, type SegmentTerminal, type Terminal } from './api';
 
 type Choice = { value: string; label: string; terminal: Terminal };
 type Source = { content?: { stock?: StockSpecification } };
@@ -33,9 +33,13 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange,
     const section = value.sections.find(s => s.local_id === segment.section_id);
     const stock = section && source(`revisions/${section.stock_revision_id}/snapshot`)?.content?.stock;
     const paths = stock ? conductive(stock.structure).filter(path => segment.element_paths === null || segment.element_paths.includes(path)) : [];
+    for (const pigtail of segment.pigtails ?? []) {
+      const terminal: Terminal = { kind: 'pigtail', segment_id: segment.local_id, end: pigtail.end, pigtail_id: pigtail.local_id };
+      choices.push({ value: terminalKey(terminal), label: terminalLabel(terminal), terminal });
+    }
     for (const path of paths) for (const end of ['a', 'b'] as const) {
       const terminal: Terminal = { kind: 'segment', segment_id: segment.local_id, end, element_path: path };
-      choices.push({ value: terminalKey(terminal), label: terminalLabel(terminal), terminal });
+      if (!segment.pigtails?.some(pigtail => pigtail.end === end && pigtail.element_paths.includes(path))) choices.push({ value: terminalKey(terminal), label: terminalLabel(terminal), terminal });
     }
   }
   value.endpoints.forEach((endpoint, index) => {
@@ -71,6 +75,7 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange,
         <Select label={`Segment ${segment.local_id} section`} value={segment.section_id} data={value.sections.map(s => s.local_id)} onChange={id => { if (id) onChange({ ...value, segments: value.segments.map((s, i) => i === index ? { ...s, section_id: id } : s) }); }} />
         <Select label={`Segment ${segment.local_id} feature scope`} value={segment.element_paths === null ? 'all' : 'selected'} data={[{ value: 'all', label: 'All conductive features' }, { value: 'selected', label: 'Explicit feature subset' }]} onChange={v => onChange({ ...value, segments: value.segments.map((s, i) => i === index ? { ...s, element_paths: v === 'all' ? null : [] } : s) })} />
         {segment.element_paths !== null && <MultiSelect label={`Segment ${segment.local_id} conductive paths`} disabled={denied} data={stock ? conductive(stock.structure) : []} value={denied ? [] : segment.element_paths} onChange={paths => onChange({ ...value, segments: value.segments.map((s, i) => i === index ? { ...s, element_paths: paths } : s) })} />}
+        <PigtailsEditor segment={segment} stock={stock} denied={denied} onChange={next => onChange({ ...value, segments: value.segments.map((s, i) => i === index ? next : s) })} />
         <Button variant="subtle" onClick={() => onChange({ ...value, segments: value.segments.filter((_, i) => i !== index) })}>Remove segment {segment.local_id}</Button>
       </Stack></Card>;
     })}
@@ -144,5 +149,19 @@ function FateEditor({ breakout, joints, choices, onChange }: { breakout: Breakou
       const fate: Fate = kind === 'through' ? { local_id: id, kind, trunk: terminal, leg: choices.find(c => c.value === to)!.terminal as SegmentTerminal, basis } : kind === 'joint' ? { local_id: id, kind, terminal, joint_id: joint! } : { local_id: id, kind, terminal, basis };
       onChange({ ...breakout, fates: [...breakout.fates, fate] }); setId(''); setFrom(null); setTo(null);
     }}>Add fate to {breakout.local_id}</Button>
+  </Stack>;
+}
+
+function screenPaths(node: StockElement, prefix = ''): string[] {
+  const path = prefix ? `${prefix}.${node.id}` : node.id;
+  return node.kind === 'group' ? node.children.flatMap(child => screenPaths(child, path)) : ['shield', 'drain'].includes(node.kind) ? [path] : [];
+}
+function PigtailsEditor({ segment, stock, denied, onChange }: { segment: Segment; stock?: StockSpecification; denied: boolean; onChange: (segment: Segment) => void }) {
+  const [id, setId] = useState(''); const [end, setEnd] = useState<'a' | 'b'>('a'); const [paths, setPaths] = useState<string[]>([]); const [basis, setBasis] = useState('');
+  const available = stock ? screenPaths(stock.structure).filter(path => (segment.element_paths === null || segment.element_paths.includes(path)) && !segment.pigtails?.some(p => p.end === end && p.element_paths.includes(path))) : [];
+  return <Stack gap="xs"><Text fw={600}>Named screen pigtails</Text><Text size="sm">Prepare selected screens and drains into one landing at one segment end. Preparation retains the original stock piece.</Text>
+    {!denied && segment.pigtails?.map((p, index) => <Group key={`${p.end}:${p.local_id}`}><Text>{p.end} / {p.label ?? p.local_id}: {p.element_paths.join(', ')} · {p.basis}</Text><Button variant="subtle" onClick={() => onChange({ ...segment, pigtails: segment.pigtails?.filter((_, i) => i !== index) })}>Remove pigtail {p.local_id}</Button></Group>)}
+    <TextInput label={`${segment.local_id} pigtail ID`} value={id} onChange={e => setId(e.currentTarget.value)} /><Select label={`${segment.local_id} pigtail end`} data={['a', 'b']} value={end} onChange={v => { setEnd(v as 'a' | 'b'); setPaths([]); }} /><MultiSelect label={`${segment.local_id} pigtail screens and drains`} disabled={denied} data={denied ? [] : available} value={denied ? [] : paths} onChange={setPaths} /><TextInput label={`${segment.local_id} pigtail basis`} value={basis} onChange={e => setBasis(e.currentTarget.value)} />
+    <Button disabled={denied || !id || !basis || !paths.length || paths.some(p => !available.includes(p)) || segment.pigtails?.some(p => p.end === end && p.local_id === id)} onClick={() => { onChange({ ...segment, pigtails: [...segment.pigtails ?? [], { local_id: id, end, element_paths: paths, basis, label: null }] }); setId(''); setPaths([]); }}>Add named pigtail</Button>
   </Stack>;
 }

@@ -36,7 +36,7 @@ export interface BuildSheetModel {
 }
 
 const natural = (a: string, b: string): number => a.localeCompare(b, 'en', { numeric: true });
-const terminalText = (t: HarnessTerminal): string => t.kind === 'segment' ? `${t.segment_id} / ${t.end.toUpperCase()} / ${t.element_path}` : `${t.endpoint_id} / ${t.layer_id} / ${t.terminal_id}`;
+const terminalText = (t: HarnessTerminal): string => t.kind === 'pigtail' ? `${t.segment_id} / ${t.end.toUpperCase()} / pigtail ${t.pigtail_id}` : t.kind === 'segment' ? `${t.segment_id} / ${t.end.toUpperCase()} / ${t.element_path}` : `${t.endpoint_id} / ${t.layer_id} / ${t.terminal_id}`;
 const LAYER_ORDER = ['board', 'inline', 'connector', 'shell'];
 
 export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
@@ -70,16 +70,18 @@ export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
     const info = input.ends?.[ep.local_id];
     const landings: Omit<Landing, 'number'>[] = [];
     for (const joint of harness.joints) {
-      if (joint.kind !== 'termination') continue;
+      if (!['termination', 'solder'].includes(joint.kind)) continue;
       const mine = joint.members.filter((m): m is Extract<HarnessTerminal, { kind: 'endpoint' }> => m.kind === 'endpoint' && m.endpoint_id === ep.local_id);
-      const wires = joint.members.filter((m): m is Extract<HarnessTerminal, { kind: 'segment' }> => m.kind === 'segment');
+      const wires = joint.members.filter((m): m is Extract<HarnessTerminal, { kind: 'segment' | 'pigtail' }> => m.kind === 'segment' || m.kind === 'pigtail');
       for (const m of mine) for (const w of wires) {
-        const found = lookFor(w.segment_id, w.element_path);
+        const pigtail = w.kind === 'pigtail' ? segments.get(w.segment_id)?.pigtails?.find(p => p.local_id === w.pigtail_id && p.end === w.end) : null;
+        const elementPath = w.kind === 'segment' ? w.element_path : `pigtail:${w.pigtail_id}`;
+        const found = w.kind === 'segment' ? lookFor(w.segment_id, w.element_path) : { label: `${pigtail?.label ?? w.pigtail_id} · ${(pigtail?.element_paths ?? []).join(', ')}`, look: null };
         const t = info?.terminals[`${m.layer_id}/${m.terminal_id}`];
         const signal = !t ? 'Signal unknown (end stack not resolved)'
           : t.signals.length === 0 ? 'Signal unknown (reaches no connector contact)'
           : t.signals.map(x => `${x.label}: ${x.name ? `${x.name} (${(x.type ?? 'unknown').replace(/_/g, ' ')})` : 'signal unknown'}${x.status === 'unknown' ? ', path unknown' : ''}`).join('; ');
-        landings.push({ layerId: m.layer_id, terminalId: m.terminal_id, target: t ? `${t.layerKind} ${t.label}` : `${m.layer_id} ${m.terminal_id}`, signal, parts: t ? t.parts.join('; ') || 'None declared' : 'Unknown', elementPath: w.element_path, elementLabel: found.label, elementLook: found.look, segment: w.segment_id, segmentEnd: w.end, jointId: joint.local_id, basis: joint.basis });
+        landings.push({ layerId: m.layer_id, terminalId: m.terminal_id, target: t ? `${t.layerKind} ${t.label}` : `${m.layer_id} ${m.terminal_id}`, signal, parts: t ? t.parts.join('; ') || 'None declared' : 'Unknown', elementPath, elementLabel: found.label, elementLook: found.look, segment: w.segment_id, segmentEnd: w.end, jointId: joint.local_id, basis: joint.basis });
       }
     }
     const layerRank = (id: string): number => { const kind = ep.stack?.layers.find(l => l.layer_id === id)?.kind; return kind ? LAYER_ORDER.indexOf(kind) : -1; };

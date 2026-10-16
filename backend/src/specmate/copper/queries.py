@@ -156,6 +156,19 @@ class Builder:
                 members,
                 "Same conductive feature between the two declared cable ends.",
             )
+        for bond in closure.stock.bonded_sets or []:
+            for endpoint in value.endpoints:
+                self.record(
+                    revision,
+                    path,
+                    ["stock_bond", endpoint.local_id, bond.local_id],
+                    "stock_bond",
+                    [conductors[endpoint.local_id, p] for p in bond.element_paths],
+                    bond.basis,
+                    stock_revision_id=str(value.stock_revision_id),
+                    bond_set_id=bond.local_id,
+                    authority="stock_construction",
+                )
         terminals = {}
         for endpoint, resolved in closure.endpoints.values():
             self.end_stack(revision, path, endpoint, resolved, terminals)
@@ -343,7 +356,7 @@ class Builder:
                 terminal,
                 " / ".join(str(v) for k, v in terminal.items() if k != "kind"),
                 row["feature_kind"],
-                **{k: v for k, v in row.items() if k not in {"terminal", "feature_kind"}},
+                **{k: v for k, v in row.items() if k not in {"terminal", "feature_kind", "label"}},
             )
             terminals[json.dumps(terminal, sort_keys=True)] = key
 
@@ -372,15 +385,25 @@ class Builder:
                     "Same conductive feature within one declared segment span.",
                     section_id=closure.segments[segment].section_id,
                 )
-        for relationship in closure.relationships:
+        for relationship in [
+            *closure.relationships,
+            *closure.construction_bonds,
+            *closure.pigtails,
+        ]:
             self.record(
                 revision,
                 path,
                 [relationship.get("breakout_id"), relationship["id"]],
-                "join" if relationship["kind"] == "solder" else relationship["kind"],
+                "join"
+                if relationship["kind"] in {"solder", "pigtail_preparation"}
+                else relationship["kind"],
                 [resolve(t) for t in relationship["members"]],
                 relationship["basis"],
-                **({"declaration": relationship} if relationship["kind"] == "solder" else {}),
+                **(
+                    {"declaration": relationship}
+                    if relationship["kind"] in {"solder", "stock_bond", "pigtail_preparation"}
+                    else {}
+                ),
             )
         for fate in closure.breakout_fates:
             if fate["fate"] not in {"unknown", "unconnected"}:

@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import Field
 
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
-from specmate.harnesses.contracts import SegmentTerminal
+from specmate.harnesses.contracts import PigtailTerminal, SegmentTerminal
 from specmate.interfaces.contracts import ContactId
 
 
@@ -68,6 +68,7 @@ class StackTerminal(StrictModel):
 
 Terminal = Annotated[
     SegmentTerminal
+    | PigtailTerminal
     | EndpointTerminal
     | CableTerminal
     | ContactTerminal
@@ -101,6 +102,7 @@ class Edge(StrictModel):
     id: str
     kind: Literal[
         "wire",
+        "stock_bond",
         "termination",
         "splice",
         "shield_bond",

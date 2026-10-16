@@ -256,6 +256,7 @@
         "kind": {
           "enum": [
             "wire",
+            "stock_bond",
             "termination",
             "splice",
             "shield_bond",
@@ -367,6 +368,7 @@
               "contact": "#/$defs/ContactTerminal",
               "endpoint": "#/$defs/EndpointTerminal",
               "pad": "#/$defs/PadTerminal",
+              "pigtail": "#/$defs/PigtailTerminal",
               "segment": "#/$defs/SegmentTerminal",
               "stack_terminal": "#/$defs/StackTerminal"
             },
@@ -375,6 +377,9 @@
           "oneOf": [
             {
               "$ref": "#/$defs/SegmentTerminal"
+            },
+            {
+              "$ref": "#/$defs/PigtailTerminal"
             },
             {
               "$ref": "#/$defs/EndpointTerminal"
@@ -441,6 +446,42 @@
         "component_id"
       ],
       "title": "PadTerminal",
+      "type": "object"
+    },
+    "PigtailTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "kind": {
+          "const": "pigtail",
+          "default": "pigtail",
+          "title": "Kind",
+          "type": "string"
+        },
+        "pigtail_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Pigtail Id",
+          "type": "string"
+        },
+        "segment_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Segment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "end",
+        "pigtail_id"
+      ],
+      "title": "PigtailTerminal",
       "type": "object"
     },
     "SegmentTerminal": {

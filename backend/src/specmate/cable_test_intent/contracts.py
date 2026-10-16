@@ -15,19 +15,20 @@ Declaration = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 
 class Terminal(StrictModel):
     endpoint_id: LocalId | None = None
-    kind: Literal["contact", "stock_feature", "stack_terminal", "segment"]
+    kind: Literal["contact", "stock_feature", "stack_terminal", "segment", "pigtail"]
     contact_id: ContactId | None = None
     element_path: ElementPath | None = None
     layer_id: LocalId | None = None
     terminal_id: str | None = Field(default=None, min_length=1, max_length=100)
     segment_id: LocalId | None = None
+    pigtail_id: LocalId | None = None
     end: Literal["a", "b"] | None = None
 
     @model_validator(mode="after")
     def consistent(self):
         if self.kind in ("contact", "stock_feature"):
             if self.endpoint_id is None or any(
-                (self.layer_id, self.terminal_id, self.segment_id, self.end)
+                (self.layer_id, self.terminal_id, self.segment_id, self.end, self.pigtail_id)
             ):
                 raise ValueError(
                     "Legacy terminals require only an endpoint and contact or stock feature."
@@ -39,16 +40,29 @@ class Terminal(StrictModel):
                 raise ValueError("Stock terminal requires only an exact conductive feature path.")
         elif self.kind == "stack_terminal":
             if not all((self.endpoint_id, self.layer_id, self.terminal_id)) or any(
-                (self.contact_id, self.element_path, self.segment_id, self.end)
+                (self.contact_id, self.element_path, self.segment_id, self.end, self.pigtail_id)
             ):
                 raise ValueError("Stack terminals require exact endpoint, layer and terminal IDs.")
+        elif self.kind == "pigtail":
+            if not all((self.segment_id, self.end, self.pigtail_id)) or any(
+                (
+                    self.endpoint_id,
+                    self.layer_id,
+                    self.terminal_id,
+                    self.contact_id,
+                    self.element_path,
+                )
+            ):
+                raise ValueError("Pigtail terminals require exact segment, end and pigtail ID.")
         elif not all((self.segment_id, self.end, self.element_path)) or any(
-            (self.endpoint_id, self.layer_id, self.terminal_id, self.contact_id)
+            (self.endpoint_id, self.layer_id, self.terminal_id, self.contact_id, self.pigtail_id)
         ):
             raise ValueError("Segment terminals require exact segment, end and conductive feature.")
         return self
 
     def key(self):
+        if self.kind == "pigtail":
+            return self.segment_id, self.kind, self.end, self.pigtail_id
         if self.kind == "stack_terminal":
             return self.endpoint_id, self.kind, self.layer_id, self.terminal_id
         if self.kind == "segment":
@@ -58,10 +72,10 @@ class Terminal(StrictModel):
     @model_serializer(mode="wrap")
     def omit_unrecorded_addresses(self, handler):
         data = handler(self)
-        for field in ("layer_id", "terminal_id", "segment_id", "end"):
+        for field in ("layer_id", "terminal_id", "segment_id", "end", "pigtail_id"):
             if data.get(field) is None:
                 data.pop(field, None)
-        if self.kind == "segment":
+        if self.kind in {"segment", "pigtail"}:
             data.pop("endpoint_id", None)
         return data
 

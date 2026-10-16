@@ -32,6 +32,11 @@ export function harnessGraph(harness: Harness, data: HarnessCanvasData) {
       terminals.set(handle, terminal); nodes.set(handle, id); const look = rowLook(row), color = ['recorded', 'conventional-name'].includes(look.fillSource) ? look.base : undefined; if (color) colors.set(handle, color);
       return { id: handle, label: `${end.toUpperCase()} · ${row.label} · ${row.path}`, row: row.path, rowLabel: row.label, side: end === 'a' ? 'left' as const : 'right' as const, color: colors.get(handle), unknown: !colors.has(handle) };
     }));
+    for (const pigtail of segment.pigtails ?? []) {
+      const terminal: Terminal = { kind: 'pigtail', segment_id: segment.local_id, end: pigtail.end, pigtail_id: pigtail.local_id };
+      const handle = harnessHandle(terminal); terminals.set(handle, terminal); nodes.set(handle, id);
+      ports.push({ id: handle, label: `${pigtail.end.toUpperCase()} · pigtail ${pigtail.label ?? pigtail.local_id}`, row: `pigtail:${pigtail.local_id}:${pigtail.end}`, rowLabel: `Pigtail ${pigtail.label ?? pigtail.local_id}`, side: pigtail.end === 'a' ? 'left' : 'right', color: undefined, unknown: true });
+    }
     items.push({ id, title: segment.label ?? segment.local_id, detail: `Section ${segment.section_id} · cut ${section?.planned_cut_length_mm ?? 'unknown'}${section?.planned_cut_length_mm ? ' mm' : ''} · A ← → B`, ports, artwork: stock ? <div className="manual-stock-art" dangerouslySetInnerHTML={{ __html: renderSectionSvg(sectionLayout(stock), `Section ${segment.section_id} exact cross-section`, { idPrefix: 'harness-' + layoutKey(id), callouts: false }) }} /> : <div className="sb-hatch">Stock geometry unknown</div>, position: { x: 400, y: segmentY } });
     segmentY += nodeHeight(items[items.length - 1]!, stock ? 180 : 110);
   }
@@ -66,6 +71,11 @@ export function harnessGraph(harness: Harness, data: HarnessCanvasData) {
   for (const endpoint of harness.endpoints) for (const join of data.ends[endpoint.local_id]?.joins ?? []) {
     for (const [index, target] of [join.b, ...(join.through ? [join.through] : [])].entries()) edge(JSON.stringify(['end-join', endpoint.local_id, join.local_id, index]), { kind: 'endpoint', endpoint_id: endpoint.local_id, ...join.a }, { kind: 'endpoint', endpoint_id: endpoint.local_id, ...target }, `${join.kind}${index ? ' · same carrier solder point' : ''} · ${join.basis}`, join.status === 'unknown');
   }
+  for (const segment of harness.segments) {
+    for (const pigtail of segment.pigtails ?? []) for (const path of pigtail.element_paths) edge(JSON.stringify(['pigtail', segment.local_id, pigtail.end, pigtail.local_id, path]), { kind: 'pigtail', segment_id: segment.local_id, end: pigtail.end, pigtail_id: pigtail.local_id }, { kind: 'segment', segment_id: segment.local_id, end: pigtail.end, element_path: path }, `Prepared pigtail · ${pigtail.basis}`);
+    const section = harness.sections.find(item => item.local_id === segment.section_id), stock = section && data.stocks[section.stock_revision_id];
+    for (const bond of stock?.bonded_sets ?? []) for (const end of ['a', 'b'] as const) for (const path of bond.element_paths.slice(1)) edge(JSON.stringify(['stock-bond', segment.local_id, end, bond.local_id, path]), { kind: 'segment', segment_id: segment.local_id, end, element_path: bond.element_paths[0]! }, { kind: 'segment', segment_id: segment.local_id, end, element_path: path }, `Stock construction bond · ${bond.basis}`);
+  }
   for (const joint of harness.joints) for (const member of joint.members.slice(1)) edge(JSON.stringify(['joint', joint.local_id, terminalKey(member)]), joint.members[0]!, member, `${joint.kind} · ${joint.basis}`);
   for (const breakout of harness.breakouts) for (const fate of breakout.fates) if (fate.kind === 'through') edge(JSON.stringify(['through', breakout.local_id, fate.local_id]), fate.trunk, fate.leg, `Declared uncut passage · ${fate.basis}`, true);
   // Endpoint colors are projected only from explicit joint membership with one known stock hue.
@@ -79,6 +89,7 @@ export function harnessGraph(harness: Harness, data: HarnessCanvasData) {
 export function addHarnessJoint(harness: Harness, left: Terminal, right: Terminal, kind: Joint['kind'], basis: string): Harness {
   if (terminalKey(left) === terminalKey(right)) throw new Error('Choose two different exact terminals.');
   if (!basis.trim()) throw new Error('Record a basis for this declared joint.');
+  if ([left, right].some(terminal => terminal.kind === 'segment' && harness.segments.find(segment => segment.local_id === terminal.segment_id)?.pigtails?.some(pigtail => pigtail.end === terminal.end && pigtail.element_paths.includes(terminal.element_path)))) throw new Error('Connect the named pigtail terminal; its prepared members cannot land separately.');
   if (harness.joints.some(joint => joint.members.some(member => [terminalKey(left), terminalKey(right)].includes(terminalKey(member))))) throw new Error('A terminal already belongs to a joint. Edit that declared joint explicitly.');
   let index = 1; while (harness.joints.some(joint => joint.local_id === `joint-${index}`)) index += 1;
   return { ...harness, review: 'unreviewed', review_basis: null, joints: [...harness.joints, { local_id: `joint-${index}`, kind, members: [left, right], basis: basis.trim() }] };

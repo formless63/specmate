@@ -319,9 +319,19 @@ def render(projection):
                         )
                 y += 48
         else:
-            for relationship in context["relationships"]:
+            for relationship in [
+                *context["relationships"],
+                *context.get("pigtail_preparations", []),
+                *context.get("stock_construction_bonds", []),
+            ]:
                 drawing.append(label(20, y, relationship["id"] + " · " + relationship["kind"]))
                 y += 25
+                if relationship.get("label"):
+                    drawing.append(label(40, y, relationship["label"]))
+                    y += 25
+                if relationship["kind"] in {"stock_bond", "pigtail_preparation"}:
+                    drawing.append(label(40, y, relationship["basis"]))
+                    y += 25
                 for member in relationship["members"]:
                     drawing.append(
                         f'<line x1="40" y1="{y - 10}" x2="90" y2="{y - 10}" stroke="#333"/>'

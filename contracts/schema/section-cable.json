@@ -625,6 +625,7 @@
             "discriminator": {
               "mapping": {
                 "endpoint": "#/$defs/EndpointTerminal",
+                "pigtail": "#/$defs/PigtailTerminal",
                 "segment": "#/$defs/SegmentTerminal"
               },
               "propertyName": "kind"
@@ -632,6 +633,9 @@
             "oneOf": [
               {
                 "$ref": "#/$defs/SegmentTerminal"
+              },
+              {
+                "$ref": "#/$defs/PigtailTerminal"
               },
               {
                 "$ref": "#/$defs/EndpointTerminal"
@@ -753,6 +757,101 @@
       "title": "PhysicalEnd",
       "type": "object"
     },
+    "Pigtail": {
+      "additionalProperties": false,
+      "description": "Prepared screens at one material end, twisted together and landed once.",
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "element_paths": {
+          "items": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Element Paths",
+          "type": "array"
+        },
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "end",
+        "element_paths",
+        "basis"
+      ],
+      "title": "Pigtail",
+      "type": "object"
+    },
+    "PigtailTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "kind": {
+          "const": "pigtail",
+          "default": "pigtail",
+          "title": "Kind",
+          "type": "string"
+        },
+        "pigtail_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Pigtail Id",
+          "type": "string"
+        },
+        "segment_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Segment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "end",
+        "pigtail_id"
+      ],
+      "title": "PigtailTerminal",
+      "type": "object"
+    },
     "Section": {
       "additionalProperties": false,
       "description": "One planned stock piece, even when several segments describe it.",
@@ -852,6 +951,14 @@
           "pattern": "^[a-z][a-z0-9_-]{0,79}$",
           "title": "Local Id",
           "type": "string"
+        },
+        "pigtails": {
+          "items": {
+            "$ref": "#/$defs/Pigtail"
+          },
+          "maxItems": 128,
+          "title": "Pigtails",
+          "type": "array"
         },
         "section_id": {
           "pattern": "^[a-z][a-z0-9_-]{0,79}$",

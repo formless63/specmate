@@ -10,6 +10,7 @@ from specmate.cables.intent_check import Check, Graph, dim
 from specmate.harnesses.queries import Closure
 from specmate.interfaces.conventions import stock_conventions
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
+from specmate.wire_stock.electrical import impedance_fact, ohm_value
 from specmate.wire_stock.schemas import StockSpecification
 
 
@@ -20,6 +21,8 @@ def feature_key(section_id, path):
 def terminal_node(member):
     if member["kind"] == "endpoint":
         return ("t", member["endpoint_id"], member["layer_id"], member["terminal_id"])
+    if member["kind"] == "pigtail":
+        return ("p", member["segment_id"], member["end"], member["pigtail_id"])
     return ("s", member["segment_id"], member["end"], member["element_path"])
 
 
@@ -70,8 +73,14 @@ class SectionGraph(Graph):
                         "stock_element_path": path,
                     },
                 )
-        for relationship in closure.relationships:
+        for relationship in [
+            *closure.relationships,
+            *closure.construction_bonds,
+            *closure.pigtails,
+        ]:
             members = [terminal_node(m) for m in relationship["members"]]
+            for node in members:
+                self.labels.setdefault(node, ("pigtail", "/".join(node[1:])))
             for target in members[1:]:
                 self.edge(
                     members[0],
@@ -156,17 +165,14 @@ class SectionCheck(Check):
             if kind != need.kind:
                 return dim("fail", f"{path} is a {kind} conductor; the intent needs {need.kind}.")
             if need.impedance_ohm is not None:
-                fact = self.stock_by_path[path].facts.get("impedance")
-                if (
-                    fact is None
-                    or fact.status == "unknown"
-                    or not isinstance(fact.value, float | int)
-                ):
+                fact = impedance_fact(self.stock_by_path[path], path.split("::", 1)[1])
+                value = ohm_value(fact)
+                if value is None:
                     unknown.append(path)
-                elif abs(float(fact.value) - need.impedance_ohm) > 1e-9:
+                elif abs(value - need.impedance_ohm) > 1e-9:
                     return dim(
                         "fail",
-                        f"{path} impedance {fact.value:g} ohm; "
+                        f"{path} impedance {value:g} ohm; "
                         f"the intent needs {need.impedance_ohm:g} ohm.",
                     )
         if unknown:

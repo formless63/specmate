@@ -55,15 +55,34 @@ class Section(StrictModel):
         return self
 
 
+class Pigtail(StrictModel):
+    """Prepared screens at one material end, twisted together and landed once."""
+
+    local_id: LocalId
+    end: Literal["a", "b"]
+    element_paths: list[ElementPath] = Field(min_length=1, max_length=128)
+    label: Text | None = None
+    basis: Text
+
+    @model_validator(mode="after")
+    def unique_members(self):
+        unique(self.element_paths)
+        return self
+
+
 class Segment(StrictModel):
     local_id: LocalId
     section_id: LocalId
     label: Text | None = None
     # Null = the section's complete declared conductive construction; [] = none.
     element_paths: list[ElementPath] | None = Field(default=None, max_length=1024)
+    pigtails: list[Pigtail] = Field(
+        default_factory=list, max_length=128, exclude_if=lambda value: not value
+    )
 
     @model_validator(mode="after")
     def unique_paths(self):
+        unique([(p.end, p.local_id) for p in self.pigtails])
         if self.element_paths is not None:
             unique(self.element_paths)
         return self
@@ -72,6 +91,11 @@ class Segment(StrictModel):
 class SegmentTerminal(SegmentEnd):
     kind: Literal["segment"] = "segment"
     element_path: ElementPath
+
+
+class PigtailTerminal(SegmentEnd):
+    kind: Literal["pigtail"] = "pigtail"
+    pigtail_id: LocalId
 
 
 class EndpointTerminalV01(StrictModel):
@@ -91,10 +115,14 @@ class EndpointTerminal(StrictModel):
     terminal_id: StackTerminalId
 
 
-Terminal = Annotated[SegmentTerminal | EndpointTerminal, Field(discriminator="kind")]
+Terminal = Annotated[
+    SegmentTerminal | PigtailTerminal | EndpointTerminal, Field(discriminator="kind")
+]
 
 
 def terminal_key(terminal):
+    if isinstance(terminal, PigtailTerminal):
+        return ("pigtail", terminal.segment_id, terminal.end, terminal.pigtail_id)
     if isinstance(terminal, SegmentTerminal):
         return ("segment", terminal.segment_id, terminal.end, terminal.element_path)
     return ("endpoint", terminal.endpoint_id, terminal.layer_id, terminal.terminal_id)

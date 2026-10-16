@@ -15,6 +15,7 @@ from specmate.harnesses.contracts import (
     EndpointTerminal,
     Harness,
     JointFate,
+    PigtailTerminal,
     ReadHarness,
     SegmentTerminal,
     Through,
@@ -150,13 +151,16 @@ class Closure(Lookup):
                     ) from None
         self.sections = {s.local_id: s for s in self.harness.sections}
         self.constructions = {}
+        self.stocks = {}
         for section in self.harness.sections:
             revision = self.revisions[section.stock_revision_id]
             content = json.loads(bytes(revision.snapshot.canonical))["content"]
             if revision.definition.kind != "wire_stock" or "stock" not in content:
                 raise ValidationFailed("Physical sections require exact typed stock revisions.")
+            specification = StockSpecification.model_validate(content["stock"])
+            self.stocks[section.local_id] = specification
             self.constructions[section.local_id] = dict(
-                conductive_elements(StockSpecification.model_validate(content["stock"]).structure)
+                conductive_elements(specification.structure)
             )
         self.segments = {s.local_id: s for s in self.harness.segments}
         self.terminals = {}
@@ -184,6 +188,71 @@ class Closure(Lookup):
                         ),
                         "section_id": segment.section_id,
                     }
+        self.pigtails = []
+        self.pigtail_members = []
+        for segment in self.harness.segments:
+            used = set()
+            for pigtail in segment.pigtails:
+                members = []
+                for path in pigtail.element_paths:
+                    key = (pigtail.end, path)
+                    if key in used:
+                        raise ValidationFailed("A screen end belongs to only one prepared pigtail.")
+                    used.add(key)
+                    member = SegmentTerminal(
+                        segment_id=segment.local_id, end=pigtail.end, element_path=path
+                    )
+                    record = self.resolve(member)
+                    if record["feature_kind"] not in {"shield", "drain"}:
+                        raise ValidationFailed(
+                            "Pigtail members must be exact shield or drain ends."
+                        )
+                    members.append(member)
+                terminal = PigtailTerminal(
+                    segment_id=segment.local_id, end=pigtail.end, pigtail_id=pigtail.local_id
+                )
+                self.terminals[terminal_key(terminal)] = {
+                    "terminal": terminal.model_dump(mode="json"),
+                    "feature_kind": "pigtail",
+                    "section_id": segment.section_id,
+                    "stock_revision_id": str(self.sections[segment.section_id].stock_revision_id),
+                    "label": pigtail.label or pigtail.local_id,
+                }
+                self.pigtail_members.extend((member, pigtail.local_id) for member in members)
+                self.pigtails.append(
+                    {
+                        "id": f"{segment.local_id}:{pigtail.end}:{pigtail.local_id}",
+                        "kind": "pigtail_preparation",
+                        "basis": pigtail.basis,
+                        "label": pigtail.label or pigtail.local_id,
+                        "members": [m.model_dump(mode="json") for m in [terminal, *members]],
+                        "physical_piece_count_added": 0,
+                    }
+                )
+        self.construction_bonds = []
+        for segment_id, paths in self.segment_paths.items():
+            section_id = self.segments[segment_id].section_id
+            for bond in self.stocks[section_id].bonded_sets or []:
+                members = [path for path in bond.element_paths if path in paths]
+                if len(members) < 2:
+                    continue
+                for end in ("a", "b"):
+                    self.construction_bonds.append(
+                        {
+                            "id": f"{segment_id}:{end}:{bond.local_id}",
+                            "kind": "stock_bond",
+                            "section_id": section_id,
+                            "stock_revision_id": str(self.sections[section_id].stock_revision_id),
+                            "bond_set_id": bond.local_id,
+                            "basis": bond.basis,
+                            "members": [
+                                SegmentTerminal(
+                                    segment_id=segment_id, end=end, element_path=path
+                                ).model_dump(mode="json")
+                                for path in members
+                            ],
+                        }
+                    )
         self.values = {}
         for rid, revision in self.revisions.items():
             body = json.loads(bytes(revision.snapshot.canonical))["content"]
@@ -254,10 +323,12 @@ class Closure(Lookup):
                     assigned.add(key)
         self.joints = {j.local_id: j for j in self.harness.joints}
         self.owners = {}
+        for member, local_id in self.pigtail_members:
+            self.claim(member, ("pigtail", local_id))
         self.relationships = []
         for joint in self.harness.joints:
             records = [self.resolve(member) for member in joint.members]
-            segments = sum(isinstance(m, SegmentTerminal) for m in joint.members)
+            segments = sum(isinstance(m, SegmentTerminal | PigtailTerminal) for m in joint.members)
             if joint.kind == "termination" and (len(records) != 2 or segments != 1):
                 raise ValidationFailed(
                     "A termination joins one segment end to one endpoint terminal."
@@ -269,7 +340,7 @@ class Closure(Lookup):
             if joint.kind == "splice" and segments != len(records):
                 raise ValidationFailed("A splice joins segment ends.")
             if joint.kind == "shield_bond" and any(
-                r["feature_kind"] not in {"shield", "drain", "shell"} for r in records
+                r["feature_kind"] not in {"shield", "drain", "shell", "pigtail"} for r in records
             ):
                 raise ValidationFailed(
                     "A shield bond requires exact shield, drain or shell features."
@@ -484,6 +555,10 @@ def inspect_revision(user, revision_id, quantity=1):
         "quantities": quantities(closure, quantity),
         "terminals": list(closure.terminals.values()),
         "declared_relationships": closure.relationships,
+        **(
+            {"construction_bonds": closure.construction_bonds} if closure.construction_bonds else {}
+        ),
+        **({"pigtail_preparations": closure.pigtails} if closure.pigtails else {}),
         "breakout_fates": closure.breakout_fates,
         "continuity": "not_evaluated",
         "compatibility": "not_evaluated",
@@ -502,6 +577,8 @@ def inspect_relationships(user, revision_id, terminal):
             terminal_key(
                 SegmentTerminal.model_validate(m)
                 if m["kind"] == "segment"
+                else PigtailTerminal.model_validate(m)
+                if m["kind"] == "pigtail"
                 else EndpointTerminal.model_validate(m)
             )
             == key
