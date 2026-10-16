@@ -2,168 +2,182 @@
 
 ## Workspace
 
-Provide one workspace shell with an assembly/library tree, a central selected view and a
-context inspector. Views include composition/interface diagram, cable/stock, board,
-mechanical scene, sources, BOM/preparation, checks and physical records. Shared contextual
-selection is the invariant; not every discipline must use the same renderer.
+Specmate opens on Designs. The left rail has nine destinations: Designs, Library, Make,
+Jobs, History, Products & releases, Projects, Extensions and Settings. Library has seven
+collection tabs: Connectors, Boards, Wire stocks, Parts, Shells & hardware, Kits and
+Vocabulary. A new capability belongs in an existing record section, inspector tab or
+Advanced entry; it does not add a rail destination or collection tab.
 
-A selected occurrence stays selected through filtering, grouping, view switches and
-exploded arrangements. A board definition view and a board occurrence view are different
-contexts, visibly labeled. A reusable cable can be opened without loading its parent device.
+The top edge holds the Specmate home link, current location, item search, appearance
+control and account controls. The logo always links to the landing page. System appearance
+follows the operating system; Light and Dark are explicit alternatives. Navigation stays
+on the left and top. On narrow screens, controls wrap or collapse without hiding the
+appearance or account controls; wide engineering tables scroll inside their own regions.
 
-## Library and project scope
+Draw the thing first. A stock opens with its model and section, a connector with its face,
+a board with pads and paths, and a device with Scene and Tree. Forms and exact provenance
+sit beside the visual in bounded inspectors or record sections. Do not require a diagram
+or 3D viewer to be usable before the record can be inspected or edited.
 
-Status: accepted target model for the shell; earlier per-project gating is being replaced.
+## Library and projects
 
-Signing in lands inside the one application shell (top bar, area rail, context header,
-lenses, status line); there is no pre-project gate. The top bar's scope control selects
-**Library** (the whole workspace) or one project, and is searchable. Every area is
-reachable at both scopes. Scope changes navigation and filtering only, never access.
+Library home presents existing attention, unknown values, recent edits and freezes, and
+all items. Missing checks never imply success. Unknown-only items are distinguished from
+recorded failures. Typed collections offer search, filters, table/gallery views, creation
+and links to records. Thumbnails show declared content with unknown geometry visibly
+unresolved; they are not a source of new engineering facts.
 
-- The Library area opens on the **Library home**: summary cells (needs attention, failing
-  checks, unknowns, open questions, stale evidence, items), a **Needs attention** row, a
-  collapsed **Unknown values** group, the member's **Recent** edits and freezes, and **All
-  items** as a visual gallery with search and kind chips. Attention comes only from existing
-  records: failing rows of the latest recorded check of each cable or interface assessment,
-  stale records and open intent questions. Items whose only reasons are unknowns (unknown
-  check rows, values declared unknown) are counted in the separate group. An item without a
-  recorded check is never counted as passing. **New…** picks a kind and opens its lens with
-  the New form. A link to an item (`/library/<object>`) opens it in its own lens.
-- At Library scope each lens lists its workspace collection as a paginated gallery of cards
-  by default, with a remembered switch to the dense table (kind/role, name, latest frozen
-  revision, and the projects that reference it) for scanning. A card draws the item from its
-  newest content (latest frozen revision, else newest draft): a stock cross-section, a cable
-  sketch in its stock's colors, board terminals and paths, an end assembly's layer stack,
-  intent lines, signal chips or a connector face. Anything not recorded is drawn as unknown,
-  never as a default. The revision tag is solid when frozen and dashed for a draft, and the
-  status LED carries words. Thumbnails load lazily in shared batches; cards hold no 3D.
-  Lists are served by bounded single queries; the browser never fans out per project.
-- Wire stocks use the shared record page: collection and selected record are
-  separate surfaces. New opens a dedicated unsaved record, while a row opens its
-  latest frozen construction; an exact `@revision` link retains that historical
-  state. The 3D/section/specification workspace sits beside a bounded inspector
-  (a bottom sheet on phones). Construction edits live in the draft state, with
-  cut and end-preparation profiles inside Practices. Navigation retains unsaved
-  buffers; authority failures hide retained record content until rechecked.
-- The Library is where items are created and edited. Below its list every collection lens
-  mounts the same editor it has in a project, with no project: **New** starts an item in the
-  editor and **Open** (or selecting the card or row, or a deep link to it) opens that item there, with
-  its newest draft for editing or its latest frozen revision. **Use in project…** stays a row
-  action.
-- At project scope a library lens shows the items that project references first, with a
-  visible control to show the whole library. The Project area shows the project overview:
-  its purpose, notes, decisions, reviews and its references grouped by area, each opening
-  the item in its own lens. Counts are counts of references, not of owned records.
-- Creating an item never asks for a target project; it is added to the library. At project
-  scope the new item is also referenced by that project: some create forms offer **Use in
-  this project** (on by default), others always add the reference after the item exists. Every library item offers **Use in project…** to add a
-  reference to a chosen project and shows where it is used.
-- Selecting an item keeps the current scope, area and lens. Opening a referenced item from a
-  project keeps that project as context. Lenses that work on project-held records (project
-  notes and decisions, references, releases) show an inline project chooser at Library scope.
-- Actions the member's role does not permit are shown disabled with the reason (for example
-  "Editors can freeze"); the server still authorizes each action. Nothing opens a project
-  automatically after sign-in. Sign-out, session expiry, loss of membership or a role change
-  clear or refresh private data and return to a safe state with a plain explanation.
+Items belong to the workspace Library. Projects group references, notes, decisions and
+reviews; they do not own copies of Library records. Project chips filter a collection,
+while **Use in project…** adds a reference. Creation does not require a project. A project
+reference may follow an item or pin an exact revision; opening it preserves that choice.
+Project changes retain workspace editor buffers rather than remounting the application.
+
+Record pages separate browsing from editing. Their sections expose relevant properties,
+revisions, Where used, reference and rights, evidence, sources and Advanced information.
+Exact IDs and paths remain reachable without becoming ordinary form inputs. A draft is
+visibly different from a frozen revision. Opening a historical revision never silently
+substitutes current content; continuing a draft is a deliberate action.
+
+Connectors includes bodies, pinout variants, device ports and saved end stacks. **Pinouts**
+means contact-to-signal assignments; device ports additionally declare the role and facts
+of a connection on a device. These remain distinct records even when both show a connector
+face. Parts, hardware and kits likewise keep their own meanings and exact references.
+
+## Designing cables and harnesses
+
+Manual construction is a first-class cable entry path. A blank cable can be assembled on
+the React Flow canvas by dragging exact Library stock, connectors, pinouts, end stacks,
+boards and supported parts into the working design. Wiring is authored by connecting
+handles or by the keyboard-accessible manual mapping controls. The optional device-port
+recipe is not a prerequisite for creating or wiring a cable.
+
+Canvas placement and engineering content are distinct. Moving a node changes the working
+layout, not a physical dimension or electrical fact. New wire mappings change the local
+buffer and carry an explicit manual basis. Replacing an existing landing or declaring a
+joint requires the corresponding review. Undo/Redo operates on local edits; Save persists
+the draft, and Freeze creates immutable content. Dragging never silently saves or freezes.
+
+A cable has its declared stock and two ends. Harnesses represent multiple physical
+sections, segments, endpoints, joints and breakouts. A canvas gesture must not silently
+turn a cable into a harness or create a parallel graph model. Unknown pinouts, dimensions,
+component behavior and unconnected conductors remain visible. A catalog Part reference
+alone does not establish terminal correspondence or electrical behavior.
+
+The optional two-device-port path collects ports, end stacks, stock, length and unresolved
+questions. Library creation can open in a side sheet and return its exact saved selection.
+Requirements are reviewed and frozen explicitly before a wiring proposal is accepted.
+Changing a recipe pick invalidates the old proposal; accepted hand edits retain their
+basis when a new proposal is reviewed. Proposal success is not physical qualification.
+
+Build, Schematic and Documents are views of the selected design. Selecting a wire carries
+the shared probe between applicable views. The cable inspector separates Connection,
+Part, Signals, Issues, Notes and Recipe information. Issues distinguish failures from
+unknowns and explain their basis. Versions supports exact inspection, comparison and
+explicit draft continuation without changing older revisions.
+
+## Boards and devices
+
+Boards combine drawing, pads and paths, populations, source intake, reviewed extraction
+and source disagreements in one record. A bought board can have declared geometry and
+connectivity without native source files. KiCad-derived content retains its original
+source, extraction receipt and exact native identities. A label match alone never proves
+that a schematic pin corresponds to a PCB pad.
+
+Devices combine Scene, Tree and Documents with Interfaces, Options, Firmware, Enclosure
+and Drawings sections. A scene captured from a saved draft is identified as that draft
+and snapshot; it is not presented as a frozen design revision. Capture is explicit. Shared
+selection preserves the exact occurrence path, so the second use of a repeated board
+remains distinct from the first in scene, tree, board, cable and BOM inspection.
+
+Canonical placement survives open or exploded display arrangements. Display transforms
+do not assert physical placement or clearance. Unknown geometry and unresolved interfaces
+remain visible. Retained drawings, configurations, firmware and proposals have their own
+identities; linking to them must not confuse those identities with the parent device.
+
+## Documents and workshop work
+
+Documents is contextual to a design. Build sheet, continuity specification, BOM, drawing,
+labels and applicable formboard views keep the selected exact root visible. Draft previews
+are marked UNRELEASED. Print presents the paper output; retained exports preserve their
+source pins, generation settings, rights decisions, manifest and receipts. Existing
+retained bytes are not regenerated silently when defaults or generator versions change.
+
+Make groups Inventory, Physical units, Material plans, Procurement BOMs and 3D printing.
+Jobs groups Builds, Agent runs and Runner availability. A job's receipt and outputs are
+inspectable without leaving its list. Disabled or unavailable tools are named truthfully;
+a completed run is separate from a passing engineering check or manufacturing approval.
+
+History lists authorized changes with actor, time and touched records, with filters and
+record-local inspection. Historical comparison, restore and fork must preserve exact
+identities. A future restore must create a new current state and retain the state it
+replaces; it must never rewrite a frozen revision or erase the intervening history.
+
+Settings groups document defaults, engineering settings, optional numbering, validation,
+people, preferences, system information and webhooks. Numbering starts off until configured.
+Extensions groups catalog packs, integrations and agents. Neither ordinary engineering
+work nor installation requires financial setup, external AI or a paid service.
 
 ## Links and selection
 
-Status: implemented for the shell, library lists and the scene-based discipline views (shared
-scene, and the contextual tree, board, cable, scene, inspector, schematic and BOM views); other
-panels join by contributing relations and reading the probe.
-
-Items are addressed in the workspace, never through an owning project. One URL carries the
-area, lens, optional project context and the probe (the shared selection):
+Canonical routes identify collections and records rather than implementation panels:
 
 ```
-/                                       Project area, Overview lens, Library scope
-/<area>                                 an area at its default (first) lens
-/<area>/<object>                        probe on a workspace item, following its latest revision
-/<area>/<object>@<rev>                  probe on an exact frozen revision number
-/<area>/<object>@<rev>/~/<seg>/<seg>    probe on a path inside the item (occurrence, pin, feature)
-  ?lens=<tool>                          lens, omitted when it is the area's default
-  &project=<project id>                 optional navigation context
+/designs                                  landing collection
+/designs/new                              choose a design kind and starting path
+/designs/<object>                         design following its current selection
+/library                                  Library home
+/library/<collection>/<object>            Library record
+/library/<collection>/<object>@<revision>  exact frozen revision number
+/designs/<object>@<revision>/~/<path>       exact occurrence, pin or feature path
+/projects/<project>                       grouped references and project context
 ```
 
-- `<object>` is an opaque workspace record id of any library family; path segments are
-  percent-encoded. A lens named for another area selects that area; unknown areas or lenses
-  fall back to defaults and the address is rewritten to its canonical form in place.
-- Back/forward and reload restore area, lens, scope and selection. Area, lens, scope and a
-  newly selected item are history entries; moving to another path inside the same item and
-  revision replaces the current entry. Explicit sign-out clears the address; an expired
-  session keeps it so signing in again resumes the link.
-- Authorization stays on the server. The probe is resolved with
-  `GET /api/v0/workspace/library/{record_id}`, which answers alike for missing items and items
-  outside the member's workspace. A target that cannot be read, or an address that is not
-  well formed, shows "Selection not available" without naming the target. A project context
-  the workspace does not have returns to Library scope with a plain note that does not name it.
-- The probe is shared by tree rows, tables, diagrams and the inspector. Selecting in any of
-  them selects everywhere; a library row stands for the whole item, so any revision or path
-  of it marks the row selected. The selection header shows one fact per cell: the item,
-  kind, revision (exact, latest or draft only, unknown hatched), path, use count and related
-  count.
-- Relations come from a registry that modules contribute to while they are mounted
-  (`features/probe`). Every address has built-in containment (a path is contained by its
-  ancestors and its item; an exact revision belongs to its item). A view marks related
-  targets with a rule and a "related" tag, not color alone. Contributors describe records
-  already read; they never fetch or authorize.
-- Scene uses are probe targets: the object is the assembly the scene was frozen from, the path is
-  the occurrence path, and a stable feature (component, pad, endpoint) is one last segment marked
-  `#`. Each repeated use keeps its own path, so selecting the second of two identical boards
-  selects only that use in every connected view and in the URL, and opening the link selects it
-  back. The scene contributes the other end of declared relationships (electrical, mating,
-  mounting, ...) and nested uses as related; a selected feature relates only exact feature ends.
-- The Design area's PCB lens lists boards and board populations from the workspace library;
-  PCB intake (one native source) stays below the list at project scope.
+Filters and view choices are URL state; optional `project` context is not authority.
+Opaque IDs and path segments are encoded. Old area/lens bookmarks are interpreted before
+canonical routing, retaining their exact revision and path. Kind-aware routing distinguishes
+a design root from a test plan, preparation profile, configuration or retained drawing.
+An inaccessible or malformed target shows an unavailable state; it never falls forward
+to the current revision or silently chooses a different record.
 
-## Editing and evidence
+Back/forward and reload restore the address. Selecting a different item adds a history
+entry; moving within the same item and revision can replace the current entry. Sign-out
+clears private state. Session expiry retains the address so a new sign-in can reauthorize
+it. Relations contributed by loaded modules describe already-authorized data; they do not
+grant access or fetch records on their own. Related selections carry words and a reason,
+not color alone.
 
-Allow incomplete drafts and useful output without requiring a formal review at every edit.
-Show compact statements such as 'dimension entered manually', 'shield allowance unknown',
-'extraction needs review' and 'model is illustrative'. Expand provenance on demand. Never
-make an unknown look like a validated default. Review at meaningful transitions: accepting
-matches, freezing, changing dependencies, releasing or publishing.
+## Editing, authority and evidence
 
-Every edit has save/conflict/error feedback. A stale edit offers an inspectable comparison,
-not last-write-wins. Show what operation is running, its source snapshot, progress where
-known, and safe cancellation. Do not invent precise progress for opaque native tools.
-A completed build is labeled separately from check results and physical qualification.
+Allow incomplete drafts and useful inspection without a formal review on every edit.
+Use compact, specific statements such as “dimension entered manually,” “shield allowance
+unknown,” “extraction needs review” and “model is illustrative.” Expand exact provenance
+on demand. Review meaningful transitions: adopting matches, changing dependencies,
+freezing, releasing and exporting governed content.
 
-## Entry journeys
+Every save has success, conflict and error feedback. A stale edit preserves the local
+buffer and offers explicit recovery rather than last-write-wins. Authority failures hide
+protected content until access is checked again. A change of principal clears private
+buffers; a role change refreshes permissions. Viewers can inspect the same records but
+cannot create, edit, save or freeze. Disabled controls explain why, and the server still
+authorizes every operation independently.
 
-Stock: construction/profile, declared dimensions/colors, source references, cross-section,
-preview, specification. No project-wide assembly setup required.
-
-Cable: purpose/endpoints, stock/body/pinout candidates, topology, preparation, routes and
-lengths, tests, review, coherent package. Keep coax layer/pigtail controls from useful prior
-implementations. Advanced profile editing is available but ordinary edits use forms.
-
-Board: upload or source-authoring handoff, preserved original, extraction report, association
-review, population/ports/models, checks and fabrication output. Show schematic/PCB conflicts.
-
-Device: reuse boards, place enclosure/hardware/harnesses, align interfaces, trace wiring,
-inspect geometry limitations and configuration differences. Canonical placement survives
-open/exploded display modes. Change review identifies affected parents/artifacts/evidence.
-
-Workshop: choose contents/procurement/consumables view, availability/reservations, make/buy,
-bench package, actual unit/batch consumption and observations. Hide irrelevant costing when
-not configured. Do not require financial setup.
-
-Agent: show allowed actions/budget/checkpoints, draft proposals, missing facts, execution
-requests and a reviewable change/result summary. Built-in chat is optional; external MCP
-agents use the same operations. Never make chat the only route to a feature.
+Unknown is never pass. Declared, derived, observed and not-evaluated facts stay distinct.
+Checks and evidence name their exact source state and staleness. A build or renderer
+finishing successfully does not establish electrical, mechanical or physical suitability.
+Progress indicators use measured stage information where available and do not invent
+percentages for opaque native tools.
 
 ## Accessibility and idle use
 
-Keyboard-accessible forms/navigation, readable labels and tables, non-color-only statuses,
-units and contextual help are acceptance requirements. Do not depend solely on a 3D scene
-for selecting a feature. Browser rendering is on-demand for static scenes; pause hidden tabs
-and dispose unused buffers/workers. Lazy-load heavy viewers and detailed geometry.
+Provide keyboard navigation and editing, readable working labels, explicit units and
+non-color-only statuses. Canvas Fit is an overview; authoring needs readable controls and
+zoom. Long tables scroll within their panels. Motion honors reduced-motion preferences.
+Static viewers render on demand; hidden tabs pause drawing and release unneeded resources.
+Heavy viewers and detailed geometry load only when needed.
 
-## Installation and diagnostics
-
-First use establishes ownership, not a demo pretending to be real hardware. Synthetic
-examples are labeled and optional. Tool capability cards show enabled/available/unavailable,
-architecture and download requirements. Tool absence does not block unrelated library or
-review work. Storage, permission, job, stale-evidence and missing-tool failures have distinct
-recovery paths.
+Installation establishes real ownership; optional synthetic examples are labeled. Tool
+cards distinguish enabled, available and unavailable capabilities and show relevant
+architecture or download requirements. Tool absence does not block unrelated Library or
+review work. Storage, authorization, stale-evidence, job and missing-tool failures have
+specific recovery paths.
