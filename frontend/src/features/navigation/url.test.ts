@@ -136,3 +136,11 @@ test("new chooser is internal and exact Recipe record links keep their pins and 
   expect(parseLocation("/designs/recipes/i1@4/~/end_a/contacts/1", "")).toEqual(legacy);
   expect(parseLocation("/designs/new", "?kind=cable&start=ports").filters).toEqual({kind: "cable", start: "ports"});
 });
+
+test('Products has Families, Lineup and exact frozen family routes while old Releases links retain selection', () => {
+  expect(parseLocation('/products', '').lens).toBe('families');
+  expect(parseLocation('/products/lineup', '').lens).toBe('lineup');
+  expect(formatLocation(parseLocation('/products/families/f1@3', ''))).toBe('/products/families/f1@3');
+  expect(formatLocation(parseLocation('/evidence', '?lens=releases&release=retained-release&project=p1'))).toBe('/products/releases?project=p1&release=retained-release');
+  expect(AREAS.find(area => area.id === 'products')?.tools.map(tool => tool.id)).toEqual(['families', 'lineup', 'releases']);
+});

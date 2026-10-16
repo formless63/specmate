@@ -167,3 +167,13 @@ examples are labeled and optional. Tool capability cards show enabled/available/
 architecture and download requirements. Tool absence does not block unrelated library or
 review work. Storage, permission, job, stale-evidence and missing-tool failures have distinct
 recovery paths.
+
+## Products and releases
+
+The existing Products & releases rail entry has Families, Lineup and Releases tabs.
+Families uses structured fields for option axes, values and exact design variants,
+with local buffers, explicit Save and Freeze, and exact historical family selection.
+Lineup lists only the latest readable frozen family at its page anchor, with exact
+family/design links and unknown declared length shown explicitly. Drafts do not
+substitute for frozen lineup records. The Releases tab retains the existing reviewed
+release workflow; family freezing never implies approval.

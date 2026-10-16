@@ -87,6 +87,7 @@ const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((
 const PrintingPanel = lazy(() => import("./features/printing/PrintingPanel").then((module) => ({ default: module.PrintingPanel })));
 const SelectedPackagesPanel = lazy(() => import("./features/selected-packages/SelectedPackagesPanel").then((module) => ({ default: module.SelectedPackagesPanel })));
 const ExportPackagesPanel = lazy(() => import("./features/export-packages/ExportPackagesPanel").then((module) => ({ default: module.ExportPackagesPanel })));
+const ProductsWorkspace = lazy(() => import("./features/products/ProductsWorkspace").then(module => ({ default: module.ProductsWorkspace })));
 const ReleasesPanel = lazy(() => import("./features/releases/ReleasesPanel").then((module) => ({ default: module.ReleasesPanel })));
 const FirmwarePanel = lazy(() => import("./features/firmware/FirmwarePanel").then((module) => ({ default: module.FirmwarePanel })));
 const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
@@ -187,7 +188,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -208,7 +209,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
         <ToolPanel value="history">{tools.has("history") && <HistoryPage active={active === "history"} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />}</ToolPanel>
         {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
         {['identity', 'hardware', 'kits', 'mechanical-sources'].some(tool => tools.has(tool)) && <div hidden={!['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)}><PartsLibrary active={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)} toolId={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active) ? active : 'identity'} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
-        {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
+        {["families", "lineup"].some(tool => tools.has(tool)) && <div hidden={!["families", "lineup"].includes(active)}><ProductsWorkspace active={["families", "lineup"].includes(active)} toolId={active} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectId={navigation?.location.project ?? null} /></div>}
+        {ALL_TOOLS.filter(tool => !["families", "lineup", "designs", "history", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
           {tools.has(tool.id) && (["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) && (!url.probe || url.lens !== tool.id || documentRoute || selected.isPending || selected.isError) ? url.lens !== tool.id || !url.probe ? null : selected.isError ? <Stack gap="xs">
             <Text role="status">This document context is unavailable.</Text><Group>
               <Button size="xs" onClick={() => void selected.refetch()}>Retry current record access</Button>

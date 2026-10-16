@@ -26,8 +26,9 @@ export function readRecord(id: string, revision: number | null, working: boolean
 }
 export const command = <T,>(operation: string, payload: unknown, state: string | undefined, key: string) => runOperation<T>(operation, payload, { expectedState: state, idempotencyKey: key }).then(response => response.result);
 export function references(content: Content): string[] {
+  const family = content.product_family as { variants?: { design_revision_id: string }[] } | undefined;
   const mechanical = content.mechanical_source as { targets?: { revision_id: string }[]; models?: { revision_id: string }[] } | undefined;
-  return [...new Set([...(partValue(content)?.fits.map(row => row.revision_id) ?? []), ...(kitValue(content)?.lines.map(row => row.revision_id) ?? []), ...(mechanical?.targets?.map(row => row.revision_id) ?? []), ...(mechanical?.models?.map(row => row.revision_id) ?? [])])].sort();
+  return [...new Set([...(family?.variants?.map(row => row.design_revision_id) ?? []), ...(partValue(content)?.fits.map(row => row.revision_id) ?? []), ...(kitValue(content)?.lines.map(row => row.revision_id) ?? []), ...(mechanical?.targets?.map(row => row.revision_id) ?? []), ...(mechanical?.models?.map(row => row.revision_id) ?? [])])].sort();
 }
 export const sourceReferences = (content: Content): string[] => [...new Set(((content.mechanical_source as { sources?: { source_revision_id: string }[] } | undefined)?.sources ?? []).map(row => row.source_revision_id))].sort();
 export const referenceSignature = (content: Content) => [...references(content), ...sourceReferences(content)].join(',');
