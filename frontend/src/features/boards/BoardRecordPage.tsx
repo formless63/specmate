@@ -12,7 +12,7 @@ import { type PopulationReview } from '../pcb/api';
 import { BoardPreview } from '../pcb/PcbPanel';
 import { Readout } from '../pcb/PopulationReview';
 import { StockRecordDetails } from '../wire-stock/StockRecordSections';
-import { BoardDefaults, ConditionEditor, PadInspector, PathInspector, TraceForm } from './BoardPanel';
+import { BoardDefaults, ConditionEditor, PadInspector, PathInspector, TraceForm } from './BoardTools';
 import { BoardSketch, type BoardSelection } from './BoardSketch';
 import { BoardCarries } from './BoardCarries';
 import { NativePadDetails, PopulationAssociations, PopulationChoices } from './PopulationRecordControls';

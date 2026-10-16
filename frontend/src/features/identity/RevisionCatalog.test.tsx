@@ -2,7 +2,7 @@ import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { RevisionCatalog } from './IdentityPanel';
+import { RevisionCatalog } from './RevisionCatalog';
 const catalog = { variants: [{ variant_id: 'variant', manufacturer: 'Synthetic manufacturer', part_number: 'EXACT-1', association_basis: 'Synthetic basis' }], lots: [{ lot_id: 'lot', label: 'Synthetic retained lot', variant_id: null }], representations: [], source_identifiers: [] };
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });

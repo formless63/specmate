@@ -1,15 +1,13 @@
 import { ActionIcon, Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SbStatus, SbUnknown } from "../../components/sb";
-import { RevisionLabel } from "../../lib/IdentityLabel";
-import { InspectionScope, ReadOnlyNote, usePermission, type PermissionName } from "../../lib/permissions";
 import { newestFirst, revisionOptionLabel } from "../../lib/revision-labels";
-import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
-import { ContinueDraftButton } from "../scope/ContinueDraftButton";
+import { RevisionLabel } from "../../lib/IdentityLabel";
+import { usePermission, type PermissionName } from "../../lib/permissions";
 import {
-  COMPONENT_KINDS, SIDES, TERMINAL_KINDS, VIAS, command, emptyBoard, emptyComponent, pathSummary, proposalPath, read, terminalId,
-  type Board, type BoardDraft, type BoardInspection, type BoardPath, type BoardProposal, type BoardTrace, type Definition, type Identity,
+  COMPONENT_KINDS, SIDES, TERMINAL_KINDS, VIAS, emptyComponent, pathSummary, proposalPath, read, terminalId,
+  type Board, type BoardInspection, type BoardPath, type BoardProposal, type BoardTrace, type Definition, type Identity,
 } from "./api";
 import { BoardDrawing } from "./BoardDrawing";
 import { layoutBoard, tracedPathIds } from "./board-layout";
@@ -22,79 +20,6 @@ const TRACE_WORDS: Record<string, string> = {
   modeled_series_resistance: "series resistance", modeled_dc_path: "declared DC path", modeled_ideal_short: "ideal short (declared)",
   modeled_no_ideal_short: "no ideal short", modeled_blocked: "blocked", modeled_signal_candidate: "declared signal path", unknown: "unknown",
 };
-
-/** Boards lens: labeled pads, the connector a board carries and declared pad-to-pad paths. */
-export function BoardPanel({ projectId }: { projectId: string | null }) {
-  return <Boards key={projectId ?? "library"} projectId={projectId} />;
-}
-
-function Boards({ projectId }: { projectId: string | null }) {
-  const cache = useQueryClient();
-  const createGate = usePermission("item.create");
-  const freezeGate = usePermission("design.freeze");
-  const [name, setName] = useState("");
-  const [value, setValue] = useState<Board>(emptyBoard);
-  const [newKey, setNewKey] = useState(0);
-  const [definitionId, setDefinitionId] = useState<string | null>(null);
-  const [draftId, setDraftId] = useState<string | null>(null);
-  const [revisionId, setRevisionId] = useState<string | null>(null);
-  const definitions = useQuery({ queryKey: ["board-definitions", projectId], queryFn: () => read<Definition[]>("workspace/definitions") });
-  const identity = useQuery({ queryKey: ["board-identity", definitionId], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}`), enabled: !!definitionId });
-  const draft = useQuery({ queryKey: ["board-draft", draftId], queryFn: () => read<BoardDraft>(`interfaces/drafts/${draftId}`), enabled: !!draftId });
-  const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); };
-  const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
-  useOpenProbed(definitionIn(definitions.data, ["board"]), (id) => { pick(id); openNewest(id); });
-  const create = useMutation({ mutationFn: () => command<BoardDraft>("interface.create", { name, interface: value }), onSuccess: async (data) => {
-    setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null);
-    await referenceFromProject(projectId, data.definition_id, "board");
-    await cache.invalidateQueries({ queryKey: ["board-definitions", projectId] });
-  } });
-  const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("interface.freeze", { draft_id: draftId }, draft.data?.state), onSuccess: async (data) => {
-    setRevisionId(data.revision_id);
-    await cache.invalidateQueries({ queryKey: ["board-draft", draftId] });
-    await cache.invalidateQueries({ queryKey: ["board-identity", definitionId] });
-  } });
-  const boards = (definitions.data ?? []).filter((d) => d.kind === "board");
-  return <Stack>
-    <Title order={2}>Boards</Title>
-    <Text size="sm">A board's labeled pads, the connector it carries and how pads are joined on the board: straight copper, through a part such as a series resistor, or through a switch or jumper state. Bought boards are typed by hand; KiCad boards can be proposed from an accepted import for review. Anything not declared stays unknown.</Text>
-    {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Group align="end">
-      <Select label="Board" searchable placeholder={boards.length ? "Choose a board" : "No boards yet"} data={boards.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
-      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
-      {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
-    </Group>
-    {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {revisionId && <BoardInspector key={revisionId} revisionId={revisionId} />}
-    {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && <><BoardDraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["board-draft", draftId] }); }} />
-      <Group><Button loading={freeze.isPending} disabled={!draft.data.content.interface} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze board</Button><ReadOnlyNote permission="design.freeze">Freezing boards is unavailable.</ReadOnlyNote></Group></>}
-    {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-    <Card withBorder><Stack gap="xs">
-      <Title order={3}>New board</Title>
-      <InspectionScope permission="item.create">
-        <TextInput label="Board name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        <KicadProposal definitions={definitions.data ?? []} onUse={(board, label) => { setValue(board); setNewKey((k) => k + 1); if (!name.trim()) setName(label); }} />
-        <BoardEditor key={newKey} value={value} onChange={setValue} definitions={definitions.data ?? []} permission="item.create" title={name.trim() || "New board"} />
-      </InspectionScope>
-      <Group><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create board draft</Button><ReadOnlyNote permission="item.create">Creating boards is unavailable.</ReadOnlyNote></Group>
-      {create.isError && <Alert color="red">{create.error.message}</Alert>}
-    </Stack></Card>
-  </Stack>;
-}
-
-function BoardDraftEditor({ draft, definitions, onSaved }: { draft: BoardDraft; definitions: Definition[]; onSaved: () => Promise<void> }) {
-  const editGate = usePermission("design.edit");
-  const [value, setValue] = useState<Board>(() => draft.content.interface ?? emptyBoard());
-  const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
-  return <Card withBorder><Stack gap="xs"><Title order={3}>Edit board draft</Title>
-    {!draft.content.interface && <Text size="sm" c="dimmed">This board has no declared pads or paths yet. Saving declares them.</Text>}
-    <InspectionScope permission="design.edit"><BoardEditor value={value} onChange={setValue} definitions={definitions} title="Board draft" /></InspectionScope>
-    <Group><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save board draft</Button><ReadOnlyNote permission="design.edit">Saving boards is unavailable.</ReadOnlyNote></Group>
-    {save.isError && <Alert color="red">{save.error.message}</Alert>}
-  </Stack></Card>;
-}
 
 /** Fallback table editor: pad table, carried connector correspondence and the path table. */
 function BoardTableEditor({ value, onChange, definitions }: { value: Board; onChange: (v: Board) => void; definitions: Definition[] }) {

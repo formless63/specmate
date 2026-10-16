@@ -61,3 +61,18 @@ test('a changed principal clears local part values before the same record is aut
   server(); const view = mount({ revisionNumber: null, draftRequested: true }); await screen.findByLabelText('Value'); fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'Retained owner buffer' } });
   view.rerender({ revisionNumber: null, draftRequested: true, principalKey: 'another-member' }); await waitFor(() => expect((screen.getByLabelText('Value') as HTMLInputElement).value).toBe(''));
 });
+
+
+test('an exact historic record reads its own selected state without a broader current identity lookup', async () => {
+ const api = server('hardware', {legacy_note:'Original hardware declaration'}); mount({revisionNumber:75});
+ await screen.findByRole('heading',{name:'Synthetic selected record'}); fireEvent.click(screen.getByRole('tab',{name:'Exact identity'}));
+ expect(api.calls.some(path=>path.includes('/record?') && path.includes('revision_number=75'))).toBe(true);
+ expect(api.calls.some(path=>path.includes('/catalog/definitions/selected?'))).toBe(false);
+ expect(screen.getByText('hardware')).toBeTruthy();
+});
+test('contributor can create at Library scope while freeze remains unavailable', async () => {
+ const api=server(); mount({definitionId:null, revisionNumber:null}, ['workspace.read','item.create']);
+ fireEvent.change(await screen.findByLabelText('Part name'),{target:{value:'Synthetic Library part'}}); fireEvent.click(screen.getByRole('button',{name:'Save draft'})); await screen.findByText('Saved working draft.');
+ expect(api.commands[0]!.payload).toMatchObject({workspace_id:'workspace',kind:'part',name:'Synthetic Library part'}); expect(api.commands[0]!.payload).not.toHaveProperty('project_id');
+ expect((screen.getByRole('button',{name:'Freeze saved draft'}) as HTMLButtonElement).disabled).toBe(true);
+});

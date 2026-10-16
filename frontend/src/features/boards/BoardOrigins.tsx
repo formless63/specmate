@@ -1,6 +1,6 @@
 import { Stack } from '@mantine/core';
 import { useState } from 'react';
-import { KicadProposal } from './BoardPanel';
+import { KicadProposal } from './BoardTools';
 import { FrozenDefinitionPicker, type FrozenChoice } from './FrozenDefinitionPicker';
 import type { Board } from './api';
 

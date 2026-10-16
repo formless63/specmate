@@ -17,7 +17,7 @@ import { AddButton, UsedInList, useReferenceActions } from '../scope/LibraryView
 import { usePermission } from '../../lib/permissions';
 import { command } from '../identity/api';
 import type { Subject } from '../facts/api';
-const RevisionCatalog = lazy(() => import('../identity/IdentityPanel').then(module => ({ default: module.RevisionCatalog })));
+const RevisionCatalog = lazy(() => import('../identity/RevisionCatalog').then(module => ({ default: module.RevisionCatalog })));
 const StockPreparationEditor = lazy(() => import('./StockPreparationEditor').then(module => ({ default: module.StockPreparationEditor })));
 const FactLedger = lazy(() => import('../facts/FactsPanel').then(module => ({ default: module.FactLedger })));
 

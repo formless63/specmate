@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
-import { BoardEditor, BoardInspector, KicadProposal } from "./BoardPanel";
+import { BoardEditor, BoardInspector, KicadProposal } from "./BoardTools";
 import { emptyBoard, terminalId, type Board, type BoardInspection, type BoardProposal } from "./api";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
