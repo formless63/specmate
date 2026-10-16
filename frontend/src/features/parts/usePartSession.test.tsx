@@ -48,7 +48,7 @@ test('exact back/forward inspection preserves the separate working buffer and or
 test('current authority denial hides retained state; recovery keeps unsaved content and stale CAS', async () => {
   const api = server(), { result } = mount({ revisionNumber: null, draftRequested: true }); await waitFor(() => expect(result.current.ready).toBe(true));
   act(() => result.current.change({ ...result.current.buffer, part: { ...partValue(result.current.buffer)!, value: 'Private local edit' } }));
-  api.deny(true); await act(async () => result.current.refresh()); expect(result.current.ready).toBe(false); expect(result.current.error).toBe('Current source denied');
+  api.deny(true); await act(async () => result.current.refresh()); expect(result.current.ready).toBe(false); expect(result.current.error).toBe('Current source denied'); expect(result.current.errorStatus).toBe(403);
   api.deny(false); api.updateState(); await act(async () => result.current.refresh()); expect(result.current.ready).toBe(true); expect(partValue(result.current.buffer)?.value).toBe('Private local edit'); expect(result.current.base?.state).toBe('draft-v4'); expect(result.current.notice).toContain('newer saved draft');
 });
 test('save normalizes reordered object keys without a phantom edit or undo; legacy fields persist', async () => {
@@ -102,4 +102,11 @@ test('an explicit domain freeze uses the shared original CAS and returned revisi
   expect(api.commands[0]).toMatchObject({ operation: 'interface.freeze', payload: { draft_id: 'draft' }, expected_state: 'draft-v4' });
   expect(props.onSelect).toHaveBeenCalledWith(3, false);
   expect(result.current.base?.state).toBe('draft-v6');
+});
+
+test('explicit draft choice remains a validation response distinct from access denial', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => reply({ error: { message: 'Choose an explicit working draft.' } }, 422)));
+  const { result } = mount({ revisionNumber: null, draftRequested: true });
+  await waitFor(() => expect(result.current.errorStatus).toBe(422));
+  expect(result.current.error).toBe('Choose an explicit working draft.'); expect(result.current.ready).toBe(false);
 });

@@ -13,7 +13,7 @@ export function usePartSession(props: SessionProps) {
   const { active, principalKey, workspaceId, definitionId, revisionNumber, draftRequested, initial } = props;
   const [record, setRecord] = useState<PartRecord | null>(null), [base, setBase] = useState<Draft | null>(null);
   const [buffer, setBuffer] = useState<Content>(() => structuredClone(initial.content)), [name, setName] = useState(initial.name ?? '');
-  const [draftId, setDraftId] = useState<string | null>(null), [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [confirmed, setConfirmed] = useState('');
+  const [draftId, setDraftId] = useState<string | null>(null), [error, setError] = useState(''), [errorStatus, setErrorStatus] = useState<number | null>(null), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [confirmed, setConfirmed] = useState('');
   const undo = useRef<Content[]>([]), alive = useRef(false), epoch = useRef(0), reads = useRef(0), edits = useRef(0), keys = useRef(new Map<string, string>());
   const editing = !definitionId || revisionNumber === null && (draftRequested || record?.selected.kind === 'draft');
   const dirty = !base || canonical(base.content) !== canonical(buffer);
@@ -23,13 +23,14 @@ export function usePartSession(props: SessionProps) {
   const safe = (token: number) => alive.current && token === epoch.current;
   function fail(failure: unknown, withdraw = true) {
     if (withdraw) setConfirmed('');
+    setErrorStatus(failure instanceof ApiError ? failure.status : null);
     setError(failure instanceof Error ? failure.message : 'The selected record is unavailable.');
     if (failure instanceof ApiError && [401, 403, 404].includes(failure.status)) props.onAccessLost?.();
   }
   useEffect(() => { alive.current = true; epoch.current += 1; return () => { alive.current = false; epoch.current += 1; reads.current += 1; }; }, [principalKey, workspaceId]);
   async function refresh(discard = false) {
     const snapshot = latest.current, token = epoch.current, serial = ++reads.current;
-    setConfirmed(''); setError('');
+    setConfirmed(''); setError(''); setErrorStatus(null);
     try {
       const current = definitionId ? await readRecord(definitionId, revisionNumber, draftRequested, draftId) : null;
       if (current && (!(props.allowedKinds ?? PART_KINDS).includes(current.kind) || current.definition_id !== definitionId || current.workspace_id !== workspaceId)) throw new ApiError(404, 'The selected record is unavailable.');
@@ -86,6 +87,6 @@ export function usePartSession(props: SessionProps) {
     } catch (failure) { if (safe(token)) fail(failure, failure instanceof ApiError && [401, 403, 404].includes(failure.status)); }
     finally { if (safe(token)) setBusy(false); }
   }
-  return { record, base, buffer, name, setName, editing, dirty, busy, ready, error, notice, change, undoEdit, canUndo: undo.current.length > 0, refresh, save, freeze,
+  return { record, base, buffer, name, setName, editing, dirty, busy, ready, error, errorStatus, notice, change, undoEdit, canUndo: undo.current.length > 0, refresh, save, freeze,
     chooseDraft: (id: string) => { setBase(null); setDraftId(id); }, selected: editing ? base : record?.selected, content: editing ? buffer : record?.selected.content };
 }
