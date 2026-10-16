@@ -50,7 +50,7 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const BOARD_RECORD_SECTIONS: Record<string, string> = { copper: "more", "passive-passages": "more", "pcb-disagreement": "source-review" };
 const DEVICE_RECORD_TOOLS = new Set(['occurrence-firmware', 'firmware-impact', 'configurations', 'shared-scene', 'context-selection', 'scene-drawings', 'mechanical-proposals']);
 const DEVICE_NEW_KINDS: Record<string, string[]> = { 'occurrence-firmware': ['firmware'], configurations: ['option_set', 'configuration'] };
-const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake", "start", "palette"];
+const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake", "start", "palette", "proposal"];
 export const HOME: WorkspaceLocation = { area: "designs", lens: DEFAULT_TOOL, project: null, probe: null, malformed: false };
 function decode(segment: string): string | null { try { return decodeURIComponent(segment); } catch { return null; } }
 const knownTool = knownRouteTool;

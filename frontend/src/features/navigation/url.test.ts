@@ -215,3 +215,9 @@ test.each(['occurrence-firmware','firmware-impact','configurations','shared-scen
 test.each([['occurrence-firmware','firmware'],['configurations','option_set'],['configurations','configuration']])('explicit New %s %s retains its legitimate independent record creator',(tool,kind)=>{
  const next=parseLocation('/design',`?lens=${tool}&status=new&kind=${kind}`);expect(next).toMatchObject({lens:tool,probe:null,filters:{status:'new',kind}});const[path,query]=formatLocation(next).split('?');expect(parseLocation(path!,`?${query}`)).toEqual(next);
 });
+
+test('review links retain the exact proposal while opening Library Advanced', () => {
+ const location = parseLocation('/library', '?section=revision-upgrades&proposal=proposal-exact&project=p1');
+ expect(formatLocation(location)).toContain('proposal=proposal-exact');
+ expect(location).toMatchObject({lens:'library-home',project:'p1',filters:{section:'revision-upgrades',proposal:'proposal-exact'}});
+});

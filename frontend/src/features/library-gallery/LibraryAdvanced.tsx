@@ -25,7 +25,7 @@ export function LibraryAdvanced({ principalKey }: { principalKey: string }) {
       <Suspense fallback={<Text role="status">Loading catalog tools…</Text>}>
         {visited.has('lookup') && <div hidden={tool !== 'lookup'}><CatalogLookup projectId={projectId} /></div>}
         {visited.has('matching') && <div hidden={tool !== 'matching'}><Matching projectId={projectId} /></div>}
-        {visited.has('revision-upgrades') && <div hidden={tool !== 'revision-upgrades'}><Upgrades principalKey={principalKey} projectId={projectId} active={opened && tool === 'revision-upgrades'} /></div>}
+        {visited.has('revision-upgrades') && <div hidden={tool !== 'revision-upgrades'}><Upgrades initialProposalId={navigation?.location.filters?.proposal ?? null} principalKey={principalKey} projectId={projectId} active={opened && tool === 'revision-upgrades'} /></div>}
       </Suspense>
     </Stack>}
   </details>;
