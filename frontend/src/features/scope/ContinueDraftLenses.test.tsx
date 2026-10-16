@@ -13,8 +13,6 @@ import { emptyPlan } from "../material-accounting/api";
 import { EndPreparationPanel } from "../end-preparation/EndPreparationPanel";
 import { emptyProfile as emptyEndProfile } from "../end-preparation/api";
 import { IntentPanel } from "../intents/IntentPanel";
-import { CablePanel } from "../cables/CablePanel";
-import { initialCable } from "../cables/api";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -70,17 +68,4 @@ test.each([
   fireEvent.click(await button());
   expect(await screen.findByRole("button", { name: freeze })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Continue draft (edit)" })).toBeNull();
-});
-
-test("Cables: a never-frozen cable opens its newest draft; a frozen one lands frozen with Continue draft", async () => {
-  const cable = { ...initialCable(), stock_revision_id: "stock-1" };
-  serve("cable", { cable }, {}, []);
-  const first = render(<Shell kind="cable"><CablePanel projectId={null} /></Shell>);
-  expect(await screen.findByRole("heading", { name: "Edit draft" })).toBeTruthy();
-  first.unmount(); cleanup();
-  serve("cable", { cable }, {});
-  render(<Shell kind="cable"><CablePanel projectId={null} /></Shell>);
-  expect(screen.queryByRole("heading", { name: "Edit draft" })).toBeNull();
-  fireEvent.click(await button());
-  expect(await screen.findByRole("heading", { name: "Edit draft" })).toBeTruthy();
 });

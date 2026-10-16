@@ -10,7 +10,7 @@ import { cableSelection, withCableSelection } from "../cable-workbench/selection
 import { useNavigation } from "../navigation";
 import { useProbe } from "../probe";
 import type { LibraryRecord } from "../workspace/api";
-import { CableFields, EndCard, useBodies, useCableSources } from "./CablePanel";
+import { CableFields, EndCard, useBodies, useCableSources } from "./CableFields";
 import { authorityDenied, cableProblems, command, initialCable, read, type Cable, type Definition, type Draft, type Identity, type Inspection } from "./api";
 
 const revisionPageOffset = (number: number) => Math.floor((number - 1) / 50) * 50;

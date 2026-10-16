@@ -5,7 +5,7 @@ import { SbUnknown } from '../../components/sb';
 import { useProbe } from '../probe';
 import type { LibraryRecord } from '../workspace/api';
 import { read as readIdentity, type Identity } from '../identity/api';
-import { CableInspector } from '../cables/CablePanel';
+import { CableInspector } from '../cables/CableInspector';
 import { CableSummary } from '../cables/CableSummary';
 import type { Draft as CableDraft } from '../cables/api';
 import { HarnessInspector } from '../harnesses/HarnessPanel';

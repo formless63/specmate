@@ -8,7 +8,7 @@ import { NavigationProvider } from '../navigation';
 import { cable } from '../cable-workbench/fixtures';
 import { NewCable } from './NewCable';
 vi.mock('../cable-workbench/CableWorkbench', () => ({ CableWorkbench: ({ cable: value }: {cable: {stock_revision_id:string}}) => <div>Build stock: {value.stock_revision_id || 'not selected'}</div> }));
-vi.mock('../cables/CablePanel', () => ({ CableFields: () => null, EndCard: () => null, useBodies: () => [], useCableSources: () => ({resolved: [], denied: false, stock: {data: null}, choices: [], family: null}) }));
+vi.mock('../cables/CableFields', () => ({ CableFields: () => null, EndCard: () => null, useBodies: () => [], useCableSources: () => ({resolved: [], denied: false, stock: {data: null}, choices: [], family: null}) }));
 vi.mock('../recipes/RecipeComposer', () => ({ RecipeComposer: ({active,onApply}: {active:boolean;onApply:(value:ReturnType<typeof cable>)=>void}) => active ? <button onClick={()=>onApply(cable())}>Apply prepared recipe</button> : null }));
 beforeEach(()=> { vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}}); });
 afterEach(()=> {cleanup();vi.unstubAllGlobals();});

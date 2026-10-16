@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { BomPanel } from "../bom/BomPanel";
-import { CableEditor } from "../cables/CablePanel";
+import { CableEditor } from "../cables/CableFields";
 import { initialCable } from "../cables/api";
 import { connectorStack } from "../end-assemblies/api";
 import { NewStockRecord } from "../../test/stock-record";

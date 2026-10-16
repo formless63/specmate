@@ -14,8 +14,8 @@ import type { Cable, Draft } from "./api";
 import { cable } from "../cable-workbench/fixtures";
 
 // The session uses real queries/commands, workbench, history and navigation. Stock/end authoring
-// is independently covered by CablePanel tests; these fields isolate session/CAS transitions.
-vi.mock("./CablePanel", async () => {
+// is independently covered by CableFields tests; these fields isolate session/CAS transitions.
+vi.mock("./CableFields", async () => {
   const { boardEnd, inlineEnd, stock } = await import("../cable-workbench/fixtures");
   return {
     useBodies: () => [],
@@ -267,4 +267,20 @@ test('Cable versions discloses authorized record history lazily without adding a
   fireEvent.click(summary); expect(await screen.findByRole('list', { name: 'Record history' })).toBeTruthy();
   expect(String(calls()[0]![0])).toContain('definition_id=c1'); expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Close cable versions' })); await waitFor(() => expect(screen.queryByRole('list', { name: 'Record history' })).toBeNull());
+});
+
+test('a denied Save withdraws the current host and recovery retains the working edit and original CAS', async () => {
+  const api = server(); mount(); const field = await edit();
+  fireEvent.change(field, { target: { value: 'Retained after denied Save' } }); api.denySave(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await screen.findByRole('button', { name: 'Refresh cable access' });
+  expect(screen.queryByLabelText('Working basis')).toBeNull();
+  expect(screen.queryByRole('group', { name: /^Cable drawing/ })).toBeNull();
+  api.denySave(false); fireEvent.click(screen.getByRole('button', { name: 'Refresh cable access' }));
+  await screen.findByRole('group', { name: /^Cable drawing/ }); tab('Recipe');
+  expect((screen.getByLabelText('Working basis') as HTMLInputElement).value).toBe('Retained after denied Save');
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.commands).toHaveLength(2));
+  expect(api.commands.map(command => command.expected_state)).toEqual(['v1', 'v1']);
+  expect(api.commands[1]!.idempotency_key).toBe(api.commands[0]!.idempotency_key);
 });

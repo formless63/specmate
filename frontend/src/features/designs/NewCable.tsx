@@ -6,7 +6,7 @@ import { DefinitionPickerScope } from '../../components/library/DefinitionSelect
 import { InspectionScope, usePermission } from '../../lib/permissions';
 import { randomUUID } from '../../lib/random-id';
 import { CableWorkbench } from '../cable-workbench/CableWorkbench';
-import { CableFields, EndCard, useBodies, useCableSources } from '../cables/CablePanel';
+import { CableFields, EndCard, useBodies, useCableSources } from '../cables/CableFields';
 import { cableProblems, initialCable, type Cable, type Draft } from '../cables/api';
 import { connectorReferences } from '../interfaces/useConnectorSession';
 import { authorizeConnectorReferences, connectorCommand } from '../interfaces/connector-api';
