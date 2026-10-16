@@ -87,6 +87,7 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
     if (path === "/api/v0/access/account-policy") return reply({ can_create_local_accounts: false });
     if (path === "/api/v0/operations") {
       const envelope = JSON.parse(String(options?.body));
+      if (envelope.operation === "products.lineup") return reply({ result: { results: [], next_after: null, as_of: "2026-01-01T00:00:00Z", basis: "latest_frozen_family_at_page_anchor_current_authority" } });
       if (envelope.operation === "workspace.settings.get") return reply({ result: { workspace_id: "w1", version: 0, state_token: "workspace-settings:w1:v0", values: { documents: {} } } });
       if (envelope.operation === "library.home") return reply({ result: { workspace_id: "w1", attention: [], attention_total: 0, unknowns: [], unknowns_total: 0, recent: [], totals: { failing_checks: 0, unknown_checks: 0, open_questions: 0, stale_evidence: 0, unknown_values: 0 }, kinds: [], definitions_total: 0, scan_limit_reached: false } });
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
@@ -123,7 +124,7 @@ async function openTool(label: string) {
   if (!area) throw new Error(`Unknown tool ${label}`);
   const rail = screen.getByRole("button", { name: area.label });
   if (rail.getAttribute("aria-current") !== "page") fireEvent.click(rail);
-  if (primaryTools(area).some(tool => tool.label === label)) fireEvent.click(screen.getByRole("tab", { name: label }));
+  if (primaryTools(area).some(tool => tool.label === label)) fireEvent.click(await screen.findByRole("tab", { name: label }));
   else if (area.tools[0]?.label !== label) {
     const menu = screen.getByRole("button", { name: `${area.label} advanced tools` });
     if (menu.getAttribute("aria-expanded") !== "true") fireEvent.click(menu);
@@ -344,10 +345,10 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       fireEvent.click(await screen.findByRole("button", { name: "Prepare cable" }));
       fireEvent.click(await screen.findByRole("button", { name: "Start blank cable" }));
     } else await openTool(tool.label);
-    if (toolId === "assemblies") {
+    if (["assemblies", "harnesses"].includes(toolId)) {
       fireEvent.click(await screen.findByRole("button", { name: "New design" }));
-      fireEvent.click(await screen.findByRole("button", { name: "Prepare device" }));
-      expect(await screen.findByRole("button", { name: "Save device" })).toBeTruthy();
+      fireEvent.click(await screen.findByRole("button", { name: toolId === "harnesses" ? "Prepare harness" : "Prepare device" }));
+      expect(await screen.findByRole("button", { name: toolId === "harnesses" ? "Save harness" : "Save device" })).toBeTruthy();
       continue;
     }
     if (["cables", "harnesses"].includes(toolId)) {
@@ -477,7 +478,7 @@ test("Make hosts five functional panels without a second collection picker", asy
 test("Library home creates cable, harness and assembly designs through their authoring forms", async () => {
   server({ authenticated: true }); renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
-  for (const [noun, action] of [["Cable", "Create cable draft"], ["Harness", "Create harness draft"], ["Assembly", "Save device"]]) {
+  for (const [noun, action] of [["Cable", "Create cable draft"], ["Harness", "Save harness"], ["Assembly", "Save device"]]) {
     await openTool("Library home");
     fireEvent.click(await screen.findByRole("button", { name: "New…" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: noun! }));
@@ -509,4 +510,19 @@ test('History is a lazy workspace read for viewers with explicit evidence limits
   expect(screen.queryByRole('heading', { name: 'Choose a project' })).toBeNull();
   const reads = fetchMock.mock.calls.filter(([path]) => path.startsWith('/api/v0/workspace/history?'));
   expect(reads.length).toBeGreaterThan(0); expect(reads.every(([path, options]) => path.includes('workspace_id=w1') && !options?.method)).toBe(true);
+});
+
+
+test('Products tabs share the shell and retain an unsaved structured family across Lineup', async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByRole('button', { name: 'Account menu, signed in as local-user' });
+  await openTool('Families');
+  expect(await screen.findByRole('heading', { name: 'Families' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'New family' }));
+  fireEvent.change(await screen.findByLabelText('Family name'), { target: { value: 'Synthetic local family' } });
+  await openTool('Lineup');
+  expect(await screen.findByText('No readable frozen variants on this page.')).toBeTruthy();
+  await openTool('Families'); await screen.findByLabelText('Family name');
+  await waitFor(() => expect((screen.getByLabelText('Family name') as HTMLInputElement).value).toBe('Synthetic local family'));
+  expect(screen.queryByRole('heading', { name: 'Choose a project' })).toBeNull();
 });

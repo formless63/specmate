@@ -125,6 +125,10 @@ def _fields(kind, content):
         field(
             "declared_fits", "Declared fit targets", len(part["fits"]) if "fits" in part else None
         )
+    elif kind == "product_family":
+        family = content.get("product_family") or {}
+        field("number", "Authored number", family.get("number"))
+        field("variants", "Variants", len(family["variants"]) if "variants" in family else None)
     elif kind == "kit":
         kit = content.get("kit") or {}
         field(
@@ -255,7 +259,7 @@ def list_library_table(user, payload: ListLibraryTable) -> dict:
         numbers[number.revision_id].append(
             LibraryNumber(manufacturer=number.manufacturer, value=number.part_number)
         )
-    protected_kinds = {"part", "kit", "material", "hardware", "mechanical_source"}
+    protected_kinds = {"part", "kit", "material", "hardware", "mechanical_source", "product_family"}
     protected = [
         revision for revision in frozen.values() if revision.definition.kind in protected_kinds
     ]

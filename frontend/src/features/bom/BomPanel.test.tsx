@@ -19,6 +19,15 @@ function wrap(children: React.ReactNode) {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider></MantineProvider>;
 }
 
+test("identical exact Parts at repeated inline ends retain distinct physical locators", async () => {
+  const rows = ["a", "b"].map(endpoint_id => ({ address: { snapshot_id: "snapshot", path: ["left", "cable"] }, inline_part: { endpoint_id, layer_id: "inline", part_local_id: "r1" }, revision_id: "exact-part", name: "Synthetic catalog Part", quantity: { status: "known", amount: 3, unit: "ea" }, need_id: null, reason: "declared_inline_part", basis: null }));
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ revision_id: "plan", bom: { assembly_revision_id: "root" }, rows, status: "resolved", boundaries: [], unresolved: [], excluded_needs: [], limitations: [] }))));
+  render(wrap(<BomInspector revisionId="plan" />));
+  expect(await screen.findByText("left / cable · inline a/inline/r1")).toBeTruthy();
+  expect(screen.getByText("left / cable · inline b/inline/r1")).toBeTruthy();
+  expect(screen.getAllByText("Synthetic catalog Part")).toHaveLength(2);
+});
+
 test("purpose switch preserves exact occurrence, unknown quantity and bought boundary explanation", async () => {
   const urls: string[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {

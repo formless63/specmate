@@ -303,3 +303,10 @@ the projects that reference it. Pins describe retained dependency closure, not o
 counts, electrical connections or compatibility; a project reference is a declared use,
 not a pin. Pagination advances from stable record order. Updating a definition does not
 change these pins.
+
+## Product families
+
+A [product family](modules/products.md) groups descriptive variants around exact
+frozen cable, harness or assembly revisions. Nullable declared lengths and option
+selections never edit those designs. Family revisions, design revisions and reviewed
+releases remain separate identities; family numbers are explicitly authored.

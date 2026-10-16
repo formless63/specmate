@@ -1,0 +1,192 @@
+{
+  "$defs": {
+    "OptionAxis": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/OptionValue"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "local_id",
+        "label",
+        "values"
+      ],
+      "title": "OptionAxis",
+      "type": "object"
+    },
+    "OptionValue": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "label"
+      ],
+      "title": "OptionValue",
+      "type": "object"
+    },
+    "ProductVariant": {
+      "additionalProperties": false,
+      "properties": {
+        "declared_length_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,15}0*$)\\d{0,10}\\.\\d{0,4}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Length Mm"
+        },
+        "design_revision_id": {
+          "format": "uuid",
+          "title": "Design Revision Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Number"
+        },
+        "options": {
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_-]{0,79}$": {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            }
+          },
+          "title": "Options",
+          "type": "object"
+        }
+      },
+      "required": [
+        "local_id",
+        "design_revision_id"
+      ],
+      "title": "ProductVariant",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "number": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Number"
+    },
+    "options": {
+      "items": {
+        "$ref": "#/$defs/OptionAxis"
+      },
+      "maxItems": 16,
+      "title": "Options",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "variants": {
+      "items": {
+        "$ref": "#/$defs/ProductVariant"
+      },
+      "maxItems": 100,
+      "title": "Variants",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "title": "ProductFamily",
+  "type": "object"
+}

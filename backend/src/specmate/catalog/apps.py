@@ -25,9 +25,22 @@ class CatalogConfig(AppConfig):
         from specmate.contracts import SCHEMAS
         from specmate.parts import membership, records  # noqa: F401
         from specmate.parts.contracts import CatalogRecord, Kit, Part, ReadKits, ReadRecord
+        from specmate.products import queries as product_queries  # noqa: F401
+        from specmate.products.contracts import (
+            LineupQuery,
+            LineupResult,
+            ProductFamily,
+            VersionsQuery,
+            VersionsResult,
+        )
 
         SCHEMAS.update(
             {
+                "product-family": ProductFamily,
+                "products-lineup": LineupQuery,
+                "products-lineup-result": LineupResult,
+                "products-versions": VersionsQuery,
+                "products-versions-result": VersionsResult,
                 "catalog-record": ReadRecord,
                 "catalog-record-result": CatalogRecord,
                 "catalog-kits-for-revision": ReadKits,

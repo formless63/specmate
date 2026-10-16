@@ -147,7 +147,8 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Maintain parts, boards, connectors, stock, hardware, materials and assemblies.",
       "expect": [
-        "A board and stock record are usable without creating a complete device or importing hidden internals."
+        "A board and stock record are usable without creating a complete device or importing hidden internals.",
+        "A frozen product family with two exact design variants appears in Lineup; working drafts, unknown lengths and descriptive options remain distinct from design edits and release approval."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

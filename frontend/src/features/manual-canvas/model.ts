@@ -1,5 +1,6 @@
 import type { Cable } from '../cables/api';
 import { addLayer, type EndStack, type EndAssembly, type StackLayer } from '../end-assemblies/api';
+import type { InlineComponent } from '../boards/api';
 import type { Pinout } from '../interfaces/api';
 
 export const DROP_KINDS = ['wire_stock', 'connector_body', 'pinout', 'board', 'end_assembly', 'part', 'declared_resistor', 'declared_capacitor'] as const;
@@ -11,14 +12,16 @@ export function parseDrop(raw: string): LibraryDrop | null {
   if (raw.length > 512) return null;
   try { const value = JSON.parse(raw) as LibraryDrop; if (!DROP_KINDS.includes(value.kind)) return null; if (value.kind.startsWith('declared_')) return { kind: value.kind }; return value.revisionId && UUID.test(value.revisionId) ? { kind: value.kind, revisionId: value.revisionId } : null; } catch { return null; }
 }
+export type PartPlacement = {use:'shell'} | {use:'inline';declaredTwoLead:true;componentKind:InlineComponent['kind']};
 /** Engineering edits retain endpoint IDs, stock-end declarations and all existing mappings. */
-export function placeLibraryDrop(cable: Cable, drop: LibraryDrop, endpointId: string | null, source?: unknown, savedStack?: EndStack): Cable {
+export function placeLibraryDrop(cable: Cable, drop: LibraryDrop, endpointId: string | null, source?: unknown, savedStack?: EndStack, partUse?:PartPlacement): Cable {
   if (drop.kind === 'wire_stock') return { ...cable, stock_revision_id: drop.revisionId!, review: 'unreviewed', review_basis: null };
   const endpoint = cable.endpoints.find(end => end.local_id === endpointId); if (!endpoint) throw new Error('Choose which cable end this part belongs to.');
   if (drop.kind === 'end_assembly') return { ...cable, endpoints: cable.endpoints.map(end => end === endpoint ? { ...end, end_assembly_revision_id: drop.revisionId!, stack: null } : end), review: 'unreviewed', review_basis: null };
   if (endpoint.end_assembly_revision_id && !savedStack) throw new Error('Read the exact saved stack before preparing a local copy.');
   let stack = structuredClone(savedStack ?? endpoint.stack ?? { layers: [], joins: [] });
-  const kind = drop.kind === 'connector_body' || drop.kind === 'pinout' ? 'connector' : drop.kind === 'board' ? 'board' : drop.kind === 'part' ? 'shell' : 'inline';
+  if(drop.kind==='part'&&(!partUse||partUse.use==='inline'&&!partUse.declaredTwoLead))throw new Error('Choose shell/hardware or explicitly declare a two-lead inline use.');
+  const kind = drop.kind === 'connector_body' || drop.kind === 'pinout' ? 'connector' : drop.kind === 'board' ? 'board' : drop.kind === 'part' && partUse?.use!=='inline' ? 'shell' : 'inline';
   if (!stack.layers.some(layer => layer.kind === kind)) stack = addLayer(stack, kind);
   stack.layers = stack.layers.map((layer): StackLayer => {
     if (layer.kind !== kind) return layer;
@@ -28,12 +31,12 @@ export function placeLibraryDrop(cable: Cable, drop: LibraryDrop, endpointId: st
     }
     if (layer.kind === 'board') return { ...layer, board_revision_id: drop.revisionId!, carried_connector_id: null };
     if (layer.kind === 'shell') return { ...layer, part_revision_id: drop.revisionId! };
-    const component = drop.kind === 'declared_resistor' ? 'resistor' : 'capacitor';
+    const component = drop.kind === 'part'&&partUse?.use==='inline'?partUse.componentKind:drop.kind === 'declared_resistor' ? 'resistor' : 'capacitor';
     // addLayer starts with an empty resistor declaration; keep existing local components.
     const existing = (savedStack ?? endpoint.stack)?.layers.find(item => item.kind === 'inline');
     const parts = existing?.kind === 'inline' ? existing.parts : [];
     let index = 1; while (parts.some(part => part.local_id === `part-${index}`)) index += 1;
-    return { ...layer, parts: [...parts, { local_id: `part-${index}`, label: null, component: { kind: component, reference: null, value: null, resistance_ohm: null, capacitance_f: null } }] };
+    return { ...layer, parts: [...parts, { local_id: `part-${index}`, label: null,...(drop.kind==='part'?{part_revision_id:drop.revisionId!}:{}), component: { kind: component, reference: null, value: null, resistance_ohm: null, capacitance_f: null } }] };
   });
   return { ...cable, endpoints: cable.endpoints.map(end => end === endpoint ? { ...end, end_assembly_revision_id: null, stack } : end), review: 'unreviewed', review_basis: null };
 }
@@ -69,3 +72,5 @@ export function manualJoin(cable: Cable, left: HandleAddress, right: HandleAddre
   stack.joins.push({ local_id: `joint-${index}`, a: {layer_id:left.layerId,terminal_id:left.terminalId}, b: {layer_id:right.layerId,terminal_id:right.terminalId},kind,basis:reason.trim() });
   return {...cable,review:'unreviewed',review_basis:null,endpoints:cable.endpoints.map(end=>end===endpoint?{...end,end_assembly_revision_id:null,stack}:end)};
 }
+
+export const inlineNodeId=(endpointId:string,layerId:string,partId:string)=>`inline:${encodeURIComponent(endpointId)}:${encodeURIComponent(layerId)}:${encodeURIComponent(partId)}`;

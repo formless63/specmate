@@ -137,6 +137,10 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
         raise ValidationFailed("Duplicate dependency.")
     dependencies = p.dependencies
     derived = None
+    if draft.definition.kind == "product_family":
+        from specmate.products.queries import dependency_revisions as product_dependencies
+
+        derived = product_dependencies(ctx.user, draft.definition, draft.content)
     if draft.definition.kind in {"part", "kit"}:
         from specmate.parts.queries import dependency_revisions as catalog_dependencies
 
@@ -324,6 +328,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind == "product_family" or "product_family" in content:
+        from specmate.products.queries import validate_content as validate_product
+
+        content = validate_product(kind, content)
     if (
         kind in {"part", "kit"}
         or "kit" in content
@@ -436,6 +444,10 @@ def _authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind == "product_family":
+        from specmate.products.queries import dependency_revisions as product_dependencies
+
+        product_dependencies(user, definition, content)
     if definition.kind in {"part", "kit"}:
         from specmate.parts.queries import dependency_revisions as catalog_dependencies
 

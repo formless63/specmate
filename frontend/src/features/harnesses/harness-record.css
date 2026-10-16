@@ -1,0 +1,7 @@
+.harness-recipe { border:1px solid var(--sb-border-subtle);padding:8px;overflow:auto; }
+.harness-fields { border:0;min-width:0;padding:0;margin:0; }
+.manual-flow .react-flow__node.selected .manual-node { border-color:var(--sb-accent);outline:1px solid var(--sb-accent); }
+@media(max-width:48em){.harness-recipe { max-height:84px; }.record-page:has([aria-label="Harness manual canvas"]) .manual-flow { height:380px; }}
+
+[aria-label="Harness manual canvas"] .manual-port { overflow-wrap:anywhere; }
+.harness-component { border:1px solid var(--sb-border-subtle);padding:10px;overflow-wrap:anywhere; }

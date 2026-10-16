@@ -18,7 +18,7 @@ an end assembly revision or carries an ad-hoc stack of the same shape.
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
 from specmate.interfaces.board_contracts import InlineComponent, Key
@@ -49,11 +49,23 @@ class BoardLayer(StrictModel):
 
 
 class InlinePart(StrictModel):
-    """One hand-soldered part with two terminals, ``<local_id>.1`` and ``<local_id>.2``."""
+    """An explicitly declared two-lead use, ``<local_id>.1`` and ``<local_id>.2``.
+
+    An optional catalog pin records provenance. It never establishes the package's
+    terminal count, pinout, electrical behavior, fit or compatibility.
+    """
 
     local_id: Key
     component: InlineComponent
     label: Text | None = None
+    part_revision_id: UUID | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_unrecorded_part(self, handler):
+        data = handler(self)
+        if data.get("part_revision_id") is None:
+            data.pop("part_revision_id", None)
+        return data
 
 
 class InlineLayer(StrictModel):

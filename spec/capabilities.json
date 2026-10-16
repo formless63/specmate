@@ -228,7 +228,7 @@
       "id": "LIB-001",
       "group": "LIB",
       "title": "Reusable records",
-      "requirement": "Maintain parts, boards, connectors, stock, hardware, materials and assemblies.",
+      "requirement": "Maintain parts, boards, connectors, stock, hardware, materials and assemblies. Product families group exact cable, harness and assembly revisions into descriptive variants without changing those designs or implying release approval.",
       "horizon": "baseline",
       "document": "docs/PRODUCT.md",
       "acceptance_ids": [

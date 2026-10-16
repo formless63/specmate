@@ -34,7 +34,7 @@ export const TOOL_PATHS: Record<string, string> = {
   identity: "/library/parts", hardware: "/library/hardware", kits: "/library/kits", signals: "/library/vocabulary", conventions: "/library/vocabulary/conventions", "workshop-profiles": "/library/vocabulary/workshop-profiles", "evidence-kinds": "/library/vocabulary/evidence-kinds",
   discovery: "/library", "revision-upgrades": "/library", matching: "/library", facts: "/library",
   inventory: "/make/inventory", "physical-units": "/make/units", "material-accounting": "/make/material", bom: "/make/procurement", printing: "/make/printing",
-  builds: "/jobs/builds", "agent-runs": "/jobs/agent-runs", runner: "/jobs/runner", history: "/history", releases: "/products/releases",
+  builds: "/jobs/builds", "agent-runs": "/jobs/agent-runs", runner: "/jobs/runner", history: "/history", families: "/products/families", lineup: "/products/lineup", releases: "/products/releases",
   overview: "/projects", knowledge: "/projects/notes", "catalog-packs": "/extensions/packs", integrations: "/extensions/integrations", "agent-capabilities": "/extensions/agents",
   "occurrence-firmware": "/designs", "firmware-impact": "/designs", configurations: "/designs", "shared-scene": "/designs", "context-selection": "/designs", "scene-drawings": "/designs", "mechanical-proposals": "/designs",
   "preparation-documents": "/designs", "cable-test-intent": "/designs", "selected-packages": "/designs", "export-packages": "/designs",

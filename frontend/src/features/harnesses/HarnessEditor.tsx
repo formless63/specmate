@@ -6,7 +6,6 @@ import { RevisionPicker as CatalogRevisionPicker } from '../cables/RevisionPicke
 import { connectorStack, resolveDenied, type ResolvedStack } from '../end-assemblies/api';
 import { StackDiagram, StackEditor, resolvedChips, useResolvedStacks } from '../end-assemblies/StackEditor';
 import { PhysicalEndsEditor } from './PhysicalEndsEditor';
-import { RevisionPicker } from './RevisionPicker';
 import { read, terminalKey, terminalLabel, type Breakout, type Definition, type Endpoint, type Fate, type Harness, type Joint, type SegmentEnd, type SegmentTerminal, type Terminal } from './api';
 
 type Choice = { value: string; label: string; terminal: Terminal };
@@ -15,11 +14,12 @@ function conductive(node: StockElement, prefix = ''): string[] {
   const path = prefix ? `${prefix}.${node.id}` : node.id;
   return node.kind === 'group' ? node.children.flatMap(c => conductive(c, path)) : ['conductor', 'shield', 'drain'].includes(node.kind) ? [path] : [];
 }
-export function HarnessEditor({ value, onChange, definitions, onAuthorityChange, onReferenceDenied }: { value: Harness; onChange: (v: Harness) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void; onReferenceDenied?: (path: string, reason: unknown) => void }) {
+export type HarnessEditorSection = 'sections' | 'segments' | 'endpoints' | 'joints' | 'breakouts' | 'review';
+export function HarnessEditor({ value, onChange, definitions, onAuthorityChange, onReferenceDenied, section, selectedId, active = true }: { active?: boolean; section?: HarnessEditorSection; selectedId?: string | null; value: Harness; onChange: (v: Harness) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void; onReferenceDenied?: (path: string, reason: unknown) => void }) {
   const refs = [...new Set(value.sections.map(s => s.stock_revision_id ? `revisions/${s.stock_revision_id}/snapshot` : '').filter(Boolean))];
-  const sources = useQueries({ queries: refs.map(path => ({ queryKey: ['harness-source', path], queryFn: async () => { try { return await read<Source>(path); } catch (reason) { onReferenceDenied?.(path, reason); throw reason; } } })) });
+  const sources = useQueries({ queries: refs.map(path => ({ queryKey: ['harness-source', path], enabled: active, queryFn: async () => { try { return await read<Source>(path); } catch (reason) { onReferenceDenied?.(path, reason); throw reason; } } })) });
   // Each endpoint's stack is resolved by the server: labeled terminals and typed signals.
-  const stacks = useResolvedStacks(value.endpoints);
+  const stacks = useResolvedStacks(value.endpoints, active);
   const deniedEnds = value.endpoints.filter((_, i) => resolveDenied(stacks[i]?.error)).map(e => e.local_id);
   const stackDenied = deniedEnds.length > 0;
   const deniedKey = deniedEnds.join('|');
@@ -51,17 +51,19 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange,
   const [endpointId, setEndpointId] = useState('');
   return <Stack>
     {sources.filter(s => s.isError).map((s, i) => <Alert color="red" key={i}>{s.error?.message}</Alert>)}
-    <Title order={4}>Physical stock sections</Title><Text>One section is one original stock piece. Several segment spans can share it without adding pieces. Planned cuts remain independent of route or finished lengths.</Text>
-    {value.sections.map((section, index) => <Card key={section.local_id} withBorder><Stack><Text fw={600}>Section {section.local_id}</Text>
-      <RevisionPicker label={`Section ${section.local_id} stock`} kind="wire_stock" value={section.stock_revision_id} definitions={definitions} onChange={id => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, stock_revision_id: id } : s) })} />
+    {(!section || section === 'sections') && <><Title order={4}>Physical stock sections</Title><Text>One section is one original stock piece. Several segment spans can share it without adding pieces. Planned cuts remain independent of route or finished lengths.</Text>
+    {value.sections.map((section, index) => !selectedId || selectedId === section.local_id ? <Card key={section.local_id} withBorder><Stack><Text fw={600}>Section {section.local_id}</Text>
+      <CatalogRevisionPicker label={`Section ${section.local_id} stock`} kind="wire_stock" value={section.stock_revision_id} definitions={definitions} onChange={id => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, stock_revision_id: id } : s) })} />
       <TextInput label={`Section ${section.local_id} planned cut (mm); blank = unknown`} inputMode="decimal" value={section.planned_cut_length_mm ?? ''} onChange={e => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, planned_cut_length_mm: e.currentTarget.value || null } : s) })} />
       <TextInput label={`Section ${section.local_id} cut basis`} value={section.cut_basis ?? ''} onChange={e => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, cut_basis: e.currentTarget.value || null } : s) })} />
       <PhysicalEndsEditor section={section} segments={value.segments} endpoints={value.endpoints} hidden={denied} onChange={physical_ends => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, physical_ends } : s) })} />
       <Button variant="subtle" onClick={() => onChange({ ...value, sections: value.sections.filter((_, i) => i !== index) })}>Remove section {section.local_id}</Button>
-    </Stack></Card>)}
+    </Stack></Card> : null)}
     <Group><TextInput label="New physical section ID" value={sectionId} onChange={e => setSectionId(e.currentTarget.value)} /><Button disabled={!sectionId || value.sections.some(s => s.local_id === sectionId)} onClick={() => { onChange({ ...value, sections: [...value.sections, { local_id: sectionId, stock_revision_id: '', planned_cut_length_mm: null, cut_basis: null }] }); setSectionId(''); }}>Add physical section</Button></Group>
-    <Title order={4}>Segment spans</Title>
+    </>}
+    {(!section || section === 'segments') && <><Title order={4}>Segment spans</Title>
     {value.segments.map((segment, index) => {
+      if (selectedId && selectedId !== segment.local_id) return null;
       const section = value.sections.find(s => s.local_id === segment.section_id);
       const stock = section && source(`revisions/${section.stock_revision_id}/snapshot`)?.content?.stock;
       return <Card key={segment.local_id} withBorder><Stack><Text>{segment.local_id} → physical section {segment.section_id}</Text>
@@ -72,12 +74,14 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange,
       </Stack></Card>;
     })}
     <Group><TextInput label="New segment ID" value={segmentId} onChange={e => setSegmentId(e.currentTarget.value)} /><Select label="New segment physical section" data={value.sections.map(s => s.local_id)} value={segmentSection} onChange={setSegmentSection} /><Button disabled={!segmentId || !segmentSection || value.segments.some(s => s.local_id === segmentId)} onClick={() => { if (segmentSection) onChange({ ...value, segments: [...value.segments, { local_id: segmentId, section_id: segmentSection, label: null, element_paths: null }] }); setSegmentId(''); }}>Add segment span</Button></Group>
-    <Title order={4}>Endpoints</Title><Text size="sm">Each endpoint is an end stack, from the wire outward: an end assembly from the Library, or board, inline parts, connector and shell declared here.</Text>
-    {value.endpoints.map((endpoint, index) => <EndpointCard key={endpoint.local_id} endpoint={endpoint} definitions={definitions} resolved={denied ? undefined : stacks[index]?.data} error={stacks[index]?.error ?? null} onChange={next => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? next : e) })} onRemove={() => onChange({ ...value, endpoints: value.endpoints.filter((_, i) => i !== index) })} />)}
+    </>}
+    {(!section || section === 'endpoints') && <><Title order={4}>Endpoints</Title><Text size="sm">Each endpoint is an end stack, from the wire outward: an end assembly from the Library, or board, inline parts, connector and shell declared here.</Text>
+    {value.endpoints.map((endpoint, index) => !selectedId || selectedId === endpoint.local_id ? <EndpointCard key={endpoint.local_id} endpoint={endpoint} definitions={definitions} resolved={denied ? undefined : stacks[index]?.data} error={stacks[index]?.error ?? null} onChange={next => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? next : e) })} onRemove={() => onChange({ ...value, endpoints: value.endpoints.filter((_, i) => i !== index) })} /> : null)}
     <Group><TextInput label="New endpoint ID" value={endpointId} onChange={e => setEndpointId(e.currentTarget.value)} /><Button disabled={!endpointId || value.endpoints.some(e => e.local_id === endpointId)} onClick={() => { onChange({ ...value, endpoints: [...value.endpoints, { local_id: endpointId, label: null, end_assembly_revision_id: null, stack: connectorStack() }] }); setEndpointId(''); }}>Add endpoint</Button></Group>
-    <JointEditor value={value} choices={choices} denied={denied} onChange={onChange} />
-    <BreakoutEditor value={value} choices={choices} denied={denied} onChange={onChange} />
-    <Select label="Harness review" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Harness['review'] })} /><TextInput label="Harness review basis" value={value.review_basis ?? ''} onChange={e => onChange({ ...value, review_basis: e.currentTarget.value || null })} />
+    </>}
+    {(!section || section === 'joints') && <JointEditor value={value} choices={choices} denied={denied} onChange={onChange} />}
+    {(!section || section === 'breakouts') && <BreakoutEditor value={value} choices={choices} denied={denied} onChange={onChange} />}
+    {(!section || section === 'review') && <><Select label="Harness review" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Harness['review'] })} /><TextInput label="Harness review basis" value={value.review_basis ?? ''} onChange={e => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></>}
   </Stack>;
 }
 /** One endpoint: label, then an end assembly or an ad-hoc stack (the cable end editor's stack builder). */

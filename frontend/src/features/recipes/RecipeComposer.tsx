@@ -29,7 +29,7 @@ function RecipeComposerSession({ active, workspaceId, principalKey, name, curren
   const [activation, setActivation] = useState({ active, generation: 0 });
   const generation = activation.generation + (activation.active !== active ? 1 : 0); if (activation.active !== active) setActivation({ active, generation });
   const signature = JSON.stringify(recipe), alive = useRef(true), latest = useRef({ active, signature }); latest.current = { active, signature };
-  const touchedRecipe = useRef(false);
+  const touchedPorts = useRef(false);
   const keys = useRef(new Map<string, string>()), savedIntent = useRef<{ value: string; draft: IntentDraft } | null>(null);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const safe = (selected: string) => alive.current && latest.current.active && latest.current.signature === selected;
@@ -47,10 +47,10 @@ function RecipeComposerSession({ active, workspaceId, principalKey, name, curren
   const readable = active && !authority.isFetching && !authority.isError && !!authority.data;
   const permitted = !disabled && readable && create.allowed && authority.data!.permissions.includes('item.create');
   const existingIntent = useQuery({ queryKey: ['recipe-intent', principalKey, workspaceId, current?.intent_revision_id], enabled: readable && !!current?.intent_revision_id, retry: false, queryFn: ({ signal }) => requestJson<IntentState>(`/api/v0/interfaces/revisions/${current!.intent_revision_id}`, { signal, cache: 'no-store' }) });
-  useEffect(() => { const value = existingIntent.data; if (value && !touchedRecipe.current && !existingIntent.isError && !recipe.fromPort && !recipe.toPort && !intent) setRecipe(previous => ({ ...previous, fromPort: value.interface.from_revision_id, toPort: value.interface.to_revision_id })); }, [existingIntent.data, existingIntent.isError, recipe.fromPort, recipe.toPort, intent]);
+  useEffect(() => { const value = existingIntent.data; if (value && !touchedPorts.current && !existingIntent.isError && !recipe.fromPort && !recipe.toPort && !intent) setRecipe(previous => ({ ...previous, fromPort: value.interface.from_revision_id, toPort: value.interface.to_revision_id })); }, [existingIntent.data, existingIntent.isError, recipe.fromPort, recipe.toPort, intent]);
   const chosen = frozen ?? (!intent && !existingIntent.isError ? existingIntent.data : null);
   const selectedIntent = chosen?.interface.from_revision_id === recipe.fromPort && chosen.interface.to_revision_id === recipe.toPort ? chosen : null;
-  const change = (next: Recipe) => { touchedRecipe.current = true; if (next.fromPort !== recipe.fromPort || next.toPort !== recipe.toPort) { setIntent(null); setFrozen(null); } setRecipe(next); setError(''); };
+  const change = (next: Recipe) => { if (next.fromPort !== recipe.fromPort || next.toPort !== recipe.toPort) { touchedPorts.current = true; setIntent(null); setFrozen(null); } setRecipe(next); setError(''); };
   const proposeCable = async (id: string, selected: string) => {
     const value = await requestProposal({ intent_revision_id: id, ...(draftId ? { draft_id: draftId } : {}), stock_revision_id: recipe.stock, from_end: { end_assembly_revision_id: recipe.fromEnd }, to_end: { end_assembly_revision_id: recipe.toEnd } });
     if (!safe(selected)) return;

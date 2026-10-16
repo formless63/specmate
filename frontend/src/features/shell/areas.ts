@@ -9,7 +9,7 @@ export const AREAS: AreaDef[] = [
   { id: "make", label: "Make", key: "3", tools: [tool("inventory", "Inventory"), tool("physical-units", "Physical units"), tool("material-accounting", "Material plans"), tool("bom", "Procurement BOMs"), tool("printing", "3D printing")] },
   { id: "jobs", label: "Jobs", key: "4", tools: [tool("builds", "Builds"), tool("agent-runs", "Agent runs"), tool("runner", "Runner")] },
   { id: "history", label: "History", key: "5", tools: [tool("history", "History")] },
-  { id: "products", label: "Products & releases", key: "6", tools: [tool("releases", "Releases")] },
+  { id: "products", label: "Products & releases", key: "6", tools: [tool("families", "Families"), tool("lineup", "Lineup"), tool("releases", "Releases")] },
   { id: "projects", label: "Projects", key: "7", tools: [tool("overview", "Projects"), tool("knowledge", "Notes & files")] },
   { id: "extensions", label: "Extensions", key: "8", tools: [tool("catalog-packs", "Packs"), tool("integrations", "Integrations"), tool("agent-capabilities", "Agents")] },
   { id: "settings", label: "Settings", key: "9", tools: [tool("settings-documents", "Documents"), tool("settings-engineering", "Engineering"), tool("part-numbering", "Part numbering"), tool("validation-rules", "Validation rules"), tool("access", "People"), tool("preferences", "Preferences"), tool("diagnostics", "System"), tool("webhooks", "Webhooks")] },

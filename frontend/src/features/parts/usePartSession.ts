@@ -4,7 +4,7 @@ import { ApiError } from '../workspace/api';
 import { authorizeReferences, canonical, command, PART_KINDS, readRecord, referenceSignature, type Content, type Draft, type PartRecord } from './api';
 
 export type SessionProps = {
-  active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
+  allowedKinds?: readonly string[]; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
   initial: { kind: string; content: Content; name?: string }; onCreated: (id: string, open: boolean) => void; onSelect: (number: number | null, working: boolean) => void; onAccessLost?: () => void;
 };
 export function usePartSession(props: SessionProps) {
@@ -29,7 +29,7 @@ export function usePartSession(props: SessionProps) {
     setConfirmed(''); setError('');
     try {
       const current = definitionId ? await readRecord(definitionId, revisionNumber, draftRequested, draftId) : null;
-      if (current && (!PART_KINDS.includes(current.kind) || current.definition_id !== definitionId || current.workspace_id !== workspaceId)) throw new ApiError(404, 'The selected part or kit is unavailable.');
+      if (current && (!(props.allowedKinds ?? PART_KINDS).includes(current.kind) || current.definition_id !== definitionId || current.workspace_id !== workspaceId)) throw new ApiError(404, 'The selected record is unavailable.');
       const saved = current?.selected.kind === 'draft' ? current.selected : null;
       const next = saved && (!snapshot.base || discard) ? saved.content : snapshot.buffer;
       if (!current || saved) await authorizeReferences(next);

@@ -87,7 +87,7 @@ export function frozenSheet(name: string, revision: string, sections: DocumentSe
     table("Cuts", ["Context", "Section", "Row kind", "Conductor", "Declared mm", "Suggested mm", "Design pieces", "Workshop pieces", "Design total mm", "Workshop total mm", "Basis"], sections.cut_preparation.map(row => [context(row), cell(row.section_id), cell(row.row_kind), cell(row.element_path), cell(row.length_mm), cell(row.cut_mm), cell(row.design_piece_count), cell(row.workshop_piece_count), cell(row.design_total_mm), cell(row.workshop_total_mm), cell(row.cut_basis ?? row.basis)])),
     table("End preparation", ["Context", "Section", "Exact profile", "Profile end", "Physical end ID", "Instruction ID", "Feature", "Instruction", "Treatment", "Nominal mm", "Minus mm", "Plus mm", "Datum", "Status", "Unresolved", "Basis and source", "Expected bond target"], preparationRows(sections.end_preparation)),
     table("Continuity expectations", ["Context", "Pair", "First terminal", "Second terminal", "Expect", "Signal", "Resistance ohm", "Meaning"], pairs),
-    table("BOM", ["Context", "Item", "Exact revision", "Quantity", "Unit", "Status", "Basis"], records(bom.rows).map(row => [path(record(row.address).path), cell(row.name), cell(row.revision_id), cell(record(row.required_quantity ?? row.quantity).amount), cell(record(row.required_quantity ?? row.quantity).unit), cell(record(row.required_quantity ?? row.quantity).status), cell(row.basis ?? row.reason)])),
+    table("BOM", ["Context", "Item", "Exact revision", "Quantity", "Unit", "Status", "Basis"], records(bom.rows).map(row => [path(record(row.address).path) + (row.inline_part ? ` · inline ${text(record(row.inline_part).endpoint_id ?? "standalone")}/${text(record(row.inline_part).layer_id)}/${text(record(row.inline_part).part_local_id)}` : ""), cell(row.name), cell(row.revision_id), cell(record(row.required_quantity ?? row.quantity).amount), cell(record(row.required_quantity ?? row.quantity).unit), cell(record(row.required_quantity ?? row.quantity).status), cell(row.basis ?? row.reason)])),
     table("Labels", ["Label ID", "Context", "At", "Text"], labelRows.map(row => [row.id, row.context, row.at, row.text])),
   ];
   return {
@@ -95,6 +95,7 @@ export function frozenSheet(name: string, revision: string, sections: DocumentSe
     notices: ["Declared topology and authored expectations; physical continuity, fit and physical qualification are not evaluated.",
       ...sections.issues.map(row => `${path(row.path)} · ${text(row.message)}`),
       ...(!pairs.length ? ["No authored test pairs are bound. Continuity expectations remain unknown."] : []),
+      ...records(bom.unresolved).filter(row => row.reason === "inline_part_material_policy_unspecified").map(row => `${path(record(row.address).path)} · inline ${text(record(row.inline_part).endpoint_id ?? "standalone")}/${text(record(row.inline_part).layer_id)}/${text(record(row.inline_part).part_local_id)} · procurement policy and material needs unresolved`),
       ...(!Object.keys(bom).length ? ["No exact BOM plan is bound. Procurement quantities remain unknown."] : [])],
   };
 }

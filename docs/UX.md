@@ -118,6 +118,16 @@ people, preferences, system information and webhooks. Numbering starts off until
 Extensions groups catalog packs, integrations and agents. Neither ordinary engineering
 work nor installation requires financial setup, external AI or a paid service.
 
+## Products and releases
+
+The existing Products & releases rail entry has Families, Lineup and Releases tabs.
+Families uses structured fields for option axes, values and exact design variants,
+with local buffers, explicit Save and Freeze, and exact historical family selection.
+Lineup lists only the latest readable frozen family at its page anchor, with exact
+family/design links and unknown declared length shown explicitly. Drafts do not
+substitute for frozen lineup records. The Releases tab retains the existing reviewed
+release workflow; family freezing never implies approval.
+
 ## Links and selection
 
 Canonical routes identify collections and records rather than implementation panels:

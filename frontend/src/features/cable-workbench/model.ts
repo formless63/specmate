@@ -7,7 +7,7 @@
 import { geometryForView, shapeBounds, type ConnectorGeometry, type PinGeometry } from "../../../../packages/connector-art/src";
 import { appearanceOf, type Appearance, type StockElement, type StockSpecification } from "../../../../packages/section-layout/src";
 import type { Assignment, Cable } from "../cables/api";
-import { LAYER_LABELS, LAYER_ORDER, type LayerKind, type ResolvedLayer, type ResolvedStack, type ResolvedTerminal, type SignalRef } from "../end-assemblies/api";
+import { LAYER_LABELS, LAYER_ORDER, type LayerKind, type InlinePartIdentity, type ResolvedLayer, type ResolvedStack, type ResolvedTerminal, type SignalRef } from "../end-assemblies/api";
 import type { CheckRow, IntentCheck, Status } from "../intent-check/api";
 import type { Proposal } from "../intent-propose/ProposeWiring";
 import { colorName } from "../wire-stock/builder";
@@ -172,7 +172,7 @@ export type DrawnTerminal = {
   onFace?: boolean;
 };
 export type DrawnColumn = { key: string; endpointId: string; layerId: string; kind: LayerKind | "unknown"; name: string | null; detail: string | null; x: number; width: number };
-export type DrawnPart = { key: string; endpointId: string; layerId: string; name: string; summary: string; component: string; x: number; y: number; leads: string[] };
+export type DrawnPart = { localId:string; partIdentity?:InlinePartIdentity; key: string; endpointId: string; layerId: string; name: string; summary: string; component: string; x: number; y: number; leads: string[] };
 export type DrawnTrace = { key: string; endpointId: string; from: string; to: string; via: string; summary: string; status: "declared" | "unknown"; d: string; mid: Point };
 export type DrawnJoin = { key: string; endpointId: string; a: string; b: string; kind: string; status: string; basis: string; d: string };
 export type DrawnEnd = {
@@ -359,7 +359,7 @@ function layoutEnd(plan: EndPlan, x0: number, center: number, index: CheckIndex)
           keys.push(terminal(planned, lead, mid + stockward * (stockSide ? 1 : -1) * (width / 2 - 8), y, 5, stockSide ? "cable" : "connector").key);
         }
         const component = (part as { component?: { kind?: string } }).component?.kind ?? "unknown";
-        parts.push({ key: partKey(ep, layer.layer_id, part.local_id), endpointId: ep, layerId: layer.layer_id, name: part.name, summary: part.summary, component, x: mid, y, leads: keys });
+        parts.push({ localId:part.local_id,...(part.part_identity?{partIdentity:part.part_identity}:{}),key: partKey(ep, layer.layer_id, part.local_id), endpointId: ep, layerId: layer.layer_id, name: part.name, summary: part.summary, component, x: mid, y, leads: keys });
       });
     } else if (kind === "shell") {
       for (const t of layer.terminals) terminal(planned, t, mid, center, 6, "middle");

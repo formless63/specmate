@@ -25,7 +25,6 @@ import { AREAS, SbShell, areaOfTool } from "./features/shell";
 import { libraryView } from "./features/shell/scope";
 import { WorkspaceShell, type LibraryRecord, type ShellChrome, type WorkspaceScope } from "./features/workspace";
 
-const SelectedDefinitionViews = lazy(() => import("./features/cable-views/SelectedDefinitionViews").then(module => ({ default: module.SelectedDefinitionViews })));
 const BuildsPanel = lazy(() => import("./features/builds/BuildsPanel").then((module) => ({ default: module.BuildsPanel })));
 const DeviceLibrary = lazy(() => import("./features/assemblies/DeviceLibrary").then(module => ({ default: module.DeviceLibrary })));
 const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/AgentCapabilitiesPanel").then((module) => ({ default: module.AgentCapabilitiesPanel })));
@@ -57,7 +56,7 @@ const NewCable = lazy(() => import("./features/designs/NewCable").then(module =>
 const NewDesign = lazy(() => import("./features/designs/NewDesign").then(module => ({ default: module.NewDesign })));
 const MatchingWorkspace = lazy(() => import("./features/catalog-matching/MatchingWorkspace").then((module) => ({ default: module.MatchingWorkspace })));
 const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/CatalogPacksWorkspace").then((module) => ({ default: module.CatalogPacksWorkspace })));
-const HarnessPanel = lazy(() => import("./features/harnesses/HarnessPanel").then((module) => ({ default: module.HarnessPanel })));
+const HarnessLibrary = lazy(() => import("./features/harnesses/HarnessLibrary").then(module => ({ default: module.HarnessLibrary })));
 const CopperPanel = lazy(() => import("./features/copper/CopperPanel").then((module) => ({ default: module.CopperPanel })));
 const RevisionUpgradeWorkspace = lazy(() => import("./features/revision-upgrades/RevisionUpgradeWorkspace").then((module) => ({ default: module.RevisionUpgradeWorkspace })));
 const PcbDisagreementPanel = lazy(() => import("./features/pcb-disagreement/PcbDisagreementPanel").then((module) => ({ default: module.PcbDisagreementPanel })));
@@ -77,6 +76,7 @@ const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((
 const PrintingPanel = lazy(() => import("./features/printing/PrintingPanel").then((module) => ({ default: module.PrintingPanel })));
 const SelectedPackagesPanel = lazy(() => import("./features/selected-packages/SelectedPackagesPanel").then((module) => ({ default: module.SelectedPackagesPanel })));
 const ExportPackagesPanel = lazy(() => import("./features/export-packages/ExportPackagesPanel").then((module) => ({ default: module.ExportPackagesPanel })));
+const ProductsWorkspace = lazy(() => import("./features/products/ProductsWorkspace").then(module => ({ default: module.ProductsWorkspace })));
 const ReleasesPanel = lazy(() => import("./features/releases/ReleasesPanel").then((module) => ({ default: module.ReleasesPanel })));
 const FirmwarePanel = lazy(() => import("./features/firmware/FirmwarePanel").then((module) => ({ default: module.FirmwarePanel })));
 const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
@@ -88,7 +88,6 @@ const ContextualInspectionWorkspace = lazy(() => import("./features/context-sele
 const CollaborationPanel = lazy(() => import("./features/collaboration/CollaborationPanel").then((module) => ({ default: module.CollaborationPanel })));
 const KnowledgeSearchPanel = lazy(() => import("./features/knowledge/KnowledgeSearchPanel").then((module) => ({ default: module.KnowledgeSearchPanel })));
 const KnowledgePanel = lazy(() => import("./features/knowledge/KnowledgePanel").then((module) => ({ default: module.KnowledgePanel })));
-const FrozenRootDocuments = lazy(() => import("./components/editor/FrozenRootDocuments").then(module => ({ default: module.FrozenRootDocuments })));
 const PreparationDocumentsPanel = lazy(() => import("./features/preparation-documents/PreparationDocumentsPanel").then((module) => ({ default: module.PreparationDocumentsPanel })));
 const MechanicalProposalsPanel = lazy(() => import("./features/mechanical-proposals/MechanicalProposalsPanel").then((module) => ({ default: module.MechanicalProposalsPanel })));
 const LibraryHome = lazy(() => import("./features/library-gallery/LibraryHome").then((module) => ({ default: module.LibraryHome })));
@@ -177,7 +176,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -198,7 +197,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
         <ToolPanel value="history">{tools.has("history") && <HistoryPage active={active === "history"} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />}</ToolPanel>
         {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
         {['identity', 'hardware', 'kits', 'mechanical-sources'].some(tool => tools.has(tool)) && <div hidden={!['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)}><PartsLibrary active={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active)} toolId={['identity', 'hardware', 'kits', 'mechanical-sources'].includes(active) ? active : 'identity'} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
-        {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
+        {["families", "lineup"].some(tool => tools.has(tool)) && <div hidden={!["families", "lineup"].includes(active)}><ProductsWorkspace active={["families", "lineup"].includes(active)} toolId={active} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectId={navigation?.location.project ?? null} /></div>}
+        {ALL_TOOLS.filter(tool => !["families", "lineup", "designs", "history", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
           {tools.has(tool.id) && (["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) && (!url.probe || url.lens !== tool.id || documentRoute || selected.isPending || selected.isError) ? url.lens !== tool.id || !url.probe ? null : selected.isError ? <Stack gap="xs">
             <Text role="status">This document context is unavailable.</Text><Group>
               <Button size="xs" onClick={() => void selected.refetch()}>Retry current record access</Button>
@@ -237,6 +237,7 @@ function FocusNote({ focus, onDismiss }: { focus: RecordFocus; onDismiss: () => 
 function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }: { record?: LibraryRecord; toolId: string; toolLabel: string; scope: WorkspaceScope; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void; lens: LensContext }) {
   const navigation = useNavigation();
   if (toolId === "new-cable") return <NewCable active={lens.active === toolId} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />;
+  if (["harnesses", "new-harness"].includes(toolId)) return <HarnessLibrary active={lens.active === toolId} creating={toolId === "new-harness"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, item) => onOpenInProject(projectId, "harnesses", item)} />;
   if (["assemblies", "new-assembly"].includes(toolId)) return <DeviceLibrary active={lens.active === toolId} creating={toolId === "new-assembly"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, item) => onOpenInProject(projectId, "assemblies", item)} />;
   if (toolId.startsWith("new-")) return <ProbeProvider probe={null} onProbe={() => {}}><LensEditor toolId={{ "new-cable": "cables", "new-harness": "harnesses", "new-assembly": "assemblies" }[toolId] ?? "cables"} scope={scope} projectId={null} active={lens.active} /></ProbeProvider>;
   if (toolId === "overview" && scope.project && scope.projectId) return <ProjectOverview key={scope.projectId} projectId={scope.projectId} projectName={scope.project.name} workspaceId={scope.workspaceId} permissions={scope.permissions} role={scope.role} active={lens.active === "overview"} onOpenTool={tool => { if (tool === "wire-stock") navigation?.navigate({ area: "library", lens: tool, project: null, probe: null, filters: { status: "new" } }); else lens.setActive(tool); }} onOpenReference={ref => {
@@ -260,10 +261,6 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
-  if (["harnesses", "assemblies"].includes(toolId)) return <FrozenRootDocuments kind={toolId === "harnesses" ? "harness" : "assembly"} record={record} workspaceId={scope.workspaceId} principalKey={scope.principalKey} active={lens.active === toolId}><Stack>
-    {record && ["cable", "harness"].includes(record.kind ?? "") && toolForKind(record.kind) === toolId && <SelectedDefinitionViews key={record.record_id} record={record} />}
-    <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />
-  </Stack></FrozenRootDocuments>;
   // Make panels own their lists and purpose-specific exact selections.
   if (["inventory", "physical-units", "material-accounting", "bom"].includes(toolId)) return <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />;
   const view = TYPED_LIBRARY_VIEWS[toolId] ?? libraryView(toolId);
@@ -337,7 +334,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "conventions": return <ConventionPanel projectId={projectId} />;
     case "intents": return <IntentPanel projectId={projectId} />;
     case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
-    case "harnesses": return <HarnessPanel projectId={projectId} />;
     case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
     case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
     // Firmware definitions are declared here; per-occurrence firmware choices follow.

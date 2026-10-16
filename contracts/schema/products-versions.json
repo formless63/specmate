@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "limit": {
+      "default": 25,
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "default": 0,
+      "maximum": 1000000,
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "definition_id"
+  ],
+  "title": "VersionsQuery",
+  "type": "object"
+}
