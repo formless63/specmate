@@ -154,6 +154,11 @@ def _validate_exact(declaration, resolved):
             raise ValidationFailed(
                 "Model representation does not match its exact revision/source pin."
             )
+        metadata = representation.model_metadata or {}
+        for field in ("units", "frame"):
+            declared, retained = getattr(pin, field), metadata.get(field)
+            if declared is not None and retained is not None and declared != retained:
+                raise ValidationFailed("Model units/frame contradict the exact representation.")
 
 
 def closure(user, definition, content):
@@ -356,6 +361,11 @@ def evaluate(user, definition, declaration):
                 "label": representation.label,
                 "sha256": representation.source_file.blob.sha256,
                 "rights": representation.source_file.rights,
+                **(
+                    {"representation_metadata": representation.model_metadata}
+                    if representation.model_metadata
+                    else {}
+                ),
             }
         )
         findings.append(

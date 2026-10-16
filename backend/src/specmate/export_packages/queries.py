@@ -1078,6 +1078,7 @@ def rights_section(scope, package):
                 "declared_rights": item.source_file.rights,
                 "source_path": item.source_file.path,
                 "sha256": item.source_file.blob.sha256,
+                **({"model_metadata": item.model_metadata} if item.model_metadata else {}),
             }
         )
     identifiers = (

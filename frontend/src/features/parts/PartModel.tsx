@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { sha256Hex } from '../../lib/sha256';
 import type { Representation } from '../identity/api';
 import { ApiError } from '../workspace/api';
-export type PreviewRepresentation = Pick<Representation, 'representation_id' | 'kind' | 'label' | 'source_bundle_revision_id' | 'source_path' | 'sha256' | 'rights' | 'rights_status'> & { units?: string | null; frame?: string | null };
+export type PreviewRepresentation = Pick<Representation, 'representation_id' | 'kind' | 'label' | 'source_bundle_revision_id' | 'source_path' | 'sha256' | 'rights' | 'rights_status' | 'model_metadata'> & { units?: string | null; frame?: string | null };
 
 const LIMIT = 12 * 1024 * 1024;
 const VERTEX_LIMIT = 800_000;
@@ -55,7 +55,8 @@ export function PartModel({ active, rows, scopeKey, onAccessLost }: { active: bo
     <Text size="xs">{row.source_path} · rights {row.rights_status}: {row.rights}</Text>
     {error && <Alert color="red">{error}</Alert>}
     {active && !error && image && <img className="part-model-image" src={image} alt={row.label} />}
-    {active && !error && bytes && (format === 'stl' || format === 'obj' || format === 'glb') && <MeshPreview bytes={bytes} format={format} units={row.units} frame={row.frame} />}
+    {active && !error && bytes && (format === 'stl' || format === 'obj' || format === 'glb') && <MeshPreview bytes={bytes} format={format} units={row.model_metadata?.units ?? row.units} frame={row.model_metadata?.frame ?? row.frame} />}
+    {row.model_metadata && <Text size="xs">Declared model: {row.model_metadata.units ?? 'units unknown'} · {row.model_metadata.frame ?? 'frame unknown'} · {row.model_metadata.purpose} · builder {row.model_metadata.builder_version ?? 'not declared'}. {row.model_metadata.basis}</Text>}
     {format && !bytes && !image && !error && active && <Text role="status">Reading exact model source…</Text>}
     {!format && <Text>This format has no browser preview. Its exact source remains available for download.</Text>}
     <Text size="xs">Preview only · units and accuracy follow the authored source; clearance, fit and manufacturability are not evaluated.</Text>

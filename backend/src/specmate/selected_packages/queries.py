@@ -361,6 +361,7 @@ def catalog_rights(captured):
             "design": r.revision.definition.name,
             "label": r.label,
             "rights_status": r.rights_status,
+            **({"model_metadata": r.model_metadata} if r.model_metadata else {}),
         }
         for r in Representation.objects.select_related("revision__definition").filter(
             revision_id__in=ids

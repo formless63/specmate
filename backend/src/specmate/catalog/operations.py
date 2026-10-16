@@ -116,6 +116,7 @@ def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
         kind=p.kind,
         label=p.label,
         rights_status=p.rights_status,
+        model_metadata=p.model_metadata.model_dump(mode="json") if p.model_metadata else None,
         source_file=source_file,
         registered_by=ctx.user,
     )

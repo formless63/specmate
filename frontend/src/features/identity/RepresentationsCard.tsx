@@ -52,7 +52,7 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register, a
       {catalog?.representations.map((r: Representation) => <Table.Tr key={r.representation_id}>
         <Table.Td>{r.label} ({r.kind})</Table.Td>
         <Table.Td><RevisionPin revisionNumber={r.revision_number} name={r.definition_name} /></Table.Td>
-        <Table.Td><Text size="xs" className="sb-mono">{r.source_path}</Text><Text size="xs" className="sb-mono">SHA-256: {r.sha256}</Text></Table.Td>
+        <Table.Td><Text size="xs" className="sb-mono">{r.source_path}</Text><Text size="xs" className="sb-mono">SHA-256: {r.sha256}</Text>{r.model_metadata && <Text size="xs">{r.model_metadata.purpose} · {r.model_metadata.units ?? 'units unknown'} · {r.model_metadata.frame ?? 'frame unknown'} · builder {r.model_metadata.builder_version ?? 'not declared'}</Text>}</Table.Td>
         <Table.Td><Rights text={r.rights} status={r.rights_status} /></Table.Td>
       </Table.Tr>)}
       {catalog?.source_identifiers.map((i: SourceIdentifier) => <Table.Tr key={i.source_identifier_id}>

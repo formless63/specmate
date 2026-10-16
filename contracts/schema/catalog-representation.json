@@ -1,4 +1,80 @@
 {
+  "$defs": {
+    "ModelMetadata": {
+      "additionalProperties": false,
+      "description": "Declared representation frame, never an inferred size or qualification.",
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "builder_version": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Builder Version"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "enum": [
+                "right_handed_y_up",
+                "right_handed_z_up"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Frame"
+        },
+        "purpose": {
+          "enum": [
+            "illustration",
+            "clearance",
+            "manufacturing"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "enum": [
+                "mm",
+                "m",
+                "in"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Units"
+        }
+      },
+      "required": [
+        "units",
+        "frame",
+        "purpose",
+        "basis"
+      ],
+      "title": "ModelMetadata",
+      "type": "object"
+    }
+  },
   "properties": {
     "definition_id": {
       "format": "uuid",
@@ -31,6 +107,17 @@
     "media_type": {
       "title": "Media Type",
       "type": "string"
+    },
+    "model_metadata": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModelMetadata"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "representation_id": {
       "format": "uuid",

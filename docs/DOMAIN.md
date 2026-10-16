@@ -19,6 +19,13 @@ revisions, inventory and pinned consumers remain unchanged. Adoption by projects
 consumers is a separate reviewed operation. `catalog.lifecycle` reads the disposition
 without selecting a different revision or reading an unrelated working draft.
 
+Model representations may retain immutable `model_metadata`: declared units, frame,
+purpose, builder version and basis. Missing metadata stays unknown. Browser previews
+apply declared frame conversion once; model size is never used to guess units.
+Mechanical source declarations cannot contradict a representation's known units or
+frame. Catalog review and exports retain these declarations without treating a model's
+declared purpose as fit, clearance or manufacturing qualification.
+
 ## Workspace, collections and projects
 
 Status: accepted target model. Until the workspace-collections migration lands, the

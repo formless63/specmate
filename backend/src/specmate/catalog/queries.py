@@ -62,6 +62,7 @@ def representation_result(representation):
         media_type=source.media_type,
         rights=source.rights,
         rights_status=representation.rights_status,
+        model_metadata=representation.model_metadata,
     ).model_dump(mode="json")
 
 

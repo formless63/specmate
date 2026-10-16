@@ -96,6 +96,7 @@ class Representation(models.Model):
     kind = models.CharField(max_length=20, choices=Kind.choices)
     label = models.CharField(max_length=200)
     source_file = models.ForeignKey("sources.SourceBundleFile", on_delete=models.PROTECT)
+    model_metadata = models.JSONField(null=True, default=None)
     registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -116,6 +117,10 @@ class Representation(models.Model):
             models.CheckConstraint(
                 condition=models.Q(rights_status__in=["cleared", "restricted", "unknown"]),
                 name="catalog_representation_rights_status",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(model_metadata__isnull=True) | models.Q(kind="model"),
+                name="catalog_representation_model_only",
             ),
         ]
 

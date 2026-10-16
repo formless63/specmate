@@ -1,10 +1,21 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 RepresentationKind = Literal["symbol", "footprint", "model", "drawing", "datasheet"]
 RightsStatus = Literal["cleared", "restricted", "unknown"]
+
+
+class ModelMetadata(BaseModel):
+    """Declared representation frame, never an inferred size or qualification."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    units: Literal["mm", "m", "in"] | None
+    frame: Literal["right_handed_y_up", "right_handed_z_up"] | None
+    purpose: Literal["illustration", "clearance", "manufacturing"]
+    builder_version: str | None = Field(default=None, min_length=1, max_length=200)
+    basis: str = Field(min_length=1, max_length=2000)
 
 
 class RegisterVariant(BaseModel):
@@ -26,6 +37,13 @@ class RegisterRepresentation(BaseModel):
     )
     # Required; "unknown" is an explicit choice. The file's own rights text is retained.
     rights_status: RightsStatus
+    model_metadata: ModelMetadata | None = None
+
+    @model_validator(mode="after")
+    def model_only(self):
+        if self.kind != "model" and self.model_metadata is not None:
+            raise ValueError("Model metadata requires a model representation.")
+        return self
 
 
 class RegisterSourceIdentifier(BaseModel):
@@ -80,6 +98,7 @@ class RepresentationResult(BaseModel):
     media_type: str
     rights: str
     rights_status: RightsStatus
+    model_metadata: ModelMetadata | None = None
 
 
 class RegisterLot(BaseModel):

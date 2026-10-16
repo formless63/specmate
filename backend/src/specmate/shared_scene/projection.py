@@ -360,6 +360,11 @@ class Resources:
                     "rights_status": "unknown",
                     "kind": "model",
                     "label": model["label"],
+                    **(
+                        {"model_metadata": model["representation_metadata"]}
+                        if model.get("representation_metadata")
+                        else {}
+                    ),
                 }
                 gid = self.add(
                     revision,

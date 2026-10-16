@@ -12,6 +12,7 @@ export type Representation = {
   representation_id: string; kind: string; label: string; revision_id: string; revision_number: number;
   definition_id: string; definition_name: string; definition_kind: string;
   source_bundle_revision_id: string; source_path: string; sha256: string; media_type: string; rights: string; rights_status: RightsStatus;
+  model_metadata?: { units: 'mm' | 'm' | 'in' | null; frame: 'right_handed_y_up' | 'right_handed_z_up' | null; purpose: 'illustration' | 'clearance' | 'manufacturing'; builder_version: string | null; basis: string } | null;
 };
 export type SourceIdentifier = {
   source_identifier_id: string; revision_id: string; revision_number: number; definition_name: string;
