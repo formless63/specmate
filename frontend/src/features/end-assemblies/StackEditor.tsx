@@ -24,10 +24,10 @@ export function useResolvedStack(source: EndSource | null, enabled = true) {
   return useQuery({ queryKey: ["cable-end-resolve", body], queryFn: () => resolveEnd(body!), enabled: enabled && !!body, retry: false });
 }
 /** One resolution per cable end, in end order. */
-export function useResolvedStacks(sources: EndSource[]) {
+export function useResolvedStacks(sources: EndSource[], enabled = true) {
   return useQueries({ queries: sources.map((source) => {
     const body = resolveBody(source);
-    return { queryKey: ["cable-end-resolve", body], queryFn: () => resolveEnd(body!), enabled: !!body, retry: false };
+    return { queryKey: ["cable-end-resolve", body], queryFn: () => resolveEnd(body!), enabled: enabled && !!body, retry: false };
   }) });
 }
 

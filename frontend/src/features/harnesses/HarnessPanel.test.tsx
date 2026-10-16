@@ -49,6 +49,7 @@ test('create shared material and explicit uncut breakout, save with token, freez
   }));
   render(wrap(<HarnessPanel />));
   fill('Definition name', 'Synthetic branch'); fill('New physical section ID', 'shared'); fireEvent.click(screen.getByText('Add physical section'));
+  fireEvent.click(screen.getByRole('button', { name: 'Advanced: paste exact revision ID for Section shared stock' }));
   fill('Section shared stock exact revision ID', 'stock-rev');
   fill('Section shared planned cut (mm); blank = unknown', '0.1000'); fill('Section shared cut basis', 'Planned synthetic cut');
   for (const name of ['trunk', 'leg']) { fill('New segment ID', name); if (name === 'trunk') await choose('New segment physical section', 'shared'); fireEvent.click(screen.getByText('Add segment span')); }

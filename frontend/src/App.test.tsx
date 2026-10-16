@@ -345,10 +345,10 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       fireEvent.click(await screen.findByRole("button", { name: "Prepare cable" }));
       fireEvent.click(await screen.findByRole("button", { name: "Start blank cable" }));
     } else await openTool(tool.label);
-    if (toolId === "assemblies") {
+    if (["assemblies", "harnesses"].includes(toolId)) {
       fireEvent.click(await screen.findByRole("button", { name: "New design" }));
-      fireEvent.click(await screen.findByRole("button", { name: "Prepare device" }));
-      expect(await screen.findByRole("button", { name: "Save device" })).toBeTruthy();
+      fireEvent.click(await screen.findByRole("button", { name: toolId === "harnesses" ? "Prepare harness" : "Prepare device" }));
+      expect(await screen.findByRole("button", { name: toolId === "harnesses" ? "Save harness" : "Save device" })).toBeTruthy();
       continue;
     }
     if (["cables", "harnesses"].includes(toolId)) {
@@ -478,7 +478,7 @@ test("Make hosts five functional panels without a second collection picker", asy
 test("Library home creates cable, harness and assembly designs through their authoring forms", async () => {
   server({ authenticated: true }); renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
-  for (const [noun, action] of [["Cable", "Create cable draft"], ["Harness", "Create harness draft"], ["Assembly", "Save device"]]) {
+  for (const [noun, action] of [["Cable", "Create cable draft"], ["Harness", "Save harness"], ["Assembly", "Save device"]]) {
     await openTool("Library home");
     fireEvent.click(await screen.findByRole("button", { name: "New…" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: noun! }));
