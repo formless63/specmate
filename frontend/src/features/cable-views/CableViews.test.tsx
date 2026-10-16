@@ -106,6 +106,7 @@ test('a frozen end preparation is applied only when pinned to this exact stock r
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('workspace/definitions') ? []
     : { revision_id: url.split('/').pop(), profile: { stock_revision_id: url.endsWith('other-prep') ? 'other-stock' : 'stock-rev', a: { instructions }, b: { instructions: [] } } }), { status: 200 })));
   render(<QueryClientProvider client={new QueryClient()}><MantineProvider><CableViews stock={shieldedPair()} name="Synthetic pair" revisionId="stock-rev" tabs={['side']} choosePreparation /></MantineProvider></QueryClientProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Advanced: paste exact revision ID for Side view end preparation' }));
   const id = screen.getByLabelText('Side view end preparation exact revision ID');
   fireEvent.change(id, { target: { value: 'other-prep' } });
   await findByText(document.body, 'This profile is pinned to a different stock revision and is not drawn.');
