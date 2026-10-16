@@ -12,6 +12,7 @@ import { requestNew } from "./newRequest";
 import { attentionById, useLibraryHome, usedInWords } from "./hooks";
 import { ItemCard, type CardItem } from "./ItemCard";
 import "./library-gallery.css";
+import { LibraryAdvanced } from "./LibraryAdvanced";
 
 function ago(value: string, now = Date.now()): string {
   const minutes = Math.round((now - new Date(value).getTime()) / 60_000);
@@ -115,6 +116,7 @@ export function LibraryHome({ principalKey }: { principalKey: string }) {
       <Cell label="Items" value={data ? String(data.definitions_total) : "Not reported"} unknown={!data} note={data ? `${data.kinds.length} kinds` : undefined} />
     </dl>
 
+    <LibraryAdvanced principalKey={principalKey} />
     <section className="lg-section" aria-label="Needs attention">
       <div className="lg-section-head"><h3>Needs attention</h3><span className="lg-section-note">failing recorded checks, open intent questions and stale evidence</span></div>
       {home.isPending && <Text role="status" className="sb-dash-note">Reading the library…</Text>}

@@ -41,7 +41,7 @@ test.each(redirects)("/%s?lens=%s redirects to %s", (area, lens, expected) => {
 test("every existing tool has a stable reachable canonical home", () => {
   for (const tool of ROUTE_TOOLS) {
     const location = { ...HOME, area: tool.area, lens: tool.id };
-    const expected = ["preparation", "end-preparation"].includes(tool.id) ? "wire-stock" : tool.id === "facts" ? "library-home" : tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
+    const expected = ["preparation", "end-preparation"].includes(tool.id) ? "wire-stock" : ["facts", "discovery", "matching", "revision-upgrades"].includes(tool.id) ? "library-home" : tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
       : ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) ? "designs" : tool.id;
     const [path, query] = formatLocation(location).split("?");
     expect(parseLocation(path!, query ? `?${query}` : "").lens, tool.id).toBe(expected);
@@ -195,4 +195,11 @@ test.each(['preparation','end-preparation'])('retired %s collection opens Stock 
 test.each(['pcb-disagreement','passive-passages'])('deliberate New %s is an own secondary form rather than a Board collection',tool=>{
  const creating=parseLocation('/design',`?lens=${tool}&status=new`);expect(creating).toMatchObject({lens:tool,probe:null,filters:{status:'new'}});
  const url=new URL(formatLocation(creating),'http://example.invalid');expect(parseLocation(url.pathname,url.search)).toEqual(creating);
+});
+
+test('old Discovery opens the palette at Library and exact Discovery addresses retain their record', () => {
+ const landing = parseLocation('/library', '?lens=discovery'); expect(landing).toMatchObject({lens:'library-home', filters:{palette:'open'}});
+ expect(formatLocation(landing)).toBe('/library?palette=open');
+ expect(parseLocation('/library/stock@3/~/core/a','?lens=discovery')).toMatchObject({lens:'identity',probe:{object:'stock',rev:3,path:['core','a']}});
+ for(const tool of ['matching','revision-upgrades']) expect(parseLocation('/library',`?lens=${tool}`)).toMatchObject({lens:'library-home',filters:{section:tool}});
 });

@@ -45,7 +45,6 @@ const PartsLibrary = lazy(() => import('./features/parts/PartsLibrary').then(mod
 const StockLibrary = lazy(() => import("./features/wire-stock/StockLibrary").then(module => ({ default: module.StockLibrary })));
 const SettingsPanel = lazy(() => import("./features/settings/SettingsPanel").then(module => ({ default: module.SettingsPanel })));
 const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPanel").then((module) => ({ default: module.PreferencesPanel })));
-const DiscoveryPanel = lazy(() => import("./features/discovery/DiscoveryPanel").then((module) => ({ default: module.DiscoveryPanel })));
 const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/PhysicalUnitsPanel").then((module) => ({ default: module.PhysicalUnitsPanel })));
 const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
 const VocabularyLibrary = lazy(() => import("./features/vocabulary/VocabularyLibrary").then(module => ({ default: module.VocabularyLibrary })));
@@ -126,8 +125,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
     if (url.lens === "identity" && recordTool && recordTool !== "identity") navigation?.navigate({ area: areaOfTool(recordTool).id, lens: recordTool }, { replace: true });
   }, [url.lens, recordTool, navigation]);
   useEffect(() => {
-    if (url.lens === "discovery") { void import("@mantine/spotlight").then(module => module.spotlight.open()); }
-  }, [url.lens]);
+    if (navigation?.location.filters?.palette === "open") { void import("@mantine/spotlight").then(module => module.spotlight.open()); }
+  }, [navigation?.location.filters?.palette]);
   const [focus, setFocus] = useState<RecordFocus | null>(null);
   const [createKeys, setCreateKeys] = useState<Record<string, number>>({});
   const [replaceCreate, setReplaceCreate] = useState<string | null>(null);
@@ -274,7 +273,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
 }
 
 /** Lenses whose data lives in the workspace; a project is optional context, never a requirement. */
-const WORKSPACE_LENSES = new Set(["settings-documents", "settings-engineering", "part-numbering", "validation-rules", "webhooks", "knowledge", "agent-capabilities", "agent-runs", "preferences", "diagnostics", "discovery", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
+const WORKSPACE_LENSES = new Set(["settings-documents", "settings-engineering", "part-numbering", "validation-rules", "webhooks", "knowledge", "agent-capabilities", "agent-runs", "preferences", "diagnostics", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
   "mechanical-proposals", "builds", "evidence-kinds", "shared-scene", "context-selection", "scene-drawings", "preparation-documents", "selected-packages", "export-packages", "copper", "releases", "printing"]);
 
 type LensContext = {
@@ -295,7 +294,6 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "agent-runs": return <AgentRunsPanel onAccessLost={onAccessChanged} active={active === "agent-runs"} workspaceId={workspaceId} projectId={projectId} username={scope.username} principalKey={principalKey} />;
     case "preferences": return <PreferencesPanel workspaceId={workspaceId} />;
     case "diagnostics": return <DiagnosticsPanel workspaceId={workspaceId} active={active === "diagnostics"} onChanged={onStatusChanged} />;
-    case "discovery": return <DiscoveryPanel projectId={projectId} />;
     case "revision-upgrades": return <RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active === "revision-upgrades"} initialProposalId={upgradeProposalId} />;
     case "matching": return <MatchingWorkspace projectId={projectId} />;
     case "catalog-packs": return <CatalogPacksWorkspace projectId={projectId} />;

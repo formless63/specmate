@@ -15,11 +15,11 @@ const kinds: { value: SearchKind; label: string }[] = [
 ];
 
 /** Library discovery. `projectId` is optional context: its referenced items are listed first. */
-export function DiscoveryPanel({ projectId }: { projectId?: string | null }) {
-  return <DiscoveryWorkspace key={projectId ?? "library"} projectId={projectId ?? null} />;
+export function CatalogLookup({ projectId }: { projectId?: string | null }) {
+  return <Lookup key={projectId ?? "library"} projectId={projectId ?? null} />;
 }
 
-function DiscoveryWorkspace({ projectId }: { projectId: string | null }) {
+function Lookup({ projectId }: { projectId: string | null }) {
   const [kind, setKind] = useState<SearchKind>("definition");
   // At project scope the project's own items come first; one control shows the plain library.
   const [scope, setScope] = useState(projectId ? "current" : "all");
@@ -123,7 +123,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string | null }) {
   }
 
   return <Stack>
-    <Title order={2}>Discovery</Title>
+    <Title order={3}>Catalog lookup</Title>
     <Text>Search the workspace library. Every member sees the same records; at project scope the items this project references are listed first.</Text>
     <form onSubmit={(event) => void search(event)}><Group align="end">
       <NativeSelect label="Record type" value={kind} data={kinds} onChange={(event) => setKind(event.currentTarget.value as SearchKind)} />

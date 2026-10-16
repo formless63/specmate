@@ -48,7 +48,7 @@ const LEGACY_AREAS = new Set(["project", "design", "sources", "inventory", "evid
 const LEGACY_DEFAULTS: Record<string,string> = { project: "overview", design: "assemblies", sources: "sources", inventory: "inventory", evidence: "facts", make: "bom", library: "library-home" };
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const BOARD_RECORD_SECTIONS: Record<string, string> = { copper: "more", "passive-passages": "more", "pcb-disagreement": "source-review" };
-const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake", "start"];
+const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake", "start", "palette"];
 export const HOME: WorkspaceLocation = { area: "designs", lens: DEFAULT_TOOL, project: null, probe: null, malformed: false };
 function decode(segment: string): string | null { try { return decodeURIComponent(segment); } catch { return null; } }
 const knownTool = knownRouteTool;
@@ -100,7 +100,8 @@ export function parseLocation(pathname: string, search: string): WorkspaceLocati
   if (!probe && BOARD_RECORD_SECTIONS[lens] && !(filters.status === "new" && ["pcb-disagreement", "passive-passages"].includes(lens))) { filters.section = BOARD_RECORD_SECTIONS[lens]!; lens = "pcb"; }
   if (!probe && lens === "facts" && filters.status !== "new") lens = "library-home";
   if (!probe && ["preparation", "end-preparation"].includes(lens) && filters.status !== "new") { lens = "wire-stock"; filters.section = "practices"; }
-  if (lens === "discovery") filters.palette = "open";
+  if (lens === "discovery") { if (!probe) filters.palette = "open"; lens = probe ? "identity" : "library-home"; }
+  if (!probe && ["revision-upgrades", "matching"].includes(lens)) { filters.section = lens; lens = "library-home"; }
   if (lens === 'mechanical-sources') lens = 'hardware';
   return { area: areaOfTool(lens).id, lens, project, probe, malformed, ...(Object.keys(filters).length ? { filters } : {}) };
 }

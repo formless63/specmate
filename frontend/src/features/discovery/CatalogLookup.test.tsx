@@ -1,7 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { DiscoveryPanel } from "./DiscoveryPanel";
+import { CatalogLookup } from "./CatalogLookup";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -33,7 +33,7 @@ test("searches the library, pages matches, and lists pins and referencing projec
     }
     throw new Error(`Unexpected request ${path}`);
   }));
-  render(<MantineProvider><DiscoveryPanel /></MantineProvider>);
+  render(<MantineProvider><CatalogLookup /></MantineProvider>);
   expect(screen.queryByLabelText("Search order")).toBeNull();
   fireEvent.change(screen.getByLabelText("Search terms"), { target: { value: " bracket " } });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -57,7 +57,7 @@ test("project scope lists the project's items first, can show the whole library,
       ? reply({ kind: "definition", query: "source", project_id: "p-1", results: [{ record_id: "d", workspace_id: "w", label: "Referenced source", in_project: true }], next_after: null })
       : reply({ error: { message: "Access changed." } }, 404);
   }));
-  render(<MantineProvider><DiscoveryPanel projectId="p-1" /></MantineProvider>);
+  render(<MantineProvider><CatalogLookup projectId="p-1" /></MantineProvider>);
   fireEvent.change(screen.getByLabelText("Search terms"), { target: { value: "source" } });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   expect(await screen.findByText("In this project")).toBeTruthy();
@@ -77,7 +77,7 @@ test("denied repeat pin inspection removes the previously disclosed consumer", a
       : reply({ revision_id: "rev", results: [{ snapshot_id: "snap", label: "Formerly visible consumer", workspace_id: "w", definition_id: "parent" }], next_after: null, project_references: [], project_references_truncated: false });
     throw new Error(`Unexpected request ${path}`);
   }));
-  render(<MantineProvider><DiscoveryPanel projectId="p" /></MantineProvider>);
+  render(<MantineProvider><CatalogLookup projectId="p" /></MantineProvider>);
   fireEvent.change(screen.getByLabelText("Search terms"), { target: { value: "bracket" } });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   fireEvent.click(await screen.findByRole("button", { name: "Inspect uses" }));

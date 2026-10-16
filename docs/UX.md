@@ -7,6 +7,9 @@ Jobs, History, Products & releases, Projects, Extensions and Settings. Library h
 collection tabs: Connectors, Boards, Wire stocks, Parts, Shells & hardware, Kits and
 Vocabulary. A new capability belongs in an existing record section, inspector tab or
 Advanced entry; it does not add a rail destination or collection tab.
+Library Advanced retains catalog lookup, catalog matching and reviewed revision upgrades.
+The old Discovery address opens Library with the command palette; exact record links
+keep their revision and occurrence path.
 
 The top edge holds the Specmate home link, current location, item search, appearance
 control and account controls. The logo always links to the landing page. System appearance
