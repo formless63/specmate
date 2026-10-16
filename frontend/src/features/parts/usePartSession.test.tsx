@@ -76,3 +76,20 @@ test('new buffers are local until save and inactive completion cannot open a dif
   act(() => result.current.setName('Synthetic new part')); let saving!: Promise<void>; act(() => { saving = result.current.save(); }); rerender({ ...props, active: false });
   await act(async () => { release(reply({ result: { ...saved('draft-v1'), definition_id: 'created' } })); await saving; }); expect(props.onCreated).toHaveBeenCalledWith('created', false);
 });
+
+test('domain references authorize both saved and retained buffers and fence a changed local pin before disclosure', async () => {
+  server(); let denied = false;
+  const authorizeContent = vi.fn(async (content: Content) => { if (content.domain_pin === 'private' && denied) throw new Error('Retained domain pin denied'); });
+  const { result, props, rerender } = mount({ revisionNumber: null, draftRequested: true, authorizeContent });
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  act(() => result.current.change({ ...result.current.buffer, domain_pin: 'private' }));
+  expect(result.current.ready).toBe(false);
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  denied = true; rerender({ ...props, active: false }); rerender(props);
+  await waitFor(() => expect(result.current.error).toBe('Retained domain pin denied'));
+  expect(result.current.ready).toBe(false); expect(result.current.buffer.domain_pin).toBe('private');
+  denied = false; await act(async () => result.current.refresh());
+  expect(result.current.ready).toBe(true); expect(result.current.base?.state).toBe('draft-v4'); expect(result.current.buffer.domain_pin).toBe('private');
+  expect(authorizeContent.mock.calls.some(([content]) => content.domain_pin === undefined)).toBe(true);
+  expect(authorizeContent.mock.calls.some(([content]) => content.domain_pin === 'private')).toBe(true);
+});

@@ -4,6 +4,7 @@ import { ApiError } from '../workspace/api';
 import { authorizeReferences, canonical, command, PART_KINDS, readRecord, referenceSignature, type Content, type Draft, type PartRecord } from './api';
 
 export type SessionProps = {
+  authorizeContent?: (content: Content) => Promise<void>; contentSignature?: (content: Content) => string;
   allowedKinds?: readonly string[]; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
   initial: { kind: string; content: Content; name?: string }; onCreated: (id: string, open: boolean) => void; onSelect: (number: number | null, working: boolean) => void; onAccessLost?: () => void;
 };
@@ -15,7 +16,8 @@ export function usePartSession(props: SessionProps) {
   const undo = useRef<Content[]>([]), alive = useRef(false), epoch = useRef(0), reads = useRef(0), edits = useRef(0), keys = useRef(new Map<string, string>());
   const editing = !definitionId || revisionNumber === null && (draftRequested || record?.selected.kind === 'draft');
   const dirty = !base || canonical(base.content) !== canonical(buffer);
-  const signature = `${principalKey}:${workspaceId}:${definitionId ?? 'new'}:${revisionNumber ?? 'latest'}:${draftRequested}:${draftId ?? ''}:${active}:${editing ? referenceSignature(buffer) : ''}`;
+  const signatureOf = (content: Content) => `${referenceSignature(content)}:${props.contentSignature?.(content) ?? (props.authorizeContent ? canonical(content) : '')}`;
+  const signature = `${principalKey}:${workspaceId}:${definitionId ?? 'new'}:${revisionNumber ?? 'latest'}:${draftRequested}:${draftId ?? ''}:${active}:${editing ? signatureOf(buffer) : ''}`;
   const latest = useRef({ props, base, buffer, editing, signature }); latest.current = { props, base, buffer, editing, signature };
   const safe = (token: number) => alive.current && token === epoch.current;
   function fail(failure: unknown, withdraw = true) {
@@ -32,12 +34,18 @@ export function usePartSession(props: SessionProps) {
       if (current && (!(props.allowedKinds ?? PART_KINDS).includes(current.kind) || current.definition_id !== definitionId || current.workspace_id !== workspaceId)) throw new ApiError(404, 'The selected record is unavailable.');
       const saved = current?.selected.kind === 'draft' ? current.selected : null;
       const next = saved && (!snapshot.base || discard) ? saved.content : snapshot.buffer;
-      if (!current || saved) await authorizeReferences(next);
+      // The selected server state and the private retained buffer can have different pins.
+      // Validate both before revealing either; an unsaved edit cannot borrow saved authority.
+      if (snapshot.props.authorizeContent && current) await snapshot.props.authorizeContent(current.selected.content);
+      if (!current || saved) {
+        await authorizeReferences(next);
+        await snapshot.props.authorizeContent?.(next);
+      }
       if (!safe(token) || serial !== reads.current) return;
       if (current) { setRecord(current); setName(current.name); }
       if (saved && (!snapshot.base || discard)) { setBase(saved); setBuffer(structuredClone(next)); undo.current = []; }
       else if (saved && saved.state !== snapshot.base?.state) setNotice('A newer saved draft exists. Your local buffer and original save token remain retained.');
-      setConfirmed(`${principalKey}:${workspaceId}:${definitionId ?? 'new'}:${revisionNumber ?? 'latest'}:${draftRequested}:${draftId ?? ''}:${active}:${(!definitionId || saved) ? referenceSignature(next) : ''}`);
+      setConfirmed(`${principalKey}:${workspaceId}:${definitionId ?? 'new'}:${revisionNumber ?? 'latest'}:${draftRequested}:${draftId ?? ''}:${active}:${(!definitionId || saved) ? signatureOf(next) : ''}`);
     } catch (failure) { if (safe(token) && serial === reads.current) fail(failure); }
   }
   const refreshRef = useRef(refresh); refreshRef.current = refresh;
