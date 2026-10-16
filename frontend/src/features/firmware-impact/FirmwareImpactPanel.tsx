@@ -11,12 +11,15 @@ import { RecordResult } from "../evidence/RecordResult";
 
 import { newestFirst } from '../../lib/revision-labels';
 /** Impact reviews are workspace-scoped; the project is navigation context only. */
-export function FirmwareImpactPanel({ workspaceId }: { workspaceId: string }) {
-  return <Workspace key={workspaceId} workspaceId={workspaceId} />;
+type Props = { workspaceId: string; active?: boolean; principalKey?: string; ownerSnapshotId?: string | null };
+export function FirmwareImpactPanel({ workspaceId, active = true, principalKey = 'standalone', ownerSnapshotId }: Props) {
+  return <Workspace key={`${principalKey}:${workspaceId}`} workspaceId={workspaceId} active={active} ownerSnapshotId={ownerSnapshotId} />;
 }
 
-function Workspace({ workspaceId }: { workspaceId: string }) {
-  const generation = useRef(0);
+function Workspace({ workspaceId, active, ownerSnapshotId }: Props & { active: boolean }) {
+  const generation = useRef(0), activation = useRef({ active, epoch: 0 });
+  if (activation.current.active !== active) activation.current = { active, epoch: activation.current.epoch + 1 };
+  const [verified, setVerified] = useState(-1);
   const [opened, setOpened] = useState(false);
   const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
   const [assemblies, setAssemblies] = useState<Definition[]>([]);
@@ -41,6 +44,8 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
     setBaselineContext({}); setCandidateContext({}); setBaselineContextPending(false); setCandidateContextPending(false); setAssertions([]); setPickerKey(key => key + 1); setError(message);
   }
   async function refresh() {
+    if (!active) return;
+    const epoch = activation.current.epoch;
     const token = ++generation.current;
     setResult(null); setFirmware([]); setAssemblies([]); setError(''); setBusy(true);
     setBaseline(''); setCandidate(''); setBaselineMode('standalone'); setCandidateMode('standalone'); setBaselineContext({}); setCandidateContext({}); setBaselineContextPending(false); setCandidateContextPending(false); setAssertions([]);
@@ -50,19 +55,20 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
         read<{ firmware: FirmwareSummary[] }>(`pcb/workspaces/${workspaceId}/firmware`),
         read<Definition[]>(`workspaces/${workspaceId}/definitions`),
       ]);
-      if (token === generation.current) { setFirmware(records.firmware); setAssemblies(definitions.filter(item => item.kind === 'assembly')); }
+      if (token === generation.current) { setFirmware(records.firmware); setAssemblies(definitions.filter(item => item.kind === 'assembly')); setVerified(epoch); }
     } catch (failure) { if (token === generation.current) setError((failure as Error).message); }
     finally { if (token === generation.current) setBusy(false); }
   }
   useEffect(() => {
-    if (!opened) return;
+    if (!opened || !active) return;
     void refresh();
     const focus = () => { void refresh(); };
     window.addEventListener('focus', focus);
     return () => { generation.current++; window.removeEventListener('focus', focus); };
-  }, [opened]);
+  }, [opened, active]);
   const options = [{ value: '', label: 'Select a frozen firmware revision' }, ...firmware.flatMap(item => newestFirst(item.revisions).map(revision => ({ value: revision.revision_id, label: `${item.name} · revision ${revision.number}` })))];
   async function inspect(observationOffset = 0) {
+    if (!active || verified !== activation.current.epoch) return;
     const token = ++generation.current;
     setResult(null); setError(''); setBusy(true);
     try {
@@ -74,20 +80,21 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
     } catch (failure) { if (token === generation.current) deny((failure as Error).message); }
     finally { if (token === generation.current) setBusy(false); }
   }
-  return <Card withBorder><Stack>
+  return <div hidden={!active} inert={!active || undefined}><Card withBorder><Stack>
     <Title order={3}>Firmware change and observation review</Title>
     <Text>Compare exact frozen hardware, sources, configuration and pin assumptions. Historical observations remain attached to their original subjects; changes require deliberate review.</Text>
     <Button onClick={() => { clear(); setOpened(!opened); }}>{opened ? 'Hide firmware impact' : 'Show firmware impact'}</Button>
-    {opened && <>
+    {opened && <div hidden={busy || verified !== activation.current.epoch} inert={busy || verified !== activation.current.epoch || undefined}>
       <Button disabled={busy} onClick={() => { void refresh(); }}>Refresh authorized impact inputs</Button>
       {error && <Alert color="red">{error}</Alert>}
+      {ownerSnapshotId === null && <Text>Freeze a Device revision before comparing its exact occurrence firmware. Standalone declarations remain available.</Text>}
       <Text>Standalone firmware is read from the workspace library. To review firmware as used in a design, choose a frozen assembly and its assigned board occurrence first. Exact revision assertions, contextual occurrences and units with those pins are included; additional observations are included only when you select them.</Text>
-      <NativeSelect label="Baseline input mode" value={baselineMode} data={[{ value: 'standalone', label: 'Standalone workspace firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setBaselineMode(event.currentTarget.value); setBaseline(''); setBaselineContext({}); setBaselineContextPending(false); }} />
-      <NativeSelect label="Candidate input mode" value={candidateMode} data={[{ value: 'standalone', label: 'Standalone workspace firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setCandidateMode(event.currentTarget.value); setCandidate(''); setCandidateContext({}); setCandidateContextPending(false); }} />
+      <NativeSelect label="Baseline input mode" value={baselineMode} data={[{ value: 'standalone', label: 'Standalone workspace firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly', disabled: ownerSnapshotId === null }]} onChange={event => { clear(); setBaselineMode(event.currentTarget.value); setBaseline(''); setBaselineContext({}); setBaselineContextPending(false); }} />
+      <NativeSelect label="Candidate input mode" value={candidateMode} data={[{ value: 'standalone', label: 'Standalone workspace firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly', disabled: ownerSnapshotId === null }]} onChange={event => { clear(); setCandidateMode(event.currentTarget.value); setCandidate(''); setCandidateContext({}); setCandidateContextPending(false); }} />
       {baselineMode === 'standalone' && <NativeSelect label="Baseline firmware revision" value={baseline} data={options} onChange={event => { clear(); setBaseline(event.currentTarget.value); setBaselineContext({}); setBaselineContextPending(false); }} />}
       {candidateMode === 'standalone' && <NativeSelect label="Candidate firmware revision" value={candidate} data={options} onChange={event => { clear(); setCandidate(event.currentTarget.value); setCandidateContext({}); setCandidateContextPending(false); }} />}
-      {(baseline || baselineMode === 'occurrence') && <ContextSelector key={`baseline:${pickerKey}:${baselineMode}:${baselineMode === 'standalone' ? baseline : ''}`} label="Baseline" firmwareId={baselineMode === 'standalone' ? baseline : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setBaselineContextPending(pending); if (baselineMode === 'occurrence') setBaseline(context.firmware_revision_id || ''); setBaselineContext(context); }} />}
-      {(candidate || candidateMode === 'occurrence') && <ContextSelector key={`candidate:${pickerKey}:${candidateMode}:${candidateMode === 'standalone' ? candidate : ''}`} label="Candidate" firmwareId={candidateMode === 'standalone' ? candidate : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setCandidateContextPending(pending); if (candidateMode === 'occurrence') setCandidate(context.firmware_revision_id || ''); setCandidateContext(context); }} />}
+      {(baseline || baselineMode === 'occurrence') && <ContextSelector key={`baseline:${pickerKey}:${baselineMode}:${baselineMode === 'standalone' ? baseline : ''}`} label="Baseline" ownerSnapshotId={ownerSnapshotId} firmwareId={baselineMode === 'standalone' ? baseline : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setBaselineContextPending(pending); if (baselineMode === 'occurrence') setBaseline(context.firmware_revision_id || ''); setBaselineContext(context); }} />}
+      {(candidate || candidateMode === 'occurrence') && <ContextSelector key={`candidate:${pickerKey}:${candidateMode}:${candidateMode === 'standalone' ? candidate : ''}`} label="Candidate" ownerSnapshotId={ownerSnapshotId} firmwareId={candidateMode === 'standalone' ? candidate : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setCandidateContextPending(pending); if (candidateMode === 'occurrence') setCandidate(context.firmware_revision_id || ''); setCandidateContext(context); }} />}
       <EvidenceSelector key={pickerKey} workspaceId={workspaceId} onChange={ids => { clear(); setAssertions(ids); }} onDenied={deny} />
       {baselineContextPending && <Text>Reading baseline assigned firmware…</Text>}
       {candidateContextPending && <Text>Reading candidate assigned firmware…</Text>}
@@ -97,13 +104,13 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
         {shown && <RecordResult fingerprint={result.comparison_sha256} record={key => recordFirmwareImpact(shown, result.comparison_sha256, key)} partial={observationRange(result)} />}
         <Group><Button disabled={busy || result.observation_offset === 0} onClick={() => { void inspect(Math.max(0, result.observation_offset - 100)); }}>Previous impact observations</Button><Button disabled={busy || !result.observations_has_more} onClick={() => { void inspect(result.observation_offset + 100); }}>Next impact observations</Button></Group>
       </>}
-    </>}
-  </Stack></Card>;
+    </div>}
+  </Stack></Card></div>;
 }
 
-function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: { label: string; firmwareId?: string; assemblies: Definition[]; onDenied: (message: string) => void; onChange: (context: Partial<FirmwareReference>, pending?: boolean) => void }) {
+function ContextSelector({ label, firmwareId, assemblies, ownerSnapshotId, onChange, onDenied }: { ownerSnapshotId?: string | null; label: string; firmwareId?: string; assemblies: Definition[]; onDenied: (message: string) => void; onChange: (context: Partial<FirmwareReference>, pending?: boolean) => void }) {
   const generation = useRef(0);
-  const [definition, setDefinition] = useState('');
+  const [definition, setDefinition] = useState(''), [useCurrent, setUseCurrent] = useState(!!ownerSnapshotId);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [offset, setOffset] = useState(0);
   const [revision, setRevision] = useState('');
@@ -114,11 +121,14 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
   useEffect(() => {
     const token = ++generation.current;
     setIdentity(null); setInspection(null); setRevision(''); setPath(''); setAssigned(null); setError('');
-    if (definition) read<Identity>(`catalog/definitions/${definition}?offset=${offset}`)
+    if (useCurrent && ownerSnapshotId) operation<OccurrenceInspection>('firmware_occurrence.inspect', { snapshot_id: ownerSnapshotId })
+      .then(value => { if (token === generation.current) setInspection(value); })
+      .catch((failure: Error) => { if (token === generation.current) { setError(failure.message); onDenied(failure.message); } });
+    else if (definition) read<Identity>(`catalog/definitions/${definition}?offset=${offset}`)
       .then(value => { if (token === generation.current) setIdentity(value); })
       .catch((failure: Error) => { if (token === generation.current) { setError(failure.message); onDenied(failure.message); } });
     return () => { generation.current++; };
-  }, [definition, offset]);
+  }, [definition, offset, useCurrent, ownerSnapshotId]);
   async function choose(value: string) {
     const token = ++generation.current;
     setRevision(value); setInspection(null); setPath(''); setAssigned(null); setError(''); onChange({});
@@ -144,7 +154,8 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
     } catch (failure) { if (token === generation.current) { setError((failure as Error).message); onDenied((failure as Error).message); } }
   }
   return <Stack>
-    <NativeSelect label={`${label} assembly context${firmwareId ? ' (optional)' : ''}`} value={definition} data={[{ value: '', label: firmwareId ? 'No contextual occurrence selected' : 'Select assembly' }, ...assemblies.map(item => ({ value: item.definition_id, label: item.name }))]} onChange={event => { onChange({}); setDefinition(event.currentTarget.value); setOffset(0); }} />
+    {useCurrent && <Group><Text>{label}: current frozen Device snapshot</Text><Button variant="quiet" onClick={() => { onChange({}); setUseCurrent(false); }}>Choose another {label.toLowerCase()} Device</Button></Group>}
+    {!useCurrent && <NativeSelect label={`${label} assembly context${firmwareId ? ' (optional)' : ''}`} value={definition} data={[{ value: '', label: firmwareId ? 'No contextual occurrence selected' : 'Select assembly' }, ...assemblies.map(item => ({ value: item.definition_id, label: item.name }))]} onChange={event => { onChange({}); setDefinition(event.currentTarget.value); setOffset(0); }} />}
     {identity && <>
       <NativeSelect label={`${label} frozen assembly revision`} value={revision} data={[{ value: '', label: 'Select frozen assembly' }, ...identity.revisions.map(item => ({ value: item.revision_id, label: `Frozen revision ${item.number}` }))]} onChange={event => { void choose(event.currentTarget.value); }} />
       <Group><Button disabled={!offset} onClick={() => { onChange({}); setOffset(Math.max(0, offset - 50)); }}>Previous {label.toLowerCase()} assembly revisions</Button><Button disabled={identity.revisions.length < 50} onClick={() => { onChange({}); setOffset(offset + 50); }}>Next {label.toLowerCase()} assembly revisions</Button></Group>

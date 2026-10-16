@@ -18,13 +18,13 @@ function constraintLabel(row: ResolvedSummary) {
   return outcome === 'invalid' ? 'constraints invalid, cannot be built' : `constraints ${outcome.replace('_', ' ')}`;
 }
 
-type Props = FirmwareBuildRef;
-export function FirmwareBuildPanel({ firmware_revision_id, assembly_snapshot_id = null, path = [] }: Props) {
+type Props = FirmwareBuildRef & { active?: boolean };
+export function FirmwareBuildPanel({ firmware_revision_id, assembly_snapshot_id = null, path = [], active: visible = true }: Props) {
   const scopeKey = JSON.stringify([firmware_revision_id, assembly_snapshot_id, path]);
-  return <CompilerWorkspace key={scopeKey} reference={{ firmware_revision_id, assembly_snapshot_id, path }} />;
+  return <div hidden={!visible} inert={!visible || undefined}><CompilerWorkspace key={scopeKey} reference={{ firmware_revision_id, assembly_snapshot_id, path }} visible={visible} /></div>;
 }
-function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
-  const canExecute = useCan('build.execute');
+function CompilerWorkspace({ reference, visible }: { reference: FirmwareBuildRef; visible: boolean }) {
+  const canExecute = useCan('build.execute') && visible;
   const [available, setAvailable] = useState<CompileOptions>();
   const [review, setReview] = useState<CompileReview>();
   const [error, setError] = useState('');
@@ -40,6 +40,7 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
   const selected = useRef<string | null>(null);
   const retry = useRef<{ key: string; payload: object } | null>(null);
   const refresh = useCallback(async (buildId = selected.current) => {
+    if (!visible) return;
     const token = ++generation.current;
     active.current?.abort();
     const controller = new AbortController(); active.current = controller;
@@ -58,14 +59,15 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
       // authority is restored; the hidden payload never grants execution access.
       setError(reason instanceof Error ? reason.message : 'Compiler review unavailable.');
     } finally { if (alive.current && token === generation.current && !controller.signal.aborted) setBusy(false); }
-  }, [reference]);
+  }, [reference, visible]);
   useEffect(() => {
+    if (!visible) return;
     alive.current = true;
     void refresh(null);
     const focus = () => void refresh();
     window.addEventListener('focus', focus);
     return () => { alive.current = false; generation.current += 1; active.current?.abort(); window.removeEventListener('focus', focus); };
-  }, [refresh]);
+  }, [refresh, visible]);
   const workspaceId = available?.workspace_id;
   useEffect(() => {
     // Only complete, same-workspace captures are offered; a failed read offers none rather than guessing.
@@ -77,7 +79,7 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
   }, [canExecute, workspaceId]);
   async function compile() {
     const recipeId = available?.available_recipe_id;
-    if (!recipeId || !consent || !basis.trim()) return;
+    if (!visible || !recipeId || !consent || !basis.trim()) return;
     const payload = { ...reference, recipe_id: recipeId, source_execution_authorized: true, basis: basis.trim(), ...(configurationId ? { resolved_configuration_id: configurationId } : {}) };
     if (!retry.current || JSON.stringify(retry.current.payload) !== JSON.stringify(payload)) retry.current = { key: randomUUID(), payload };
     const token = ++generation.current; active.current?.abort();

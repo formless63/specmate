@@ -405,6 +405,17 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       expect(await screen.findByLabelText("Stock name")).toBeTruthy();
       continue;
     }
+    if (toolId === "occurrence-firmware") {
+      const browse = screen.queryByRole("button", { name: "Browse designs" });
+      if (browse) fireEvent.click(browse);
+      fireEvent.click(screen.getByRole("button", { name: "Library" }));
+      fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Firmware definition" }));
+      expect(await screen.findByRole("textbox", { name: "Firmware name" })).toBeTruthy();
+      expect(screen.getByRole("textbox", { name: "Toolchain name" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Show firmware" })).toBeNull();
+      continue;
+    }
     if (toolId === "facts") {
       // The retired global workspace returns to Library; registration is an explicit New action.
       expect(window.location.pathname).toBe("/library");

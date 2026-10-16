@@ -41,7 +41,7 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   // Boards and their populations as workspace items; PCB intake below works on one native source.
   pcb: { ...definitions(["board", "pcb_population"], "Boards", "board record"), create: "item.create" },
   "pcb-disagreement": definitions(["pcb_assertion", "pcb_comparison"], "PCB source reviews", "PCB review"),
-  "occurrence-firmware": definitions(["firmware"], "Firmware", "firmware definition"),
+  "occurrence-firmware": { ...definitions(["firmware"], "Firmware", "firmware definition"), create: "item.create" },
   configurations: definitions(["option_set", "configuration"], "Options and configurations", "configuration"),
   "mechanical-sources": definitions(["mechanical_source"], "Mechanical sources", "mechanical source"),
   bom: definitions(["bom_plan"], "BOM plans", "BOM plan"),

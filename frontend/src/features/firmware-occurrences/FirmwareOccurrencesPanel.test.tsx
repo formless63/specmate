@@ -1,10 +1,12 @@
 import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { StrictMode } from 'react';
+import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { FirmwareRead } from '../firmware/api';
 import type { OccurrenceInspection, SelectionReview } from './api';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Owner } from './api';
 import { FirmwareOccurrencesPanel } from './FirmwareOccurrencesPanel';
 
 const declared: FirmwareRead = {
@@ -26,6 +28,7 @@ function response(value: unknown, status = 200) { return new Response(JSON.strin
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+let selectOwner: (frozen: boolean) => void;
 function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: boolean; strict?: boolean } = {}) {
   const bodies: Record<string, any>[] = [];
   let denied = false;
@@ -56,21 +59,20 @@ function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: 
     throw new Error(`Unexpected request ${url}`);
   });
   vi.stubGlobal('fetch', mock);
-  const panel = <MantineProvider><PermissionsProvider permissions={options.canEdit === false ? ['workspace.read'] : ['design.edit']}><FirmwareOccurrencesPanel workspaceId="workspace-a" /></PermissionsProvider></MantineProvider>;
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Host() { const [owner, setOwner] = useState<Owner | null>(null); selectOwner = frozen => setOwner(frozen ? { snapshot_id: 'frozen-snapshot' } : { draft_id: 'assembly-draft' }); return <FirmwareOccurrencesPanel owner={owner} principalKey="owner" />; }
+  const panel = <MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={options.canEdit === false ? ['workspace.read'] : ['design.edit']}><Host /></PermissionsProvider></QueryClientProvider></MantineProvider>;
   const rendered = render(options.strict ? <StrictMode>{panel}</StrictMode> : panel);
   return { bodies, mock, deny: () => { denied = true; }, restore: () => { denied = false; }, rendered };
 }
 async function open(frozen = false) {
-  fireEvent.click(screen.getByRole('button', { name: 'Show occurrence firmware' }));
-  await screen.findByRole('option', { name: 'Synthetic pair' });
-  fireEvent.change(screen.getByLabelText('Owning assembly'), { target: { value: 'asm' } });
-  await screen.findByLabelText('Assembly draft or frozen revision');
-  fireEvent.change(screen.getByLabelText('Assembly draft or frozen revision'), { target: { value: frozen ? 'revision:frozen-asm' : 'draft:assembly-draft' } });
+  act(() => selectOwner(frozen));
   await screen.findByRole('cell', { name: /left\/board · A1/ });
 }
 async function review() {
   fireEvent.change(screen.getByLabelText('Exact board occurrence'), { target: { value: JSON.stringify(['right', 'board']) } });
-  fireEvent.change(screen.getByLabelText('Frozen firmware for this occurrence'), { target: { value: 'fw-900' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Advanced: paste exact revision ID for Frozen firmware for this occurrence' }));
+  fireEvent.change(screen.getByLabelText('Frozen firmware for this occurrence exact revision ID'), { target: { value: 'fw-900' } });
   fireEvent.click(screen.getByRole('button', { name: 'Review occurrence firmware selection' }));
   await screen.findByText('BLINK_MS=900');
 }
@@ -158,11 +160,11 @@ test('frozen assembly inspection resolves exact snapshot with no mutation contro
   expect(screen.queryByLabelText('Exact board occurrence')).toBeNull();
 });
 
-test('project changes unmount retained selections and evidence', async () => {
+test('principal changes fence retained selections and evidence', async () => {
   const { rendered } = setup(); await open(); await review();
-  rendered.rerender(<MantineProvider><PermissionsProvider permissions={['design.edit']}><FirmwareOccurrencesPanel workspaceId="workspace-b" /></PermissionsProvider></MantineProvider>);
+  rendered.rerender(<MantineProvider><PermissionsProvider permissions={['design.edit']}><FirmwareOccurrencesPanel owner={null} principalKey="replacement" /></PermissionsProvider></MantineProvider>);
   expect(screen.queryByText('BLINK_MS=900')).toBeNull();
-  expect(screen.getByRole('button', { name: 'Show occurrence firmware' })).toBeTruthy();
+  expect(screen.getByText(/Select a saved Device draft or frozen revision/)).toBeTruthy();
 });
 
 
@@ -202,7 +204,8 @@ test.each([200, 404])('a delayed previous selection review (%s) does not restore
     return body?.operation === 'firmware_occurrence.review' ? pending.promise : allowed(url, init);
   });
   fireEvent.change(screen.getByLabelText('Exact board occurrence'), { target: { value: JSON.stringify(['right', 'board']) } });
-  fireEvent.change(screen.getByLabelText('Frozen firmware for this occurrence'), { target: { value: 'fw-900' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Advanced: paste exact revision ID for Frozen firmware for this occurrence' }));
+  fireEvent.change(screen.getByLabelText('Frozen firmware for this occurrence exact revision ID'), { target: { value: 'fw-900' } });
   fireEvent.click(screen.getByRole('button', { name: 'Review occurrence firmware selection' }));
   fireEvent.change(screen.getByLabelText('Exact board occurrence'), { target: { value: JSON.stringify(['left', 'board']) } });
   await act(async () => { pending.resolve(status === 200 ? response({ result: preview }) : response({ error: { message: 'Old selection denied' } }, 404)); await pending.promise; });

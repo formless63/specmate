@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { RecordSections } from '../../components/record';
 import { RevisionLabel } from '../../lib/IdentityLabel';
 import { configurationConfig } from '../configurations/ConfigurationRecords';
-import { FirmwarePanel } from '../firmware/FirmwarePanel';
+import { FirmwareAssignmentReview } from '../firmware/FirmwareAssignmentReview';
+import { FirmwareRecords } from '../firmware/FirmwareRecords';
 import { FirmwareOccurrencesPanel } from '../firmware-occurrences/FirmwareOccurrencesPanel';
 import { FirmwareImpactPanel } from '../firmware-impact/FirmwareImpactPanel';
 import { interfaceConfig } from '../interfaces/InterfaceRecords';
@@ -24,9 +25,10 @@ export function DeviceSections(props: DeviceSectionProps) {
     {props.section === 'enclosure' && <MechanicalProposalFields active={props.active} workspaceId={props.workspaceId} principalKey={props.principalKey} />}
     {props.section === 'drawings' && <><Text size="sm">Drawing generation uses an explicitly chosen frozen scene snapshot. Captured draft previews are not frozen drawing inputs.</Text><SceneDrawingFields workspaceId={props.workspaceId} principalKey={props.principalKey} active={props.active} /></>}
     {props.section === 'firmware' && <RecordSections sections={[
-      { id: 'declarations', label: 'Firmware declarations and builds', content: () => <FirmwarePanel workspaceId={props.workspaceId} /> },
-      { id: 'occurrences', label: 'Review firmware on repeated boards', content: () => <FirmwareOccurrencesPanel workspaceId={props.workspaceId} /> },
-      { id: 'impact', label: 'Compare exact firmware impact', content: () => <FirmwareImpactPanel workspaceId={props.workspaceId} /> },
+      { id: 'declarations', label: 'Firmware declarations and builds', content: () => <FirmwareRecords embedded active={props.active} principalKey={props.principalKey} workspaceId={props.workspaceId} /> },
+      { id: 'occurrences', label: 'Review firmware on repeated boards', content: () => <FirmwareOccurrencesPanel active={props.active} principalKey={props.principalKey} owner={props.draftDirty ? null : props.draftId ? { draft_id: props.draftId } : props.snapshotId ? { snapshot_id: props.snapshotId } : null} /> },
+      { id: 'assigned-targets', label: 'Review assigned firmware targets', content: () => <FirmwareAssignmentReview snapshotId={props.snapshotId} principalKey={props.principalKey} active={props.active} /> },
+      { id: 'impact', label: 'Compare exact firmware impact', content: () => <FirmwareImpactPanel active={props.active} principalKey={props.principalKey} workspaceId={props.workspaceId} ownerSnapshotId={props.snapshotId} /> },
     ]} />}
   </Stack></div></ProbeProvider>;
 }

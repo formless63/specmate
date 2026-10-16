@@ -69,8 +69,7 @@ const SelectedPackagesPanel = lazy(() => import("./features/selected-packages/Se
 const ExportPackagesPanel = lazy(() => import("./features/export-packages/ExportPackagesPanel").then((module) => ({ default: module.ExportPackagesPanel })));
 const ProductsWorkspace = lazy(() => import("./features/products/ProductsWorkspace").then(module => ({ default: module.ProductsWorkspace })));
 const ReleasesPanel = lazy(() => import("./features/releases/ReleasesPanel").then((module) => ({ default: module.ReleasesPanel })));
-const FirmwarePanel = lazy(() => import("./features/firmware/FirmwarePanel").then((module) => ({ default: module.FirmwarePanel })));
-const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
+const FirmwareRecords = lazy(() => import("./features/firmware/FirmwareRecords").then(module => ({ default: module.FirmwareRecords })));
 const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/FirmwareImpactPanel").then((module) => ({ default: module.FirmwareImpactPanel })));
 const ConfigurationLibrary = lazy(() => import("./features/configurations/ConfigurationRecords").then(module => ({ default: module.ConfigurationLibrary })));
 const MechanicalSourcesPanel = lazy(() => import("./features/mechanical-sources/MechanicalSourcesPanel").then((module) => ({ default: module.MechanicalSourcesPanel })));
@@ -254,6 +253,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (BOARD_RECORD_SECTIONS[toolId] && (!record || ["board", "pcb_population"].includes(record.kind ?? ""))) return <Text role="status">Opening the exact board section…</Text>;
   if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
+  if (toolId === "occurrence-firmware") return <FirmwareRecords active={lens.active === toolId} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projects={scope.projects} onOpenInProject={(id, record) => onOpenInProject(id, toolId, record)} />;
   if (toolId === "facts") return <FactRecords principalKey={scope.principalKey} workspaceId={scope.workspaceId} active={lens.active === toolId} projects={scope.projects} />;
   if (["intents", "cable-test-intent"].includes(toolId)) return <CableSecondaryRecord kind={toolId === "intents" ? "cable_intent" : "cable_test_plan"} projects={scope.projects} onOpenInProject={(id, record) => onOpenInProject(id, toolId, record)} record={record} workspaceId={scope.workspaceId} principalKey={scope.principalKey} active={lens.active === toolId} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
@@ -283,7 +283,7 @@ type LensContext = {
 };
 
 /** One workspace-level lens, mounted at Library scope (projectId null) or inside a project (projectId as context). */
-function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusChanged, upgradeProposalId, setUpgradeProposalId }: LensContext & { toolId: string }) {
+function WorkspaceLens({ toolId, scope, projectId, active, onStatusChanged, upgradeProposalId, setUpgradeProposalId }: LensContext & { toolId: string }) {
   const { principalKey, workspaceId } = scope;
   const navigation = useNavigation();
   const onAccessChanged = scope.refresh;
@@ -326,7 +326,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   const onAccessChanged = scope.refresh;
   switch (toolId) {
     // Firmware definitions are declared here; per-occurrence firmware choices follow.
-    case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;
     case "mechanical-sources": return <MechanicalSourcesPanel workspaceId={workspaceId} />;
     case "bom": return <BomPanel active={active === toolId} projectId={projectId} workspaceId={workspaceId} />;
     case "material-accounting": return <MaterialAccountingPanel active={active === toolId} projectId={projectId} />;

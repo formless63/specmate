@@ -3,77 +3,19 @@ import { Alert, Button, Card, Group, NativeSelect, Stack, Table, Text, Textarea,
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { FirmwareBuildPanel } from '../firmware-builds/FirmwareBuildPanel';
-import type { FirmwareRead, FirmwareSummary } from '../firmware/api';
-import { read, type Definition, type Identity } from '../identity/api';
+import type { FirmwareRead } from '../firmware/api';
 import { operation, type Adoption, type OccurrenceInspection, type Owner, type SelectionReview, type Submission } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { ReadOnlyNote, useCan } from "../../lib/permissions";
 
-import { newestFirst } from '../../lib/revision-labels';
-export function FirmwareOccurrencesPanel({ workspaceId }: { workspaceId: string }) {
-  return <Workspace key={workspaceId} workspaceId={workspaceId} />;
+import { RevisionPicker } from '../cables/RevisionPicker';
+import { DefinitionPickerScope } from '../../components/library/DefinitionSelect';
+export function FirmwareOccurrencesPanel({ owner, active = true, principalKey = 'standalone' }: { owner: Owner | null; active?: boolean; principalKey?: string }) {
+  return owner ? <DefinitionPickerScope.Provider value={{ key: `${principalKey}:occurrence-firmware`, active }}><OccurrenceWorkspace key={`${principalKey}:${JSON.stringify(owner)}`} owner={owner} active={active} /></DefinitionPickerScope.Provider> : <Text>Select a saved Device draft or frozen revision to review its firmware assignments.</Text>;
 }
 
-function Workspace({ workspaceId }: { workspaceId: string }) {
-  const [opened, setOpened] = useState(false);
-  return <Card withBorder><Stack>
-    <Title order={3}>Firmware on repeated boards</Title>
-    <Text>Choose firmware independently for each exact contextual board occurrence. Review its frozen sources, configuration and population before adopting the selection.</Text>
-    <Button onClick={() => setOpened(!opened)}>{opened ? 'Hide occurrence firmware' : 'Show occurrence firmware'}</Button>
-    {opened && <Selector workspaceId={workspaceId} />}
-  </Stack></Card>;
-}
-
-function Selector({ workspaceId }: { workspaceId: string }) {
-  const selectionGeneration = useRef(0);
-  const [definitions, setDefinitions] = useState<Definition[]>([]);
-  const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
-  const [definition, setDefinition] = useState('');
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  const [owner, setOwner] = useState<Owner | null>(null);
-  const [error, setError] = useState('');
-  const [offset, setOffset] = useState(0);
-  useEffect(() => {
-    let active = true;
-    selectionGeneration.current++;
-    setDefinitions([]); setFirmware([]); setError('');
-    Promise.all([read<Definition[]>(`workspaces/${workspaceId}/definitions`), read<{ firmware: FirmwareSummary[] }>(`pcb/workspaces/${workspaceId}/firmware`)])
-      .then(([items, records]) => { if (active) { setDefinitions(items.filter((item) => item.kind === 'assembly')); setFirmware(records.firmware); } })
-      .catch((failure: Error) => { if (active) { setDefinitions([]); setFirmware([]); setError(failure.message); } });
-    return () => { active = false; };
-  }, [workspaceId]);
-  useEffect(() => {
-    let active = true;
-    selectionGeneration.current++;
-    setIdentity(null); setOwner(null);
-    if (definition) read<Identity>(`catalog/definitions/${definition}?offset=${offset}`)
-      .then((data) => { if (active) setIdentity(data); })
-      .catch((failure: Error) => { if (active) { setIdentity(null); setError(failure.message); } });
-    return () => { active = false; selectionGeneration.current++; };
-  }, [definition, offset]);
-  async function choose(value: string) {
-    const token = ++selectionGeneration.current;
-    setOwner(null); setError('');
-    if (!value) return;
-    if (value.startsWith('draft:')) { setOwner({ draft_id: value.slice(6) }); return; }
-    try {
-      const revision = await read<{ snapshot_id: string }>(`revisions/${value.slice(9)}`);
-      if (token === selectionGeneration.current) setOwner({ snapshot_id: revision.snapshot_id });
-    } catch (failure) { if (token === selectionGeneration.current) setError((failure as Error).message); }
-  }
-  return <Stack>
-    {error && <Alert color="red">{error}</Alert>}
-    <NativeSelect label="Owning assembly" value={definition} data={[{ value: '', label: 'Select an assembly' }, ...definitions.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => { setDefinition(event.currentTarget.value); setOffset(0); }} />
-    {identity && <>
-      <NativeSelect key={`${definition}:${offset}`} label="Assembly draft or frozen revision" defaultValue="" data={[{ value: '', label: 'Select exact assembly state' }, ...identity.drafts.map((item) => ({ value: `draft:${item.draft_id}`, label: `Draft ${item.draft_id} · ${item.state}` })), ...identity.revisions.map((item) => ({ value: `revision:${item.revision_id}`, label: `Frozen revision ${item.number}` }))]} onChange={(event) => { void choose(event.currentTarget.value); }} />
-      <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous assembly states</Button><Button disabled={Math.max(identity.drafts.length, identity.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next assembly states</Button></Group>
-    </>}
-    {owner && <OccurrenceWorkspace key={JSON.stringify(owner)} owner={owner} firmware={firmware} />}
-  </Stack>;
-}
-
-function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: FirmwareSummary[] }) {
-  const canEdit = useCan('design.edit');
+function OccurrenceWorkspace({ owner, active }: { owner: Owner; active: boolean }) {
+  const canEdit = useCan('design.edit') && active;
   const generation = useRef(0);
   const [inspection, setInspection] = useState<OccurrenceInspection | null>(null);
   const [path, setPath] = useState('');
@@ -87,6 +29,7 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
   function clear() { generation.current++; setPreview(null); setAdoption(null); setSubmission(null); setError(''); setBusy(false); }
   async function refresh() {
     const token = ++generation.current;
+    if (!active) { setInspection(null); return; }
     setInspection(null); setPreview(null); setAdoption(null); setError(''); setBusy(true);
     try { const result = await operation<OccurrenceInspection>('firmware_occurrence.inspect', owner); if (token === generation.current) setInspection(result); }
     catch (failure) { if (token === generation.current) setError((failure as Error).message); }
@@ -97,11 +40,12 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
     const focus = () => { void refresh(); };
     window.addEventListener('focus', focus);
     return () => { generation.current++; window.removeEventListener('focus', focus); };
-  }, []); // Owner changes remount the workspace; focus checks discard retained private evidence.
+  }, [active]); // Exact owner changes remount the workspace; activation/focus recheck current closure.
   async function review() {
     const token = ++generation.current;
     setPreview(null); setAdoption(null); setSubmission(null); setBusy(true); setError('');
     try {
+      if (!active) return;
       const result = await operation<SelectionReview>('firmware_occurrence.review', { draft_id: owner.draft_id, path: JSON.parse(path), firmware_revision_id: candidate || null });
       if (token === generation.current) setPreview(result);
     } catch (failure) { if (token === generation.current) { setInspection(null); setError((failure as Error).message); } }
@@ -127,7 +71,7 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
     catch (failure) { if (token === generation.current) { setInspection(null); setError((failure as Error).message); } }
     finally { if (token === generation.current) setBusy(false); }
   }
-  return <Stack>
+  return <div hidden={!active} inert={!active || undefined}><Stack>
     <Text>{owner.snapshot_id ? 'Compilation: inspect an exact frozen occurrence for retained evidence' : 'Compilation: not performed for this draft'} · Flashing: not performed · Device operation: not observed</Text>
     <Button disabled={busy} onClick={() => { void refresh(); }}>Refresh occurrence firmware</Button>
     {error && <Alert color="red">{error}</Alert>}
@@ -138,12 +82,13 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
       {owner.snapshot_id && <>
         <NativeSelect label="Frozen board occurrence for compilation" value={path} data={[{ value: '', label: 'Select an exact frozen board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
         {inspection.occurrences.filter((item) => item.kind === 'pcb_population' && JSON.stringify(item.path) === path).map((item) => item.firmware_revision_id
-          ? <FirmwareBuildPanel key={path} firmware_revision_id={item.firmware_revision_id} assembly_snapshot_id={owner.snapshot_id} path={item.path} />
+          ? <FirmwareBuildPanel active={active} key={path} firmware_revision_id={item.firmware_revision_id} assembly_snapshot_id={owner.snapshot_id} path={item.path} />
           : <Text key={path}>This exact frozen occurrence has no assigned firmware to compile.</Text>)}
       </>}
       {owner.draft_id && <>
         <NativeSelect label="Exact board occurrence" value={path} data={[{ value: '', label: 'Select a board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
-        <NativeSelect label="Frozen firmware for this occurrence" value={candidate} data={[{ value: '', label: 'Explicitly unassigned' }, ...firmware.flatMap((item) => newestFirst(item.revisions).map((revision) => ({ value: revision.revision_id, label: `${item.name} revision ${revision.number}` })))]} onChange={(event) => { clear(); setCandidate(event.currentTarget.value); }} />
+        <RevisionPicker label="Frozen firmware for this occurrence" kind="firmware" value={candidate} onChange={value => { clear(); setCandidate(value); }} />
+        <Button variant="quiet" disabled={!active || !candidate} onClick={() => { clear(); setCandidate(''); }}>Leave occurrence explicitly unassigned</Button>
         <Button disabled={!path || busy} onClick={() => { void review(); }}>Review occurrence firmware selection</Button>
         {inspection.adoptions.map((item) => <Button key={item.adoption_id} variant="subtle" disabled={busy} onClick={() => { void inspectEvidence(item.adoption_id); }}>Inspect adoption {item.path.join('/')} · {item.basis}</Button>)}
         {inspection.history_truncated && <Text>Only the latest 100 adoption records are listed.</Text>}
@@ -162,7 +107,7 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
       {adoption.review.previous && <Declaration label="Historical previous firmware" value={adoption.review.previous} />}
       {adoption.review.candidate && <Declaration label="Historical adopted firmware" value={adoption.review.candidate} />}
     </Stack></Card>}
-  </Stack>;
+  </Stack></div>;
 }
 
 function Declaration({ label, value }: { label: string; value: FirmwareRead }) {

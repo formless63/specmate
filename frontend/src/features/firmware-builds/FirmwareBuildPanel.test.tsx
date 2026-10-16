@@ -238,3 +238,12 @@ test('an identical compile request offers the matched attempt for reuse, gated b
   // Reuse runs nothing: no compile request was sent.
   expect(command).not.toHaveBeenCalled();
 });
+
+test('inactive compiler disclosure makes no focus reads and resumes with its prepared basis', async () => {
+  const tree = (active: boolean) => <MantineProvider env="test"><PermissionsProvider permissions={grants({ execute: true })}><FirmwareBuildPanel active={active} firmware_revision_id="firmware-one" /></PermissionsProvider></MantineProvider>;
+  const view = render(tree(false)); expect(compileOptions).not.toHaveBeenCalled();
+  view.rerender(tree(true)); fireEvent.change(await screen.findByLabelText('Source execution review basis'), { target: { value: 'Prepared exact source review' } });
+  const reads = vi.mocked(compileOptions).mock.calls.length; view.rerender(tree(false)); fireEvent(window, new Event('focus')); expect(compileOptions).toHaveBeenCalledTimes(reads);
+  expect(screen.queryByRole('textbox', { name: 'Source execution review basis' })).toBeNull();
+  view.rerender(tree(true)); expect(await screen.findByRole('textbox', { name: 'Source execution review basis' })).toHaveProperty('value', 'Prepared exact source review');
+});

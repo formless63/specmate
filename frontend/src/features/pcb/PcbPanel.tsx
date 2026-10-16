@@ -4,7 +4,6 @@ import { command, getIntake, listIntakes, listPopulations, PcbRequestError, pres
 import { PopulationEditor } from "./PopulationEditor";
 import { UpgradeOffer, UpgradeProvenance } from "./FormatUpgrade";
 import { PcbFabricationPanel } from "../pcb-fabrication/PcbFabricationPanel";
-import { FirmwarePanel } from "../firmware/FirmwarePanel";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
@@ -20,7 +19,7 @@ export function orderIntakes(items: IntakeSummary[]): IntakeSummary[] {
   return items.map((item, index) => ({ item, index })).sort((a, b) => tier(a.item) - tier(b.item) || a.index - b.index).map(({ item }) => item);
 }
 
-function ProjectPanel({ workspaceId, projectId, initialIntakeId, standalone = false, active = true }: PcbPanelProps) {
+function ProjectPanel({ workspaceId, projectId, initialIntakeId, active = true }: PcbPanelProps) {
   const [items, setItems] = useState<IntakeSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(initialIntakeId ?? null);
   const [intake, setIntake] = useState<Intake | null>(null);
@@ -181,7 +180,6 @@ function ProjectPanel({ workspaceId, projectId, initialIntakeId, standalone = fa
         onChanged={() => selected && load(selected)} onAccessLost={failure}
       />}
     </Stack>}
-    {!standalone && !accessLost && <FirmwarePanel workspaceId={workspaceId} />}
   </Stack>;
 }
 

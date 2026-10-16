@@ -348,3 +348,14 @@ test('a partial comparison states which observations a record would hold', async
   render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
   expect(await screen.findByText('Partial record: observations 101–101 of 250. Other observations in scope are not recorded.')).toBeTruthy();
 });
+
+test('Device comparison uses its exact frozen owner directly while preserving firmware own IDs', async () => {
+  render(<MantineProvider env="test"><FirmwareImpactPanel workspaceId="workspace-one" principalKey="owner" ownerSnapshotId="exact-device-snapshot" /></MantineProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' })); await screen.findByLabelText('Baseline input mode');
+  fireEvent.change(screen.getByLabelText('Baseline input mode'), { target: { value: 'occurrence' } });
+  await screen.findByLabelText('Baseline exact board occurrence');
+  expect(operation).toHaveBeenCalledWith('firmware_occurrence.inspect', { snapshot_id: 'exact-device-snapshot' });
+  expect(screen.queryByLabelText('Baseline assembly context')).toBeNull();
+  fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: JSON.stringify(['left', 'board']) } });
+  await screen.findByText(/Baseline assigned firmware:/);
+});
