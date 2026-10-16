@@ -348,6 +348,14 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
   for (const toolId of toolIds) {
     const view = LIBRARY_VIEWS[toolId]!;
     const tool = ROUTE_TOOLS.find(item => item.id === toolId)!;
+    if (["preparation", "end-preparation"].includes(toolId)) {
+      const href = formatLocation({ ...HOME, area: "library", lens: toolId, filters: { status: "new" } });
+      await act(async () => window.history.pushState(null, '', href));
+      expect(await screen.findByRole("textbox", { name: toolId === "preparation" ? "Preparation profile name" : "End preparation profile name" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Save draft" })).toHaveProperty("disabled", true);
+      expect(screen.queryByRole("region", { name: `${view.title} editor` })).toBeNull();
+      continue;
+    }
     if (toolId === "cables") {
       fireEvent.click(screen.getByRole("button", { name: "Designs" }));
       fireEvent.click(await screen.findByRole("button", { name: "New design" }));
