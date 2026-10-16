@@ -113,6 +113,12 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
 
 /** Choose a rail entry, then its fixed tab or existing tool in Advanced. */
 async function openTool(label: string) {
+  if (label === "Mechanical sources") return openTool("Shells & hardware");
+  if (["Conductor conventions", "Workshop profiles", "Evidence kinds"].includes(label)) {
+    await openTool("Vocabulary");
+    fireEvent.click(screen.getByRole("button", { name: label === "Conductor conventions" ? "Conventions" : label, exact: true }));
+    return;
+  }
   const area = AREAS.find((item) => item.tools.some((tool) => tool.label === label));
   if (!area) throw new Error(`Unknown tool ${label}`);
   const rail = screen.getByRole("button", { name: area.label });
@@ -141,7 +147,7 @@ async function openAuthenticatedProjectTools() {
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   await openProject("Project A");
   await openTool("Parts");
-  await screen.findByRole("heading", { name: "Reusable identities" });
+  await screen.findByRole("heading", { name: "Parts" });
 }
 
 test("sign-in opens scoped project tools and lazily mounts stock, intake and inventory", async () => {
@@ -164,15 +170,16 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(screen.getByRole("tablist", { name: "Projects sections" })).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Projects" }).getAttribute("aria-selected")).toBe("true");
   await openTool("Parts");
-  await screen.findByRole("heading", { name: "Reusable identities" });
+  await screen.findByRole("heading", { name: "Parts" });
   expect(screen.getByRole("tablist", { name: "Library sections" })).toBeTruthy();
-  expect(fetchMock).toHaveBeenCalledWith("/api/v0/catalog/definitions?limit=100", expect.anything());
+  expect(fetchMock.mock.calls.some(([path]) => path.startsWith("/api/v0/workspace/library-table?") && new URL(path, "http://synthetic").searchParams.get("catalog_class") === "parts")).toBe(true);
+  expect(fetchMock.mock.calls.some(([path]) => path === "/api/v0/catalog/definitions?limit=100")).toBe(false);
   expect(fetchMock.mock.calls.some(([path]) => path.includes("/stocks") || path.includes("/intakes") || path.includes("/inventory/"))).toBe(false);
   await openTool("Wire stocks");
   await screen.findByRole("heading", { name: "Wire stocks" });
   expect(screen.getByRole("button", { name: "New wire stock" })).toBeTruthy();
   expect(fetchMock.mock.calls.some(([path]) => path.startsWith("/api/v0/stocks"))).toBe(false);
-  expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Parts" })).toBeNull();
   await openTool("Boards");
   await screen.findByRole("heading", { name: "Boards" });
   expect(fetchMock.mock.calls.some(([path]) => path === "/api/v0/pcb/workspaces/w1/intakes")).toBe(false);
@@ -192,8 +199,8 @@ test("firmware and mechanical tools mount with scoped read controls", async () =
   await screen.findByRole("heading", { name: "Firmware on repeated boards" });
   expect(screen.getByRole("button", { name: "Show occurrence firmware" })).toBeTruthy();
   await openTool("Mechanical sources");
-  await screen.findByRole("heading", { name: "Mechanical sources" });
-  expect(screen.getByRole("button", { name: "Refresh mechanical sources" })).toBeTruthy();
+  await screen.findByRole("heading", { name: "Shells & hardware" });
+  expect(screen.getByRole("button", { name: "New enclosure or mechanical source" })).toBeTruthy();
   await openTool("Firmware impact");
   await screen.findByRole("heading", { name: "Firmware change and observation review" });
   expect(screen.getByRole("button", { name: "Show firmware impact" })).toBeTruthy();
@@ -361,6 +368,13 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       const list = await screen.findByRole("region", { name: "Wire stocks" });
       fireEvent.click(within(list).getByRole("button", { name: "New wire stock" }));
       expect(await screen.findByLabelText("Stock name")).toBeTruthy();
+      continue;
+    }
+    if (["identity", "mechanical-sources"].includes(toolId)) {
+      const current = toolId === "mechanical-sources" ? TYPED_LIBRARY_VIEWS.hardware! : typed!;
+      const list = await screen.findByRole("region", { name: current.title });
+      expect(within(list).getByRole("button", { name: `New ${current.noun}` })).toBeTruthy();
+      expect(screen.queryByRole("region", { name: `${current.title} editor` })).toBeNull();
       continue;
     }
     if (["interfaces", "ports", "end-assemblies", "pcb"].includes(toolId)) {

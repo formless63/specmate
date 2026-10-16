@@ -6,6 +6,21 @@ import { ApiError } from '../workspace/api';
 export type PreviewRepresentation = Pick<Representation, 'representation_id' | 'kind' | 'label' | 'source_bundle_revision_id' | 'source_path' | 'sha256' | 'rights' | 'rights_status'>;
 
 const LIMIT = 12 * 1024 * 1024;
+const VERTEX_LIMIT = 800_000;
+/** Mirror STLLoader's format choice before it allocates from a binary face header. */
+export function validateStlInput(bytes: Uint8Array) {
+  if (bytes.byteLength < 84) throw new Error('STL source is too short for a supported mesh.');
+  const faces = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(80, true), expected = 84 + faces * 50;
+  const solid = [115, 111, 108, 105, 100];
+  const ascii = expected !== bytes.byteLength && [0, 1, 2, 3, 4].some(offset => solid.every((value, index) => bytes[offset + index] === value));
+  if (!ascii) {
+    if (!faces || faces * 3 > VERTEX_LIMIT) throw new Error('STL exceeds the bounded preview vertex budget.');
+    if (expected !== bytes.byteLength) throw new Error('Binary STL triangle count does not match its exact payload length.');
+  } else {
+    let vertices = 0;
+    for (const _match of new TextDecoder().decode(bytes).matchAll(/\bvertex\s+/g)) if (++vertices > VERTEX_LIMIT) throw new Error('STL exceeds the bounded preview vertex budget.');
+  }
+}
 export const sourceFileUrl = (source: string, path: string) => `/api/v0/sources/revisions/${encodeURIComponent(source)}/file?path=${encodeURIComponent(path)}`;
 export const modelFormat = (path: string): 'stl' | 'obj' | 'image' | null => /\.stl$/i.test(path) ? 'stl' : /\.obj$/i.test(path) ? 'obj' : /\.(png|jpe?g|webp)$/i.test(path) ? 'image' : null;
 export async function readModelFile(row: PreviewRepresentation, signal: AbortSignal): Promise<Uint8Array> {
@@ -56,13 +71,13 @@ function MeshPreview({ bytes, format }: { bytes: Uint8Array; format: 'stl' | 'ob
       const THREE = await import('three'), { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js');
       const element = host.current; if (disposed || !element) return;
       let object: import('three').Object3D;
-      if (format === 'stl') { const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js'); const geometry = new STLLoader().parse(bytes.slice().buffer); object = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#8096a6', roughness: 0.7 })); }
+      if (format === 'stl') { validateStlInput(bytes); const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js'); const geometry = new STLLoader().parse(bytes.slice().buffer); object = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#8096a6', roughness: 0.7 })); }
       else { const { OBJLoader } = await import('three/examples/jsm/loaders/OBJLoader.js'); object = new OBJLoader().parse(new TextDecoder().decode(bytes)); }
       const geometries = new Set<import('three').BufferGeometry>(), materials = new Set<import('three').Material>(); let count = 0;
       object.traverse(child => { if (child instanceof THREE.Mesh) { geometries.add(child.geometry); count += child.geometry.getAttribute('position')?.count ?? 0; (Array.isArray(child.material) ? child.material : [child.material]).forEach(material => materials.add(material)); } });
       const release = () => { geometries.forEach(geometry => geometry.dispose()); materials.forEach(material => material.dispose()); };
       resources.push(release);
-      if (disposed || count > 800_000 || !count) { cleanup(); if (!disposed) throw new Error('This mesh exceeds the bounded preview or contains no supported geometry.'); return; }
+      if (disposed || count > VERTEX_LIMIT || !count) { cleanup(); if (!disposed) throw new Error('This mesh exceeds the bounded preview or contains no supported geometry.'); return; }
       const bounds = new THREE.Box3().setFromObject(object), center = bounds.getCenter(new THREE.Vector3()), size = bounds.getSize(new THREE.Vector3());
       const span = Math.max(size.x, size.y, size.z); if (!Number.isFinite(span) || span <= 0) { cleanup(); throw new Error('Model bounds are unavailable.'); }
       object.position.sub(center); const scene = new THREE.Scene(); scene.add(object, new THREE.HemisphereLight(0xffffff, 0x26303a, 3)); const light = new THREE.DirectionalLight(0xffffff, 3); light.position.set(span, span, span); scene.add(light);

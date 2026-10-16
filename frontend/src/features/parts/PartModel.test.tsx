@@ -3,7 +3,7 @@ import { MantineProvider } from '@mantine/core';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Representation } from '../identity/api';
-import { modelFormat, PartModel, readModelFile } from './PartModel';
+import { modelFormat, PartModel, readModelFile, validateStlInput } from './PartModel';
 const gpu = vi.hoisted(() => ({ constructFails: false, renderFails: false, disposed: vi.fn(), lost: vi.fn(), rendered: vi.fn() }));
 vi.mock('three', async importOriginal => {
   const actual = await importOriginal<typeof import('three')>();
@@ -56,4 +56,13 @@ test('file bound/hash guards reject bytes and unsupported CAD has no invented pr
   await expect(readModelFile(reference, new AbortController().signal)).rejects.toThrow('12 MiB');
   vi.stubGlobal('fetch', vi.fn(async () => new Response(new TextEncoder().encode('different')))); await expect(readModelFile(reference, new AbortController().signal)).rejects.toThrow('exact representation hash');
   expect(modelFormat('part.step')).toBeNull(); expect(modelFormat('part.obj')).toBe('obj'); expect(modelFormat('part.svg')).toBeNull();
+});
+test('binary STL counts and payloads are bounded before the loader can allocate geometry', async () => {
+  const huge = new Uint8Array(84); new DataView(huge.buffer).setUint32(80, 0xffff_ffff, true);
+  expect(() => validateStlInput(huge)).toThrow('vertex budget');
+  const short = huge.slice(); new DataView(short.buffer).setUint32(80, 1, true); expect(() => validateStlInput(short)).toThrow('payload length');
+  const binary = new Uint8Array(134); binary.set(new TextEncoder().encode('solid binary header')); new DataView(binary.buffer).setUint32(80, 1, true);
+  expect(() => validateStlInput(binary)).not.toThrow(); expect(() => validateStlInput(meshBytes)).not.toThrow(); expect(() => validateStlInput(new Uint8Array(40))).toThrow('too short');
+  const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js'), parse = vi.spyOn(STLLoader.prototype, 'parse');
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(huge))); mount([row('oversized', huge, 'huge.stl')]); await screen.findByText('STL exceeds the bounded preview vertex budget.'); expect(parse).not.toHaveBeenCalled(); expect(gpu.rendered).not.toHaveBeenCalled();
 });

@@ -75,7 +75,7 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register, a
       <Select label="Rights status" description="Required; choose Unknown explicitly if not established." placeholder="Choose a status" value={repStatus} onChange={setRepStatus} data={RIGHTS_OPTIONS} allowDeselect={false} />
       {(bundles.isError || detail.isError) && <Alert color="red">{((bundles.error ?? detail.error) as Error).message}</Alert>}
     </InspectionScope>
-    <Button disabled={!active || !label.trim() || !bundleId || !file || !repStatus} loading={pending} {...gate.props}
+    <Button {...gate.props} disabled={!gate.allowed || !active || pending || !label.trim() || !bundleId || !file || !repStatus} loading={pending}
       onClick={() => register("representation", { label, kind, source_bundle_revision_id: bundleId, source_path: path, rights_status: repStatus })}>Register representation</Button>
     <InspectionScope permission="item.create">
       <Title order={4}>Add an external source identifier</Title>
@@ -85,7 +85,7 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register, a
       <Select label="Source identifier rights status" description="Required; choose Unknown explicitly if not established." placeholder="Choose a status" value={idStatus} onChange={setIdStatus} data={RIGHTS_OPTIONS} allowDeselect={false} />
       <TextInput label="Rights note" value={rights} onChange={(e) => setRights(e.currentTarget.value)} />
     </InspectionScope>
-    <Button disabled={!scheme.trim() || !identifier.trim() || !idLabel.trim() || !rights.trim() || !idStatus} loading={pending} {...gate.props}
+    <Button {...gate.props} disabled={!gate.allowed || !active || pending || !scheme.trim() || !identifier.trim() || !idLabel.trim() || !rights.trim() || !idStatus} loading={pending}
       onClick={() => register("source_identifier", { scheme, identifier, label: idLabel, rights_status: idStatus, rights })}>Register source identifier</Button>
     <ReadOnlyNote permission="item.create">Linking representations is unavailable.</ReadOnlyNote>
   </Stack></Card>;
