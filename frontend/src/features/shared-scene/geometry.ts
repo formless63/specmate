@@ -78,14 +78,14 @@ function geometryObject(resource: Geometry): { group: THREE.Group; unknown: stri
       }
     }
     unknown.push('Length unknown: section only.');
-  } else unknown.push('Native model remains inert; geometry unavailable.');
+  } else unknown.push(resource.type === 'model_preview' ? 'Model preview unavailable or loading; no geometry qualification.' : 'Native model remains inert; geometry unavailable.');
   return { group, unknown, dispose: () => { geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); } };
 }
 
 /** One resource's geometry is shared by clones, but selection stays occurrence-specific.
  * Inspection layout is ephemeral and never fills in an unknown canonical placement.
  */
-export function buildSceneObject(scene: GeometryScene, arrangement: Arrangement, display: Display = closedDisplay()): SceneObject {
+export function buildSceneObject(scene: GeometryScene, arrangement: Arrangement, display: Display = closedDisplay(), models: Map<string, THREE.Group> = new Map()): SceneObject {
   const group = new THREE.Group(), objects = new Map<string, THREE.Object3D>(), unknown: string[] = [];
   const resources = new Map(scene.geometry.map(g => [g.geometry_id, g]));
   const built = new Map<string, ReturnType<typeof geometryObject>>();
@@ -94,7 +94,11 @@ export function buildSceneObject(scene: GeometryScene, arrangement: Arrangement,
     const resource = resources.get(geometryId);
     if (!resource) { unknown.push(`${address.path.join('/')}: geometry resource unavailable.`); return; }
     let original = built.get(geometryId);
-    if (!original) { original = geometryObject(resource); built.set(geometryId, original); }
+    if (!original) {
+      const model = models.get(geometryId);
+      original = model ? { group: model, unknown: [], dispose: () => {} } : geometryObject(resource);
+      built.set(geometryId, original);
+    }
     for (const issue of original.unknown) unknown.push(`${address.path.join('/')}${address.feature_id ? ` / ${address.feature_id}` : ''}: ${issue}`);
     if (!original.group.children.length) return;
     if (arrangement === 'canonical' && transform === null) {
@@ -106,6 +110,7 @@ export function buildSceneObject(scene: GeometryScene, arrangement: Arrangement,
     if (arrangement === 'canonical' && transform) {
       object.matrixAutoUpdate = false; object.matrix.copy(displayMatrix(scene, address, transform, display)!); object.matrixWorldNeedsUpdate = true;
     } else {
+      object.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(object);
       const width = bounds.max.x - bounds.min.x;
       object.position.set(nextX - bounds.min.x, -bounds.min.y, -bounds.min.z);

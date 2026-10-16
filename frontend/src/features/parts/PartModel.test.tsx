@@ -66,3 +66,14 @@ test('binary STL counts and payloads are bounded before the loader can allocate 
   const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js'), parse = vi.spyOn(STLLoader.prototype, 'parse');
   vi.stubGlobal('fetch', vi.fn(async () => new Response(huge))); mount([row('oversized', huge, 'huge.stl')]); await screen.findByText('STL exceeds the bounded preview vertex budget.'); expect(parse).not.toHaveBeenCalled(); expect(gpu.rendered).not.toHaveBeenCalled();
 });
+
+test('quantized GLB uses the exact authenticated source and releases geometry on hide', async () => {
+  const { tetraGlb } = await import('../model-preview/test-fixtures'); const bytes = tetraGlb();
+  const THREE = await import('three'), release = vi.spyOn(THREE.BufferGeometry.prototype, 'dispose');
+  const fetch = vi.fn(async () => new Response(bytes)); vi.stubGlobal('fetch', fetch);
+  const view = mount([row('glb', bytes, 'tetra.glb')]);
+  await waitFor(() => expect(screen.getByLabelText('Source model preview')).toBeTruthy());
+  expect(modelFormat('MODEL.GLB')).toBe('glb'); expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0]).toEqual([expect.stringContaining('/sources/revisions/source-glb/file'),expect.objectContaining({credentials:'same-origin',cache:'no-store'})]);
+  view.rerender({active:false}); expect(release).toHaveBeenCalledTimes(1); expect(gpu.disposed).toHaveBeenCalledTimes(1);
+});

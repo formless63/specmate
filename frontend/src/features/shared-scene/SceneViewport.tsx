@@ -11,17 +11,20 @@ import { applySceneTheme, buildSceneObject, themedMaterial, tokenColor } from '.
 import type { Arrangement, SceneObject } from './geometry';
 import { closedDisplay, retainedPoint, sectionPlane } from './display';
 import type { CameraView, Display } from './display';
+import { readModelFile } from '../parts/PartModel';
+import { disposeModel, loadGlb, modelFrame, validateGlb } from '../model-preview/glb';
+import { ApiError } from '../workspace/api';
 import { DisplayControls, openingInput } from './DisplayControls';
 
 type Live = {
   scene: THREE.Scene; object?: SceneObject; highlight?: THREE.Box3Helper; relatedMarks: THREE.Box3Helper[];
   frame: (mode?: CameraView) => void; render: () => void; setSection: (display: Display) => void; plane: THREE.Plane | null;
 };
-type Props = { active?: boolean; compactControls?: boolean; scene: GeometryScene; arrangement: Arrangement; selected: Address | null; related?: Address[]; onSelect: (address: Address) => void; onRestoreCanonical?: () => void };
+type Props = { active?: boolean; compactControls?: boolean; scene: GeometryScene; arrangement: Arrangement; selected: Address | null; related?: Address[]; onSelect: (address: Address) => void; onRestoreCanonical?: () => void; onAccessLost?: () => void };
 export default function SceneViewport(props: Props) {
   return <ScopedViewport key={JSON.stringify([props.scene.snapshot_id, props.scene.sha256])} {...props} />;
 }
-function ScopedViewport({ active = true, compactControls = false, scene: projection, arrangement, selected, related, onSelect, onRestoreCanonical }: Props) {
+function ScopedViewport({ active = true, compactControls = false, scene: projection, arrangement, selected, related, onSelect, onRestoreCanonical, onAccessLost }: Props) {
   const compact = useMediaQuery("(max-width: 48em)");
   const activeRef = useRef(active); activeRef.current = active;
   const host = useRef<HTMLDivElement>(null), live = useRef<Live | null>(null);
@@ -29,6 +32,46 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
   const reset = useRef<(mode?: CameraView) => void>(() => {});
   const [display, setDisplay] = useState(closedDisplay), [input, setInput] = useState(openingInput);
   const [problem, setProblem] = useState(''), [unknown, setUnknown] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState<{ projection: GeometryScene; models: Map<string, THREE.Group> } | null>(null);
+  const [modelProblems, setModelProblems] = useState<string[]>([]);
+  useEffect(() => {
+    const controller = new AbortController(), models = new Map<string, THREE.Group>();
+    setLoaded(null); setModelProblems([]); setProblem('');
+    if (!active) return;
+    const resources = projection.geometry.filter(resource => resource.type === 'model_preview');
+    if (!resources.length) return;
+    const budget = { bytes: 0, vertices: 0, pixels: 0 };
+    void (async () => {
+      if (resources.length > 32) throw new Error('Scene model resource budget exceeded.');
+      for (const resource of resources) {
+        if (resource.type !== 'model_preview') continue;
+        const conversion = modelFrame(resource.units, resource.frame);
+        if (!conversion) continue;
+        try {
+          const bytes = await readModelFile(resource.representation, controller.signal);
+          const beforeVertices = budget.vertices;
+          validateGlb(bytes, budget);
+          const uses = projection.nodes.reduce((count, node) => count + node.geometry_ids.filter(id => id === resource.geometry_id).length + node.features.filter(feature => feature.geometry_id === resource.geometry_id).length, 0);
+          budget.vertices += (budget.vertices - beforeVertices) * Math.max(0, uses - 1);
+          if (budget.vertices > 800_000) throw new Error('Scene model occurrence vertex budget exceeded.');
+          const object = await loadGlb(bytes, controller.signal);
+          const group = new THREE.Group(), converted = new THREE.Group(); converted.matrix.copy(conversion); converted.matrixAutoUpdate = false; converted.add(object); group.add(converted);
+          models.set(resource.geometry_id, group);
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          if (error instanceof ApiError && [401, 403, 404].includes(error.status)) throw error;
+          setModelProblems(current => [...current, error instanceof Error ? error.message : 'Model preview unavailable.']);
+        }
+      }
+      if (!controller.signal.aborted) setLoaded({ projection, models });
+    })().catch(error => {
+      if (!controller.signal.aborted) {
+        for (const object of models.values()) disposeModel(object); models.clear();
+        setProblem(error instanceof Error ? error.message : 'Model source unavailable.'); onAccessLost?.();
+      }
+    });
+    return () => { controller.abort(); for (const object of models.values()) disposeModel(object); models.clear(); };
+  }, [projection, active]);
   useEffect(() => {
     const container = host.current;
     if (!container) return;
@@ -118,9 +161,9 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
   useEffect(() => {
     const state = live.current; if (!state) return;
     if (state.object) { state.scene.remove(state.object.group); state.object.dispose(); }
-    state.object = buildSceneObject(projection, arrangement, display); state.scene.add(state.object.group);
+    state.object = buildSceneObject(projection, arrangement, display, active && loaded?.projection === projection ? loaded.models : undefined); state.scene.add(state.object.group);
     setUnknown(state.object.unknown); state.frame();
-  }, [projection, arrangement, display.explosion, display.opening]);
+  }, [projection, arrangement, display.explosion, display.opening, loaded, active]);
   useEffect(() => { live.current?.setSection(display); }, [display.section]);
   useEffect(() => {
     const state = live.current; if (!state) return;
@@ -128,7 +171,7 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
     const object = selected ? state.object?.objects.get(selectionKey(selected)) : undefined;
     if (object) { state.highlight = new THREE.Box3Helper(new THREE.Box3().setFromObject(object), '#e2a000'); state.scene.add(state.highlight); }
     state.render();
-  }, [projection, arrangement, display.explosion, display.opening, selected]);
+  }, [projection, arrangement, display.explosion, display.opening, selected, loaded, active]);
   // Related uses get a neutral outline (theme token), distinct from the selected accent; no animation.
   const relatedKey = JSON.stringify((related ?? []).map(address => selectionKey(address)));
   useEffect(() => {
@@ -143,7 +186,7 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
       state.scene.add(mark); state.relatedMarks.push(mark);
     }
     state.render();
-  }, [projection, arrangement, display.explosion, display.opening, selected, relatedKey]);
+  }, [projection, arrangement, display.explosion, display.opening, selected, relatedKey, loaded, active]);
   useEffect(() => { if (active) live.current?.render(); }, [active]);
   const viewControls = <><DisplayControls scene={projection} arrangement={arrangement} selected={selected} display={display} setDisplay={setDisplay} input={input} setInput={setInput} restore={() => { onRestoreCanonical?.(); setInput(openingInput()); setDisplay(closedDisplay()); reset.current('isometric'); }} /><Group>{(['isometric', 'top', 'front', 'end'] as CameraView[]).map(mode => <Button key={mode} variant="light" onClick={() => reset.current(mode)}>Orthographic {mode}</Button>)}</Group></>;
   return <Stack>
@@ -152,6 +195,7 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
     {compact || compactControls ? <details><summary>View controls</summary>{viewControls}</details> : viewControls}
     <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block' }} />
     <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. Click geometry to select its contextual occurrence. All views are orthographic illustrations; display geometry provides no fit, clearance or manufacturing approval.</Text>
+    {modelProblems.map((message, i) => <Text size="sm" key={`model-${i}`}>{message}</Text>)}
     {unknown.map((issue, i) => <Text size="sm" key={i}>{issue}</Text>)}
   </Stack>;
 }

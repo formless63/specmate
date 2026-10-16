@@ -622,3 +622,105 @@ def test_captured_preview_preserves_scene_feature_limit(users, project, mec_boar
     monkeypatch.setattr("specmate.shared_scene.projection.MAX_FEATURES", 0)
     with pytest.raises(ValidationFailed, match="feature limit"):
         preview(users["viewer"], captured)
+
+
+@pytest.mark.parametrize(
+    "units,frame,preview",
+    [
+        ("mm", "right_handed_y_up", True),
+        ("m", "right_handed_z_up", True),
+        (None, "right_handed_y_up", False),
+        ("mm", "unreviewed", False),
+    ],
+)
+def test_glb_preview_exact_source_pins_and_declared_frames(
+    users,
+    workspace,
+    mec_target,  # noqa: F811
+    units,
+    frame,
+    preview,
+):
+    import hashlib
+
+    from .test_sources import register
+
+    # Projection never parses these inert bytes; browser parser qualification is separate.
+    payload = b"synthetic inert GLB source; not a geometry approval"
+    digest = hashlib.sha256(payload).hexdigest()
+    user = users["owner"]
+    register(user, workspace, payload)
+    preserved = op(
+        user,
+        "source.create_original_bundle",
+        {
+            "workspace_id": workspace_of(workspace),
+            "name": "Synthetic mesh bundle",
+            "files": [
+                {
+                    "path": "tetra.glb",
+                    "sha256": digest,
+                    "media_type": "model/gltf-binary",
+                    "rights": "MIT",
+                }
+            ],
+        },
+    )
+    model = op(
+        user,
+        "catalog.register_representation",
+        {
+            "rights_status": "unknown",
+            "revision_id": mec_target["revision_id"],
+            "kind": "model",
+            "label": "Synthetic tetrahedron",
+            "source_bundle_revision_id": preserved["revision_id"],
+            "source_path": "tetra.glb",
+        },
+    )
+    content = declaration(preserved, mec_target)
+    content["sources"][0]["files"] = [
+        {"path": "tetra.glb", "sha256": digest, "rights": "MIT", "role": "model", "format": "mesh"}
+    ]
+    content["models"] = [
+        {
+            "local_id": "body",
+            "representation_id": model["representation_id"],
+            "revision_id": mec_target["revision_id"],
+            "snapshot_sha256": mec_target["sha256"],
+            "source_local_id": "native",
+            "path": "tetra.glb",
+            "target_local_id": "fastener",
+            "purpose": "illustration",
+            "units": units,
+            "frame": frame,
+            "basis": "Explicit synthetic output units and frame",
+        }
+    ]
+    created = create_mechanical(user, workspace, content)
+    model_revision = op(
+        user,
+        "mechanical_source.freeze",
+        {"draft_id": created["draft_id"]},
+        expected_state=created["state"],
+    )
+    assembly = freeze(
+        user, create(user, workspace, [occ("case", model_revision, placement=placement(5, 10))])
+    )
+    result = scene(users["viewer"], assembly)
+    resource = next(row for row in result["geometry"] if row["local_id"] == "model:body")
+    assert resource["type"] == ("model_preview" if preview else "unavailable_model")
+    assert resource["units"] == units and resource["frame"] == frame
+    if preview:
+        assert resource["representation"]["source_bundle_revision_id"] == preserved["revision_id"]
+        assert resource["representation"]["sha256"] == digest
+        assert resource["representation"]["representation_id"] == model["representation_id"]
+    else:
+        assert "representation" not in resource
+    node = next(node for node in result["nodes"] if node["address"]["path"] == ["case"])
+    feature = next(feature for feature in node["features"] if feature["role"] == "model")
+    assert feature["world_transform"] is None and feature["placement_status"] == "unknown"
+    assert result["qualification"]["fit"] == "not_evaluated"
+    remove_member(users["viewer"])
+    with pytest.raises(NotFound):
+        scene(users["viewer"], assembly)

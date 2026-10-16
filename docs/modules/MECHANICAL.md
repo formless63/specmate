@@ -432,3 +432,34 @@ SVG tags, with no scripts, embedded external assets or imported SVG content.
 The panel keeps preview bytes transient, clears them on account/project/focus or
 visibility or host-tab activation changes, and freshly authorizes and checks hashes for every preview
 and download. It offers explicit same-key retry after a lost generation response.
+
+## Bounded browser model previews
+
+Parts and boards can preview exact GLB 2 representations alongside STL, OBJ and
+raster drawings. The shared scene can also preview a mechanical declaration's
+exact GLB source. Source access is checked on every read and streamed bytes must
+match the representation hash. Preview resources are transient and released on
+hide, replacement or access loss; they do not become accepted native geometry.
+
+The GLB subset supports static triangles, `KHR_mesh_quantization` and embedded PNG
+textures. It rejects external/data URIs, unknown extensions/decoders, sparse
+accessors, animation, skinning, multiple scenes and unsupported image formats.
+Before loading, limits bound file bytes (12 MiB), vertices (800,000), triangle
+indices (2,400,000), decoded accessor storage (64 MiB), nodes (4,096), primitives
+(4,096) and texture pixels (16,777,216, at most 4,096 per side). A composed scene
+also bounds combined source bytes (24 MiB), model resources (32), texture pixels
+and vertices including repeated uses. Only embedded texture object URLs are
+available to the loader; imported scripts and network resources cannot run.
+
+GLB node transforms reconstruct quantized positions before an explicit outer
+conversion. Supported declaration frames are `right_handed_y_up` and
+`right_handed_z_up`, with authored `mm`, `m` or `in` units converted exactly once
+to the shared scene's millimeter z-up frame. Bounds only frame the camera; they
+never determine model units. Unknown units/frame keep composed geometry
+unavailable. A standalone model may still show its intrinsic authored coordinates.
+
+Repeated scene occurrences share a loaded resource while retaining distinct
+contextual selection addresses. Model-to-target placement remains unknown until
+explicit correspondence exists: such models appear only in the deliberate local
+inspection arrangement. Preview meshes do not extend the retained line-drawing
+renderer or establish fit, clearance, manufacturing or physical qualification.

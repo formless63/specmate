@@ -102,3 +102,18 @@ test('applySceneTheme recolors tagged materials in place without rebuilding geom
   expect(material.color.getHexString()).toBe('445566');
   object.dispose(); document.documentElement.style.removeProperty('--sb-review');
 });
+
+test('exact model resource clones preserve authored frame and repeated occurrence selection without doubling conversion', async () => {
+  const { loadGlb, modelFrame, disposeModel } = await import('../model-preview/glb');
+  const { tetraGlb } = await import('../model-preview/test-fixtures');
+  const loaded = await loadGlb(tetraGlb()), model = new THREE.Group(), converted = new THREE.Group();
+  converted.matrix.copy(modelFrame('mm', 'right_handed_y_up')!); converted.matrixAutoUpdate = false; converted.add(loaded); model.add(converted);
+  const scene = syntheticScene(), resource = scene.geometry[0]!;
+  const result = buildSceneObject(scene,'canonical',undefined,new Map([[resource.geometry_id,model]]));
+  result.group.updateMatrixWorld(true);
+  const left=result.objects.get(selectionKey(scene.nodes[0]!.address))!, right=result.objects.get(selectionKey(scene.nodes[1]!.address))!;
+  expect(new THREE.Box3().setFromObject(left).getSize(new THREE.Vector3()).toArray()).toEqual([expect.closeTo(20),expect.closeTo(30),expect.closeTo(40)]);
+  const first = left.children[0]!.children[0]!.children[0] as THREE.Mesh, second = right.children[0]!.children[0]!.children[0] as THREE.Mesh;
+  expect(first.geometry).toBe(second.geometry); expect(first.userData.address.path).not.toEqual(second.userData.address.path);
+  const release=vi.spyOn(first.geometry,'dispose'); result.dispose(); expect(release).not.toHaveBeenCalled(); disposeModel(model); expect(release).toHaveBeenCalledTimes(1);
+});

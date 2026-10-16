@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Plane } from 'three';
 import SceneViewport from './SceneViewport';
@@ -132,4 +132,21 @@ test('record compact controls keep Fit visible and disclose advanced display con
   render(<MantineProvider><SceneViewport compactControls scene={scene} arrangement="canonical" selected={null} onSelect={vi.fn()} /></MantineProvider>);
   expect(screen.getByRole('button', { name: 'Fit scene' })).toBeTruthy(); expect((screen.getByText('View controls').closest('details') as HTMLDetailsElement).open).toBe(false);
   fireEvent.click(screen.getByText('View controls')); expect((screen.getByText('View controls').closest('details') as HTMLDetailsElement).open).toBe(true); expect(screen.getByRole('button', { name: 'Orthographic top' })).toBeTruthy();
+});
+
+test('GLB scene source loads once for repeated uses, hides dispose meshes and later denial withdraws view', async () => {
+  const THREE = await import('three'), { createHash } = await import('node:crypto');
+  const { tetraGlb } = await import('../model-preview/test-fixtures'); const bytes=tetraGlb();
+  const release=vi.spyOn(THREE.BufferGeometry.prototype,'dispose');
+  const source=syntheticScene(); const base=source.geometry[0]!;
+  source.geometry=[{...base,type:'model_preview',units:'mm',frame:'right_handed_y_up',millimeter_factor:1,representation:{representation_id:'tetra',kind:'model',label:'Synthetic tetra',source_bundle_revision_id:'original',source_path:'tetra.glb',sha256:createHash('sha256').update(bytes).digest('hex'),rights:'MIT',rights_status:'unknown'}}];
+  let denied=false; const fetch=vi.fn(async()=>denied ? new Response('',{status:403}) : new Response(bytes)); vi.stubGlobal('fetch',fetch);
+  const onAccessLost=vi.fn();
+  const show=(active:boolean)=><MantineProvider><SceneViewport active={active} scene={source} arrangement="canonical" selected={null} onSelect={vi.fn()} onAccessLost={onAccessLost}/></MantineProvider>;
+  const view=render(show(true));
+  await waitFor(()=>expect(screen.queryByText(/Model preview unavailable or loading/)).toBeNull());
+  expect(fetch).toHaveBeenCalledTimes(1); const disposed=release.mock.calls.length;
+  view.rerender(show(false)); await waitFor(()=>expect(release.mock.calls.length).toBeGreaterThan(disposed));
+  denied=true; view.rerender(show(true)); await screen.findByText('The selected model source is unavailable.');
+  expect(onAccessLost).toHaveBeenCalledTimes(1); expect(fetch).toHaveBeenCalledTimes(2);
 });

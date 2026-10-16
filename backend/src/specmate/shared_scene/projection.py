@@ -342,20 +342,39 @@ class Resources:
             provenance.extend({"role": "source", **row} for row in evaluated["sources"])
             provenance.extend({"role": "target", **row} for row in evaluated["targets"])
             for model in evaluated["models"]:
+                source_pin = next(
+                    pin for pin in declaration.sources if pin.local_id == model["source_local_id"]
+                )
+                preview = (
+                    model["path"].lower().endswith(".glb")
+                    and millimeter_factor(model["units"]) is not None
+                    and model["frame"] in {"right_handed_y_up", "right_handed_z_up"}
+                )
+                resource = {
+                    "representation_id": model["representation_id"],
+                    "source_bundle_revision_id": str(source_pin.source_revision_id),
+                    "source_path": model["path"],
+                    "sha256": model["sha256"],
+                    "rights": model["rights"],
+                    "rights_status": "unknown",
+                    "kind": "model",
+                    "label": model["label"],
+                }
                 gid = self.add(
                     revision,
                     "model:" + model["local_id"],
                     {
-                        "type": "unavailable_model",
+                        "type": "model_preview" if preview else "unavailable_model",
                         "role": model["purpose"],
-                        "quality": "declared_unextracted",
+                        "quality": "declared_preview" if preview else "declared_unextracted",
                         "units": model["units"],
                         "frame": model["frame"],
                         "millimeter_factor": millimeter_factor(model["units"]),
                         "source": model,
+                        **({"representation": resource} if preview else {}),
                         "limitations": [
-                            "Native source is inert; supported extraction and target frame "
-                            "correspondence are not established."
+                            "Preview is illustrative only; target frame correspondence, fit, "
+                            "clearance and manufacturing remain unverified."
                         ],
                     },
                 )
@@ -365,7 +384,7 @@ class Resources:
             limitations.extend(evaluated["limitations"])
             limitations.append(
                 "Manufacturing, clearance and illustration model purposes "
-                "remain separate; meshes are not loaded."
+                "remain separate; browser previews provide no geometry qualification."
             )
         elif kind in {"connector_body", "pinout", "interface_map"}:
             interface = content["interface"]

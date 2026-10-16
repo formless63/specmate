@@ -32,7 +32,7 @@ export function MechanicalFields({ content, editable, active, workspaceId, princ
       const existing = source.sources.find(row => row.source_revision_id === detail.revision_id);
       const pin = existing ?? { local_id: local('source', source.sources), source_revision_id: detail.revision_id, source_manifest_sha256: detail.manifest_sha256, files: [] };
       const prior = pin.files.find(row => row.path === file.path);
-      const format = prior?.format ?? (/\.(stl|obj)$/i.test(file.path) ? 'mesh' : /\.(step|stp)$/i.test(file.path) ? 'step' : 'other');
+      const format = prior?.format ?? (/\.(stl|obj|glb)$/i.test(file.path) ? 'mesh' : /\.(step|stp)$/i.test(file.path) ? 'step' : 'other');
       const files = [...pin.files.filter(row => row.path !== file.path), { path: file.path, sha256: file.sha256, rights: file.rights, role: 'model' as const, format }];
       const model: ModelPin = { local_id: local('model', source.models), representation_id: choice.representation_id, revision_id: choice.revision_id, snapshot_sha256: choice.snapshot_sha256, source_local_id: pin.local_id, path: file.path, target_local_id: modelTarget!, purpose: 'illustration', units: null, frame: null, accuracy: null, basis: modelBasis.trim() };
       update({ ...source, sources: [...source.sources.filter(row => row.local_id !== pin.local_id), { ...pin, files }], models: [...source.models, model] }); setModelId(null); setModelBasis('');

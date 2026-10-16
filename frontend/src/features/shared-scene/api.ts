@@ -1,3 +1,4 @@
+import type { PreviewRepresentation } from '../parts/PartModel';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
 import type { OccurrenceRef, ProjectionNode, RelationshipKind, RevisionRef } from '../assemblies/api';
 export { request, SourceError } from '../sources/api';
@@ -19,7 +20,8 @@ type GeometryBase = {
 export type Geometry = GeometryBase & (
   { type: 'pcb_planar'; outline: Vec3[][]; cutouts: Vec3[][]; coverage: Record<string, string>; outline_bridged_gaps?: { at: Vec3; to: Vec3; size_mm: number }[] } |
   { type: 'wire_construction'; stock: StockSpecification; length_mm: string | null } |
-  { type: 'unavailable_model'; millimeter_factor: number | null }
+  { type: 'unavailable_model'; millimeter_factor: number | null } |
+  { type: 'model_preview'; millimeter_factor: number; representation: PreviewRepresentation }
 );
 export type SceneNode = ProjectionNode & {
   node_id: string; parent_path: string[]; local_transform: Matrix | null; world_transform: Matrix | null;
