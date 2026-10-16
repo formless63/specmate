@@ -61,8 +61,8 @@ function OccurrenceChoices({ nodes, prefix }: { nodes: SceneNode[]; prefix: stri
 function FeatureButton({ feature }: { feature: Feature }) {
   const { state, controller } = useContextSelection();
   const mark = useSceneMark(state.scene!, feature.address);
-  return <Button className="sb-probe-mark" data-probe={mark ?? undefined} variant="light" aria-pressed={state.selection?.kind === 'occurrence' && exactKey(state.selection.address) === exactKey(feature.address)}
-    onClick={() => controller.selectOccurrence(feature.address)}>Select feature {feature.feature_id} · {feature.label}{mark === 'related' && <span className="sb-tag" style={{ marginLeft: 6 }}>related</span>}</Button>;
+  return <Button className="sb-probe-mark" title={feature.feature_id} aria-label={`Select feature ${feature.feature_id} · ${feature.label}`} data-probe={mark ?? undefined} variant="light" aria-pressed={state.selection?.kind === 'occurrence' && exactKey(state.selection.address) === exactKey(feature.address)}
+    onClick={() => controller.selectOccurrence(feature.address)}>{feature.label || "Unnamed feature"} · {feature.role.replaceAll("_", " ")}{mark === 'related' && <span className="sb-tag" style={{ marginLeft: 6 }}>related</span>}</Button>;
 }
 function FeatureButtons({ node, features = node.features }: { node: SceneNode; features?: Feature[] }) {
   const [page, setPage] = useState(0);
@@ -160,10 +160,10 @@ export function InspectorView() {
   return <Stack><Title order={3}>Exact contextual inspector</Title>
     {node ? <><Text>Inspector occurrence: {node.address.path.join('/')}</Text><Text size="xs"><RevisionLabel id={node.revision_id} extraPins={[{ label: 'Definition ID', value: node.definition_id }]} snapshotId={node.snapshot_sha256} /></Text>
       <Text size="sm">Firmware for this use: {node.firmware?.revision_id ?? 'Unassigned'}</Text><Text size="sm">Canonical placement {node.placement.status} · world placement {node.world_status}</Text>
-      <Text size="xs">{JSON.stringify(node.local_transform)} · {JSON.stringify(node.world_transform)}</Text>
+      <details><summary>Exact placement transforms</summary><Text size="xs" style={{ overflowWrap: "anywhere" }}>{JSON.stringify(node.local_transform)} · {JSON.stringify(node.world_transform)}</Text></details>
       {feature && <><Text>Inspector feature: {feature.feature_id} · {feature.role}</Text><Text size="xs">{JSON.stringify(feature.data)}</Text></>}
       <FeatureButtons key={node.node_id} node={node} />
-      {node.provenance.map((row, i) => <Text size="xs" key={i}>{JSON.stringify(row)}</Text>)}
+      <details><summary>Exact source provenance</summary>{node.provenance.map((row, i) => <Text size="xs" style={{ overflowWrap: "anywhere" }} key={i}>{JSON.stringify(row)}</Text>)}</details>
     </> : <Text>No occurrence inspector is selected. A reusable revision selection has no containing placement or contextual firmware assignment.</Text>}
   </Stack>;
 }

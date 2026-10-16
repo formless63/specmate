@@ -126,3 +126,10 @@ test('explicit inactive record stops even nonzero-width rendering and resumes th
   view.rerender(showActive(true)); expect(lifecycle.draw.mock.calls.length).toBeGreaterThan(initial);
   expect(lifecycle.construct).toHaveBeenCalledTimes(1);
 });
+
+
+test('record compact controls keep Fit visible and disclose advanced display controls deliberately', () => {
+  render(<MantineProvider><SceneViewport compactControls scene={scene} arrangement="canonical" selected={null} onSelect={vi.fn()} /></MantineProvider>);
+  expect(screen.getByRole('button', { name: 'Fit scene' })).toBeTruthy(); expect((screen.getByText('View controls').closest('details') as HTMLDetailsElement).open).toBe(false);
+  fireEvent.click(screen.getByText('View controls')); expect((screen.getByText('View controls').closest('details') as HTMLDetailsElement).open).toBe(true); expect(screen.getByRole('button', { name: 'Orthographic top' })).toBeTruthy();
+});

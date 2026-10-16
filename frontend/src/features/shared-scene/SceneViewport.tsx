@@ -17,11 +17,11 @@ type Live = {
   scene: THREE.Scene; object?: SceneObject; highlight?: THREE.Box3Helper; relatedMarks: THREE.Box3Helper[];
   frame: (mode?: CameraView) => void; render: () => void; setSection: (display: Display) => void; plane: THREE.Plane | null;
 };
-type Props = { active?: boolean; scene: GeometryScene; arrangement: Arrangement; selected: Address | null; related?: Address[]; onSelect: (address: Address) => void; onRestoreCanonical?: () => void };
+type Props = { active?: boolean; compactControls?: boolean; scene: GeometryScene; arrangement: Arrangement; selected: Address | null; related?: Address[]; onSelect: (address: Address) => void; onRestoreCanonical?: () => void };
 export default function SceneViewport(props: Props) {
   return <ScopedViewport key={JSON.stringify([props.scene.snapshot_id, props.scene.sha256])} {...props} />;
 }
-function ScopedViewport({ active = true, scene: projection, arrangement, selected, related, onSelect, onRestoreCanonical }: Props) {
+function ScopedViewport({ active = true, compactControls = false, scene: projection, arrangement, selected, related, onSelect, onRestoreCanonical }: Props) {
   const compact = useMediaQuery("(max-width: 48em)");
   const activeRef = useRef(active); activeRef.current = active;
   const host = useRef<HTMLDivElement>(null), live = useRef<Live | null>(null);
@@ -149,7 +149,7 @@ function ScopedViewport({ active = true, scene: projection, arrangement, selecte
   return <Stack>
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
     <Group><Button variant="light" onClick={() => reset.current()}>Fit scene</Button></Group>
-    {compact ? <details><summary>View controls</summary>{viewControls}</details> : viewControls}
+    {compact || compactControls ? <details><summary>View controls</summary>{viewControls}</details> : viewControls}
     <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block' }} />
     <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. Click geometry to select its contextual occurrence. All views are orthographic illustrations; display geometry provides no fit, clearance or manufacturing approval.</Text>
     {unknown.map((issue, i) => <Text size="sm" key={i}>{issue}</Text>)}
