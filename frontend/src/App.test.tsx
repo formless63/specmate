@@ -214,7 +214,7 @@ test("shared, assembly, connected and drawing views mount with scoped read contr
   await openTool("Devices");
   await screen.findByRole("heading", { name: "Designs" });
   fireEvent.click(screen.getByRole("button", { name: "New design" }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "Device" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Prepare device" }));
   expect(await screen.findByRole("button", { name: "Save device" })).toBeTruthy();
   await openTool("Connected views");
   await screen.findByRole("heading", { name: "Contextual inspection" });
@@ -346,7 +346,7 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
     } else await openTool(tool.label);
     if (toolId === "assemblies") {
       fireEvent.click(await screen.findByRole("button", { name: "New design" }));
-      fireEvent.click(screen.getByRole("menuitem", { name: "Device" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Prepare device" }));
       expect(await screen.findByRole("button", { name: "Save device" })).toBeTruthy();
       continue;
     }
