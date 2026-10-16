@@ -180,9 +180,9 @@ function Workspace({ workspaceId, visible, probe, working, onSelectRetained }: {
     <div hidden={checking||denied} inert={checking||denied}><Stack>
     <details open={!probe}><summary>Choose or create a proposal draft</summary><Card withBorder><Stack>
       <Text fw={600}>Proposal drafts</Text>
-      {rows.length === 0 ? <Text>No proposal drafts in this workspace.</Text> : <Table><Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>State</Table.Th><Table.Th>Retained</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
+      {rows.length === 0 ? <Text>No proposal drafts in this workspace.</Text> : <Table.ScrollContainer minWidth={620}><Table><Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>State</Table.Th><Table.Th>Retained</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
         {rows.map(row => <Table.Tr key={row.draft_id}><Table.Td>{row.name}</Table.Td><Table.Td><SbIdentityBadge kind="draft">{row.state}</SbIdentityBadge></Table.Td><Table.Td>{row.revision_count}</Table.Td><Table.Td><Button variant="quiet" disabled={busy} onClick={() => void open(row.draft_id)} aria-label={`Open proposal ${row.name}`}>Open</Button></Table.Td></Table.Tr>)}
-      </Table.Tbody></Table>}
+      </Table.Tbody></Table></Table.ScrollContainer>}
       <Group align="end">
         <InspectionScope permission="item.create">
         <Select label="Accepted board" placeholder={boards.length ? 'Choose a board' : 'No accepted board interpretation'} value={board} onChange={setBoard} data={boards.map(b => ({ value: b.interpretation_id, label: `${b.board_path || 'board'} · ${b.sha256.slice(0, 12)} · outline ${b.outline}` }))} />
@@ -306,9 +306,9 @@ function DecisionReview({ active, workspaceId, retained, busy, onDecide, onReloa
   return <Card withBorder aria-label="Review decision"><Stack gap="xs">
     <Group><Title order={4}>Review decision</Title>{retained.current_decision ? <SbIdentityBadge kind="frozen">{retained.current_decision.decision}</SbIdentityBadge> : <SbIdentityBadge kind="draft">undecided</SbIdentityBadge>}</Group>
     <Text size="xs">A decision is a separate append-only record. It never edits this retained proposal or any frozen item. Accepting creates a design draft, or links one you name, and is final.</Text>
-    {history.length === 0 ? <Text size="sm">No decisions recorded.</Text> : <Table><Table.Thead><Table.Tr><Table.Th>#</Table.Th><Table.Th>Decision</Table.Th><Table.Th>Reason</Table.Th><Table.Th>Draft</Table.Th><Table.Th>When</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+    {history.length === 0 ? <Text size="sm">No decisions recorded.</Text> : <Table.ScrollContainer minWidth={620}><Table><Table.Thead><Table.Tr><Table.Th>#</Table.Th><Table.Th>Decision</Table.Th><Table.Th>Reason</Table.Th><Table.Th>Draft</Table.Th><Table.Th>When</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
       {history.map(d => <Table.Tr key={d.decision_id}><Table.Td>{d.version}</Table.Td><Table.Td>{d.decision}</Table.Td><Table.Td>{d.reason}</Table.Td><Table.Td>{d.draft_id ? `${d.link_mode} ${d.draft_id}` : 'none'}</Table.Td><Table.Td>{d.created_at}</Table.Td></Table.Tr>)}
-    </Table.Tbody></Table>}
+    </Table.Tbody></Table></Table.ScrollContainer>}
     {final ? <Text size="sm">Accepted decisions are final.</Text> : <>
       <InspectionScope permission="design.edit">
       <Choice label="Decision" value={decision} readOnly={!allowed} onChange={value => setDecision(value as DecidePayload['decision'])} data={[{ value: 'accepted', label: 'Accept' }, { value: 'rejected', label: 'Reject' }, { value: 'deferred', label: 'Defer' }]} />
@@ -343,9 +343,9 @@ export function ProposalReview({ proposal, label, saved = false }: { proposal: P
     <Text size="sm">Geometry checks: {proposal.checks_summary.pass} pass · {proposal.checks_summary.fail} fail · {proposal.checks_summary.not_evaluated} not evaluated. They are arithmetic on declared inputs.</Text>
     <PlanPreview proposal={proposal} />
     <Title order={4}>Unresolved inputs ({proposal.unresolved.length})</Title>
-    {proposal.unresolved.length === 0 ? <Text size="sm">None declared unresolved. Physical checks below remain.</Text> : <Table><Table.Tbody>
+    {proposal.unresolved.length === 0 ? <Text size="sm">None declared unresolved. Physical checks below remain.</Text> : <Table.ScrollContainer minWidth={620}><Table><Table.Tbody>
       {proposal.unresolved.map((u, index) => <Table.Tr key={index}><Table.Td>{u.feature_id}</Table.Td><Table.Td>{u.parameter}</Table.Td><Table.Td>{u.message}</Table.Td></Table.Tr>)}
-    </Table.Tbody></Table>}
+    </Table.Tbody></Table></Table.ScrollContainer>}
     <Title order={4}>Features</Title>
     {proposal.features.map(feature => <Card withBorder key={feature.feature_id}><Stack gap="xs">
       <Group><Text fw={600}>{feature.feature_id}</Text><SbIdentityBadge kind={feature.status === 'incomplete' ? 'draft' : 'frozen'}>{feature.kind.replace(/_/g, ' ')}</SbIdentityBadge>{byFeature(feature).length > 0 && <Text size="xs">{byFeature(feature).length} unresolved</Text>}</Group>
