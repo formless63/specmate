@@ -9,7 +9,7 @@ import { LIBRARY_VIEWS } from '../shell/scope';
 import type { LibraryRecord, Project } from '../workspace/api';
 import { SecondaryRecordPage, type SecondaryRecordProps } from './SecondaryRecordPage';
 
-export type SecondaryConfig = Pick<SecondaryRecordProps, 'title' | 'collectionLabel' | 'viewLabel' | 'initial' | 'allowedKinds' | 'freezeOperation' | 'authorizeContent' | 'contentSignature' | 'renderContent' | 'renderInspection' | 'inspector'>;
+export type SecondaryConfig = Pick<SecondaryRecordProps, 'canSave' | 'canFreeze' | 'title' | 'collectionLabel' | 'viewLabel' | 'initial' | 'allowedKinds' | 'freezeOperation' | 'authorizeContent' | 'contentSignature' | 'renderContent' | 'renderInspection' | 'inspector'>;
 export type SecondaryLibraryProps = {
   active: boolean; principalKey: string; workspaceId: string; toolId: string;
   projectFilterId: string | null; projects: Project[];
