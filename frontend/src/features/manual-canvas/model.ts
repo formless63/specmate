@@ -50,6 +50,7 @@ export type SavedAssembly = { interface: EndAssembly };
 
 export function manualJoin(cable: Cable, left: HandleAddress, right: HandleAddress, reason: string, kind: EndStack['joins'][number]['kind'], savedStack?: EndStack): Cable {
   if (left.type !== 'terminal' || right.type !== 'terminal' || left.endpointId !== right.endpointId || left.layerId === right.layerId && left.terminalId === right.terminalId) throw new Error('Choose two different terminals on the same end stack.');
+  if (left.layerId === right.layerId) throw new Error('Joints within one layer are not supported. Choose terminals on different end-stack layers.');
   if (!reason.trim()) throw new Error('Record a basis for this declared joint.');
   const endpoint = cable.endpoints.find(end => end.local_id === left.endpointId); if (!endpoint || endpoint.end_assembly_revision_id && !savedStack) throw new Error('Read the exact saved stack before preparing a local joint.');
   const stack = structuredClone(savedStack ?? endpoint.stack); if (!stack) throw new Error('No editable end stack is available.');
