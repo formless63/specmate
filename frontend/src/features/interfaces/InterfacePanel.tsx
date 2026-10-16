@@ -23,8 +23,8 @@ import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
 const kinds = [{ value: "connector_body", label: "Connector body" }, { value: "pinout", label: "Logical pinout" }, { value: "interface_map", label: "External / internal mapping" }];
 /** Library interface definitions. `projectId` is optional context: new items are then also referenced by that project. */
-export function InterfacePanel({ projectId = null, initialKind = "connector_body" }: { projectId?: string | null; initialKind?: "connector_body" | "pinout" }) { return <Workspace key={projectId ?? "library"} projectId={projectId} initialKind={initialKind} />; }
-function Workspace({ projectId, initialKind }: { projectId: string | null; initialKind: "connector_body" | "pinout" }) {
+export function InterfacePanel({ projectId = null, initialKind = "connector_body" }: { projectId?: string | null; initialKind?: "connector_body" | "pinout" | "interface_map" }) { return <Workspace key={projectId ?? "library"} projectId={projectId} initialKind={initialKind} />; }
+function Workspace({ projectId, initialKind }: { projectId: string | null; initialKind: "connector_body" | "pinout" | "interface_map" }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');

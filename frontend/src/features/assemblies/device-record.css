@@ -1,0 +1,6 @@
+.device-fields { border:0; margin:0; padding:0; min-width:0; }
+.device-empty { min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:20px; border:1px solid var(--sb-border-subtle); background:var(--sb-surface-canvas); text-align:center; }
+.device-tree { padding:12px; min-height:320px; border:1px solid var(--sb-border-subtle); }
+.device-tree-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px; border-bottom:1px solid var(--sb-border-subtle); }
+.device-fields pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+@media(max-width:48em) { .device-empty { min-height:260px; } }

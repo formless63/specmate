@@ -27,6 +27,7 @@ import { WorkspaceShell, type LibraryRecord, type ShellChrome, type WorkspaceSco
 
 const SelectedDefinitionViews = lazy(() => import("./features/cable-views/SelectedDefinitionViews").then(module => ({ default: module.SelectedDefinitionViews })));
 const BuildsPanel = lazy(() => import("./features/builds/BuildsPanel").then((module) => ({ default: module.BuildsPanel })));
+const DeviceLibrary = lazy(() => import("./features/assemblies/DeviceLibrary").then(module => ({ default: module.DeviceLibrary })));
 const AssemblyPanel = lazy(() => import("./features/assemblies/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel })));
 const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/AgentCapabilitiesPanel").then((module) => ({ default: module.AgentCapabilitiesPanel })));
 const AgentRunsPanel = lazy(() => import("./features/agent-runs/AgentRunsPanel").then((module) => ({ default: module.AgentRunsPanel })));
@@ -127,8 +128,13 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
       : ({ source_bundle: "sources", stock_account: "inventory", physical_unit: "physical-units", fact_subject: "facts" } as Record<string, string>)[selected.data.family] ?? "identity"
     : null;
   const documentRoute = ["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(url.lens) && !!selected.data && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data.kind ?? "");
+  const deviceSections: Record<string, string> = { "shared-scene": "occurrence", "context-selection": "context", "scene-drawings": "drawings", configurations: "options", "occurrence-firmware": "firmware", "firmware-impact": "firmware", "mechanical-proposals": "enclosure" };
+  const deviceRoute = !!deviceSections[url.lens] && recordTool === "assemblies";
   const boardRoute = !!BOARD_RECORD_SECTIONS[url.lens] && recordTool === "pcb";
-  const active = url.probe && (["designs", "identity"].includes(url.lens) || documentRoute || boardRoute) && recordTool ? recordTool : url.lens;
+  const active = url.probe && (["designs", "identity"].includes(url.lens) || documentRoute || boardRoute || deviceRoute) && recordTool ? recordTool : url.lens;
+  useEffect(() => {
+    if (deviceRoute && !selected.isFetching) navigation?.navigate({ area: "designs", lens: "assemblies", filters: { ...navigation.location.filters, view: "scene", section: deviceSections[url.lens]! } }, { replace: true });
+  }, [deviceRoute, selected.isFetching, url.lens, navigation]);
   useEffect(() => {
     if (boardRoute && !selected.isFetching) navigation?.navigate({ area: "library", lens: "pcb", filters: { ...navigation.location.filters, section: BOARD_RECORD_SECTIONS[url.lens]! } }, { replace: true });
   }, [boardRoute, selected.isFetching, url.lens, navigation]);
@@ -181,7 +187,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -241,6 +247,7 @@ function FocusNote({ focus, onDismiss }: { focus: RecordFocus; onDismiss: () => 
 function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }: { record?: LibraryRecord; toolId: string; toolLabel: string; scope: WorkspaceScope; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void; lens: LensContext }) {
   const navigation = useNavigation();
   if (toolId === "new-cable") return <NewCable active={lens.active === toolId} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />;
+  if (["assemblies", "new-assembly"].includes(toolId)) return <DeviceLibrary active={lens.active === toolId} creating={toolId === "new-assembly"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, item) => onOpenInProject(projectId, "assemblies", item)} />;
   if (toolId.startsWith("new-")) return <ProbeProvider probe={null} onProbe={() => {}}><LensEditor toolId={{ "new-cable": "cables", "new-harness": "harnesses", "new-assembly": "assemblies" }[toolId] ?? "cables"} scope={scope} projectId={null} active={lens.active} /></ProbeProvider>;
   if (toolId === "overview" && scope.project && scope.projectId) return <ProjectOverview key={scope.projectId} projectId={scope.projectId} projectName={scope.project.name} workspaceId={scope.workspaceId} permissions={scope.permissions} role={scope.role} active={lens.active === "overview"} onOpenTool={tool => { if (tool === "wire-stock") navigation?.navigate({ area: "library", lens: tool, project: null, probe: null, filters: { status: "new" } }); else lens.setActive(tool); }} onOpenReference={ref => {
     const tool = toolForReference(ref.kind, ref.item_kind);

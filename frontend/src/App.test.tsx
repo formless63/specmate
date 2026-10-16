@@ -83,7 +83,7 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
       return reply({ workspace_id: "w1", family: url.searchParams.get("family"), project_id: projectId, results: rows.filter(row => url.searchParams.getAll("kinds").includes(row.kind)).map(row => ({ ...row, summary: { basis: "latest_frozen", revision_id: row.latest_revision_id, draft_id: null, draft_version: null, numbers: [], fields: [], flags: [] } })), next_after: null });
     }
     if (path.startsWith("/api/v0/workspace/history?")) return reply({ workspace_id: "w1", source: "retained", complete_audit: false, hint: "Retained changes only.", results: [], next_after: null, scan_limit_reached: false });
-    if (path === "/api/v0/access/workspace") return reply({ workspace_id: "w1", name: "Workspace", role, permissions: ROLES[role] });
+    if (path.startsWith("/api/v0/access/workspace")) return reply({ workspace_id: "w1", name: "Workspace", role, permissions: ROLES[role] });
     if (path === "/api/v0/access/account-policy") return reply({ can_create_local_accounts: false });
     if (path === "/api/v0/operations") {
       const envelope = JSON.parse(String(options?.body));
@@ -212,9 +212,10 @@ test("shared, assembly, connected and drawing views mount with scoped read contr
   await screen.findByRole("heading", { name: "Shared scene" });
   expect(screen.getByRole("button", { name: "Refresh scene access" })).toBeTruthy();
   await openTool("Devices");
-  await screen.findByRole("heading", { name: "Reusable assemblies" });
-  // Contributors create workspace items (item.create); editing drafts still needs design.edit.
-  expect(screen.getByRole("button", { name: "Create assembly draft" })).toBeTruthy();
+  await screen.findByRole("heading", { name: "Designs" });
+  fireEvent.click(screen.getByRole("button", { name: "New design" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Device" }));
+  expect(await screen.findByRole("button", { name: "Save device" })).toBeTruthy();
   await openTool("Connected views");
   await screen.findByRole("heading", { name: "Contextual inspection" });
   expect(screen.getByRole("button", { name: "Refresh contextual scene choices" })).toBeTruthy();
@@ -343,7 +344,13 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       fireEvent.click(await screen.findByRole("button", { name: "Prepare cable" }));
       fireEvent.click(await screen.findByRole("button", { name: "Start blank cable" }));
     } else await openTool(tool.label);
-    if (["cables", "harnesses", "assemblies"].includes(toolId)) {
+    if (toolId === "assemblies") {
+      fireEvent.click(await screen.findByRole("button", { name: "New design" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Device" }));
+      expect(await screen.findByRole("button", { name: "Save device" })).toBeTruthy();
+      continue;
+    }
+    if (["cables", "harnesses"].includes(toolId)) {
       const create: Record<string, string> = { cables: "Create cable draft", harnesses: "Create harness draft", assemblies: "Create assembly draft" };
       expect(await screen.findByRole("button", { name: create[toolId]! })).toBeTruthy();
       continue;
@@ -470,7 +477,7 @@ test("Make hosts five functional panels without a second collection picker", asy
 test("Library home creates cable, harness and assembly designs through their authoring forms", async () => {
   server({ authenticated: true }); renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
-  for (const [noun, action] of [["Cable", "Create cable draft"], ["Harness", "Create harness draft"], ["Assembly", "Create assembly draft"]]) {
+  for (const [noun, action] of [["Cable", "Create cable draft"], ["Harness", "Create harness draft"], ["Assembly", "Save device"]]) {
     await openTool("Library home");
     fireEvent.click(await screen.findByRole("button", { name: "New…" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: noun! }));

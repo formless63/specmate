@@ -6,7 +6,7 @@ export function command<T>(operation: string, payload: object, expectedState?: s
 }
 
 export type Placement = { status: "known" | "unknown"; unit?: "mm"; frame?: "right_handed_z_up"; translation?: [number, number, number] | null; rotation_xyzw?: [number, number, number, number] | null };
-export type Assignments = { firmware_revision_id?: string | null };
+export type Assignments = { firmware_revision_id?: string | null; population_option_id?: string | null };
 export type Occurrence = { local_id: string; revision_id: string; display_ref: string; placement?: Placement; assignments?: Assignments };
 export type OccurrenceRef = { kind: "occurrence"; path: string[]; feature_id?: string | null };
 export type RevisionRef = { kind: "revision"; revision_id: string };

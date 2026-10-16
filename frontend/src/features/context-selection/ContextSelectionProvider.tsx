@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { readScene, type ExpectedSceneRoot } from './reads';
 import { scopeKey, SelectionController } from './selection';
@@ -11,13 +11,14 @@ const SelectionContext = createContext<ContextValue | null>(null);
 /** Mount beneath the signed-in project boundary. Principal/root/project changes remount
  * the scope, immediately clearing retained data, selections and old asynchronous readers.
  */
-export function ContextSelectionProvider({ scope, children, onUnavailable, authorityPending = false, revision = null, active = true, expectedRoot }: {
-  scope: Scope; children: ReactNode; onUnavailable?: () => void; authorityPending?: boolean; revision?: number | null; active?: boolean; expectedRoot?: ExpectedSceneRoot;
+export function ContextSelectionProvider({ scope, children, onUnavailable, authorityPending = false, revision = null, active = true, expectedRoot, recordKey }: {
+  scope: Scope; children: ReactNode; onUnavailable?: () => void; authorityPending?: boolean; revision?: number | null; active?: boolean; expectedRoot?: ExpectedSceneRoot; recordKey?: string;
 }) {
-  return <ScopeProvider key={scopeKey(scope)} scope={scope} onUnavailable={onUnavailable} authorityPending={authorityPending} revision={revision} active={active} expectedRoot={expectedRoot}>{children}</ScopeProvider>;
+  return <ScopeProvider key={recordKey ? JSON.stringify([scope.principal_key, scope.project_id, recordKey]) : scopeKey(scope)} scope={scope} onUnavailable={onUnavailable} authorityPending={authorityPending} revision={revision} active={active} expectedRoot={expectedRoot}>{children}</ScopeProvider>;
 }
 function ScopeProvider({ scope, children, onUnavailable, authorityPending, revision, active, expectedRoot }: { scope: Scope; children: ReactNode; onUnavailable?: () => void; authorityPending: boolean; revision: number | null; active: boolean; expectedRoot?: ExpectedSceneRoot }) {
-  const [controller] = useState(() => new SelectionController(scope));
+  const exactScope = scopeKey(scope);
+  const controller = useMemo(() => new SelectionController(scope), [exactScope]);
   const pending = useRef(authorityPending || !active); pending.current = authorityPending || !active;
   const wasPending = useRef(authorityPending);
   const unavailable = useRef(onUnavailable); unavailable.current = onUnavailable;

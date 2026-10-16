@@ -38,3 +38,16 @@ test('hidden scope withdraws retained selection, ignores a held read, and reauth
   await screen.findByText('unavailable'); expect(screen.queryByText(/Exact scene/)).toBeNull();
   await waitFor(() => expect(fetcher.mock.calls.length).toBe(reads + 1));
 });
+
+test('record retention keeps section buffers while changing exact snapshots clears selection and fences held old reads', async () => {
+  let finish: (value: Response) => void = () => {}; const held = new Promise<Response>(resolve => { finish = resolve; });
+  const old = contextScene(), next = structuredClone(old); next.snapshot_id = 'next-snapshot'; next.root.revision_id = 'root-r2'; next.sha256 = 'c'.repeat(64); next.root.snapshot_sha256 = next.sha256;
+  next.nodes.forEach(node => { node.address.snapshot_id = next.snapshot_id; node.features.forEach(feature => { feature.address.snapshot_id = next.snapshot_id; }); });
+  const fetcher = vi.fn(async (path: string) => response(path.endsWith('/next-snapshot') ? next : old)); vi.stubGlobal('fetch', fetcher);
+  const tree = (snapshot: string, actor = 'actor') => <ContextSelectionProvider recordKey="same-device" scope={{ principal_key: actor, project_id: 'library', snapshot_id: snapshot }} expectedRoot={snapshot === old.snapshot_id ? expected : { ...expected, revisionId: 'root-r2', sha256: next.sha256 }}><input aria-label="Secondary record buffer" defaultValue="" /><Inspection /></ContextSelectionProvider>;
+  const view = render(tree(old.snapshot_id)); await screen.findByText('ready'); fireEvent.click(screen.getByText('Pick right')); fireEvent.change(screen.getByLabelText('Secondary record buffer'), { target: { value: 'Retained secondary declaration' } });
+  fetcher.mockReturnValueOnce(held); fireEvent(window, new Event('focus')); await screen.findByText('checking'); view.rerender(tree(next.snapshot_id));
+  await screen.findByText('Exact scene next-snapshot'); expect(screen.queryByText('Selected right/board')).toBeNull(); expect((screen.getByLabelText('Secondary record buffer') as HTMLInputElement).value).toBe('Retained secondary declaration');
+  await act(async () => { finish(response(old)); await held; }); expect(screen.queryByText('Exact scene root-snapshot')).toBeNull();
+  view.rerender(tree(next.snapshot_id, 'different-actor')); await screen.findByText('ready'); expect((screen.getByLabelText('Secondary record buffer') as HTMLInputElement).value).toBe('');
+});
