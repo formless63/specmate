@@ -133,6 +133,7 @@ class ResolvedStack:
                         else "reviewed"
                         if carried.review == "reviewed"
                         else "unknown",
+                        "internal_nodes": [n.model_dump(mode="json") for n in board.internal_nodes],
                         "paths": [
                             {
                                 "local_id": p.local_id,

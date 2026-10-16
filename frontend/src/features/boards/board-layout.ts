@@ -11,7 +11,7 @@ const GLYPH_ROOM = 96;
 const CHAMFER = 6;
 
 export type Point = [number, number];
-export type DrawnPad = BoardTerminal & { x: number; y: number; column: number; anchor: "start" | "end" | "middle"; landed: string | null };
+export type DrawnPad = BoardTerminal & { internal?: boolean; x: number; y: number; column: number; anchor: "start" | "end" | "middle"; landed: string | null };
 export type DrawnPath = BoardPath & { d: string; points: Point[]; glyph: { x: number; y: number; vertical: boolean } | null; fromPad: DrawnPad; toPad: DrawnPad };
 export type DrawnColumn = { name: string; x: number };
 export type DrawnConnector = { name: string; side: "left" | "right"; x: number; y: number; w: number; h: number; leads: { padId: string; contact: string; y: number; padX: number }[] };
@@ -39,15 +39,21 @@ function jog(x1: number, y1: number, lane: number, x2: number, y2: number): Poin
  * The outline is a placeholder box sized to the pads: the board's real shape is not declared here.
  */
 export function layoutBoard(board: Board, connectorName?: string): BoardLayout {
+  // Layout uses abstract junctions too, but they never become BoardTerminal records.
+  // Drawn internal nodes are marked and receive no pad/landing interaction.
+  const endpoints: (BoardTerminal & { internal?: boolean })[] = [...board.terminals,
+    ...(board.internal_nodes ?? []).map(n => ({ terminal_id: n.node_id, label: n.label,
+      group: "Internal graph nodes · not physical", kind: "unknown" as const,
+      side: "unknown" as const, native_pad_ids: [], note: n.basis, internal: true }))];
   const groups: string[] = [];
-  for (const t of board.terminals) { const g = t.group ?? UNGROUPED; if (!groups.includes(g)) groups.push(g); }
-  const byId = new Map(board.terminals.map((t) => [t.terminal_id, t]));
+  for (const t of endpoints) { const g = t.group ?? UNGROUPED; if (!groups.includes(g)) groups.push(g); }
+  const byId = new Map(endpoints.map((t) => [t.terminal_id, t]));
   const colOf = (t: BoardTerminal) => groups.indexOf(t.group ?? UNGROUPED);
   const valid = board.paths.filter((p) => byId.has(p.from_terminal) && byId.has(p.to_terminal) && p.from_terminal !== p.to_terminal);
   // Lanes in the gutter right of each column: paths that leave the column rightward (or stay in it).
   const lanes = groups.map(() => 0);
   const laneOf = new Map<string, { gutter: number; index: number }>();
-  const ordered = [...valid].sort((a, b) => board.terminals.indexOf(byId.get(a.from_terminal)!) - board.terminals.indexOf(byId.get(b.from_terminal)!));
+  const ordered = [...valid].sort((a, b) => endpoints.indexOf(byId.get(a.from_terminal)!) - endpoints.indexOf(byId.get(b.from_terminal)!));
   for (const p of ordered) {
     const ca = colOf(byId.get(p.from_terminal)!), cb = colOf(byId.get(p.to_terminal)!);
     const gutter = ca === cb ? (ca === groups.length - 1 && ca > 0 ? ca - 1 : ca) : Math.min(ca, cb);
@@ -62,7 +68,7 @@ export function layoutBoard(board: Board, connectorName?: string): BoardLayout {
   const landing = new Map<string, string>();
   const connector = board.carried_connectors[0];
   for (const c of connector?.correspondence ?? []) landing.set(c.terminal_id, c.contact_id);
-  const pads: DrawnPad[] = board.terminals.map((t) => {
+  const pads: DrawnPad[] = endpoints.map((t) => {
     const column = colOf(t);
     const row = rows[column]!++;
     const anchor = groups.length === 1 || column === 0 ? "start" : column === groups.length - 1 ? "end" : "middle";

@@ -180,6 +180,10 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
         <title>{`${p.name}: ${p.summary}`}</title>
       </g>)}
       {e.terminals.map((t) => {
+        if (t.kind === "internal_graph_node") return <g key={t.key} role="img" aria-label={`Internal graph node ${t.label}, not a landing target`}>
+          <circle cx={t.x} cy={t.y} r={2} className="cwb-node" />
+          <title>{t.label} · internal electrical graph only · not a physical pad</title>
+        </g>;
         const candidate = armedEnd === e.endpointId && t.layerKind !== "shell";
         const fill = familyColor(signalFamily(t.signal?.type));
         const pick = () => (candidate && onLand ? onLand(t.key) : onSelect(selection === t.key ? null : t.key));
@@ -225,7 +229,7 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
     onPointerUp={event => {
       if (!drag || event.pointerId !== drag.pointerId) return;
       const point = pointAt(event);
-      const target = [...drawing.terminals.values()].filter(terminal => terminal.endpointId === drag.endpointId && terminal.layerKind !== "unknown")
+      const target = [...drawing.terminals.values()].filter(terminal => terminal.endpointId === drag.endpointId && terminal.layerKind !== "unknown" && terminal.kind !== "internal_graph_node")
         .map(terminal => ({ terminal, distance: Math.hypot(terminal.x - point.x, terminal.y - point.y) }))
         .sort((a, b) => a.distance - b.distance)[0];
       if (target && target.distance <= Math.max(12, target.terminal.halfWidth + 6)) onDragLanding?.(drag.endpointId, drag.path, target.terminal.key);

@@ -20,7 +20,8 @@ export type BoardPath = {
 };
 export type KicadOrigin = { population_revision_id: string; interpretation_id: string; interpretation_sha256: string };
 export type Board = {
-  kind: "board"; schema_version?: "0.1"; origin: "black_box" | "kicad_derived"; derived_from: KicadOrigin | null;
+  kind: "board"; schema_version?: "0.1" | "0.2"; origin: "black_box" | "kicad_derived"; derived_from: KicadOrigin | null;
+  internal_nodes?: { node_id: string; label: string; basis: string }[];
   terminals: BoardTerminal[]; carried_connectors: CarriedConnector[]; conditions: BoardCondition[]; paths: BoardPath[];
   review: "unreviewed" | "reviewed"; review_basis: string | null;
 };

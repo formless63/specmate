@@ -347,6 +347,9 @@ function layoutEnd(plan: EndPlan, x0: number, center: number, index: CheckIndex)
         const cableSide = [...sides.cable].sort((a, b) => (padY.get(partner.get(a.terminal_id) ?? "") ?? Infinity) - (padY.get(partner.get(b.terminal_id) ?? "") ?? Infinity) || byLabel(a, b));
         rows(cableSide.length, center).forEach((y, i) => terminal(planned, cableSide[i]!, cableX, y, 7, "cable"));
       }
+      (layer.internal_nodes ?? []).forEach((node, i, all) => terminal(planned,
+        { terminal_id: node.node_id, label: node.label, kind: "internal_graph_node", reaches: [] },
+        mid, center + (i - (all.length - 1) / 2) * 14, 2, "middle"));
     } else if (kind === "inline") {
       const list = layer.parts ?? [];
       rows(list.length, center).forEach((y, i) => {

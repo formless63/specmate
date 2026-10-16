@@ -1,5 +1,50 @@
 {
   "$defs": {
+    "BoardInternalNode": {
+      "additionalProperties": false,
+      "description": "Nonphysical junction inside one exact board occurrence; not a landing target.",
+      "properties": {
+        "endpoint_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
+        },
+        "kind": {
+          "const": "board_internal_node",
+          "default": "board_internal_node",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer Id"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id"
+      ],
+      "title": "BoardInternalNode",
+      "type": "object"
+    },
     "BoardTerminal": {
       "additionalProperties": false,
       "properties": {
@@ -315,6 +360,7 @@
         "terminal": {
           "discriminator": {
             "mapping": {
+              "board_internal_node": "#/$defs/BoardInternalNode",
               "board_terminal": "#/$defs/BoardTerminal",
               "cable_conductor": "#/$defs/CableTerminal",
               "carried_contact": "#/$defs/CarriedContactTerminal",
@@ -344,6 +390,9 @@
             },
             {
               "$ref": "#/$defs/BoardTerminal"
+            },
+            {
+              "$ref": "#/$defs/BoardInternalNode"
             },
             {
               "$ref": "#/$defs/CarriedContactTerminal"

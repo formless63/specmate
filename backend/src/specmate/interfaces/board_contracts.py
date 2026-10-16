@@ -139,6 +139,18 @@ class SwitchState(StrictModel):
     closed_when: Key
 
 
+class BoardInternalNode(StrictModel):
+    """A declared electrical graph junction, never an exposed pad or landing.
+
+    No physical position, native pad, carried-contact correspondence or external
+    termination can be assigned to this node. It only orders internal passages.
+    """
+
+    node_id: TerminalKey
+    label: Text
+    basis: Basis
+
+
 class BoardPath(StrictModel):
     local_id: Key
     from_terminal: TerminalKey
@@ -177,10 +189,11 @@ class KicadOrigin(StrictModel):
 
 class Board(StrictModel):
     kind: Literal["board"] = "board"
-    schema_version: Literal["0.1"] = "0.1"
+    schema_version: Literal["0.1", "0.2"] = "0.1"
     origin: Literal["black_box", "kicad_derived"] = "black_box"
     derived_from: KicadOrigin | None = None
     terminals: list[BoardTerminal] = Field(default_factory=list, max_length=2000)
+    internal_nodes: list[BoardInternalNode] = Field(default_factory=list, max_length=5000)
     carried_connectors: list[CarriedConnector] = Field(default_factory=list, max_length=20)
     conditions: list[BoardCondition] = Field(default_factory=list, max_length=20)
     paths: list[BoardPath] = Field(default_factory=list, max_length=5000)
@@ -194,6 +207,12 @@ class Board(StrictModel):
         if self.review == "reviewed" and not self.review_basis:
             raise ValueError("Reviewed boards require a review basis.")
         terminals = {t.terminal_id for t in self.terminals}
+        internal = {n.node_id for n in self.internal_nodes}
+        if self.internal_nodes and self.schema_version != "0.2":
+            raise ValueError("Internal graph nodes require board schema 0.2.")
+        unique([n.node_id for n in self.internal_nodes])
+        if terminals & internal:
+            raise ValueError("Internal nodes and physical terminals have distinct identities.")
         unique([t.terminal_id for t in self.terminals])
         unique([c.local_id for c in self.carried_connectors])
         unique([c.key for c in self.conditions])
@@ -209,8 +228,11 @@ class Board(StrictModel):
                     raise ValueError("A connector correspondence names an undeclared terminal.")
         choices = {c.key: {x.key for x in c.choices} for c in self.conditions}
         for path in self.paths:
-            if path.from_terminal not in terminals or path.to_terminal not in terminals:
-                raise ValueError("A path names an undeclared terminal.")
+            if (
+                path.from_terminal not in terminals | internal
+                or path.to_terminal not in terminals | internal
+            ):
+                raise ValueError("A path names an undeclared terminal or internal node.")
             if path.switch and path.switch.closed_when not in choices.get(
                 path.switch.condition_key, ()
             ):

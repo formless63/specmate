@@ -168,3 +168,17 @@ test("path chips read in workshop language with raw paths in titles", () => {
   expect(ohms("4k7R")).toBe("4k7R");
   expect(ohms("2.2kR")).toBe("2.2 kΩ");
 });
+
+test('compound board paths retain internal graph dots and every component edge', () => {
+  const stack = boardEnd(); const layer = stack.layers.find(l => l.kind === 'board')!;
+  layer.internal_nodes = [{ node_id: 'between', label: 'Between parts', basis: 'Declared series path' }];
+  layer.paths = [
+    { local_id: 'c', from_terminal: 'v', to_terminal: 'between', via: 'component', summary: 'C1 100 nF capacitor' },
+    { local_id: 'r', from_terminal: 'between', to_terminal: 'din-1', via: 'component', summary: 'R1 2k2 resistor' },
+  ];
+  const d = draw({ stacks: [stack, inlineEnd()] });
+  const internal = d.terminals.get(termKey('a', 'board', 'between'))!;
+  expect(internal.kind).toBe('internal_graph_node');
+  expect(d.ends[0]!.traces.map(t => t.summary)).toEqual(['C1 100 nF capacitor', 'R1 2k2 resistor']);
+  expect(layer.terminals.some(t => t.terminal_id === 'between')).toBe(false);
+});

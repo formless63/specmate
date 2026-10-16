@@ -71,3 +71,22 @@ test("a selected wire stays above overlapping wire hit paths so its landing hand
   fireEvent.click(screen.getByRole("button", { name: "Undo gesture" }));
   expect(screen.getByLabelText("Saved landing").textContent).toBe("1");
 });
+
+test('nonphysical board junctions are neither pointer nor keyboard landing targets', () => {
+  const values = [boardEnd(), boardEnd()];
+  values[1]!.layers.find(l => l.kind === 'board')!.internal_nodes = [{ node_id: 'between', label: 'Series junction', basis: 'Internal passage only' }];
+  const internal = layoutDrawing({ cable: cable(), stock: stock(), stacks: values }).terminals.get('t:b/board/between')!;
+  function InternalSession() {
+    const history = useEditHistory(cable());
+    return <><output aria-label="Internal landing">{history.value.assignments.find(a => a.endpoint_id === 'b' && a.element_path === 'stock.core-1.center')?.terminal_id}</output>
+      <CableWorkbench mode="draft" name="Synthetic" cable={history.value} onChange={history.edit} stock={stock()} stacks={values} revision={{ value: 'draft', sub: 'working' }} editor={{ dirty: !!history.past.length, notes: null }} /></>;
+  }
+  render(<MantineProvider><QueryClientProvider client={new QueryClient()}><InternalSession /></QueryClientProvider></MantineProvider>);
+  expect(screen.getByRole('img', { name: 'Internal graph node Series junction, not a landing target' })).toBeTruthy();
+  fireEvent.pointerDown(handle(), pointer(0, 0)); fireEvent.pointerUp(svg(), pointer(internal.x, internal.y));
+  expect(screen.getByLabelText('Internal landing').textContent).toBe('1');
+  fireEvent.keyDown(handle(), { key: 'Enter' });
+  const selector = screen.getByRole('combobox', { name: 'End B stock.core-1.center target' });
+  fireEvent.focus(selector); fireEvent.change(selector, { target: { value: 'Series junction' } });
+  expect(screen.queryByRole('option', { name: /Series junction/ })).toBeNull();
+});

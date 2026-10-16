@@ -55,6 +55,36 @@
       "title": "BoardCondition",
       "type": "object"
     },
+    "BoardInternalNode": {
+      "additionalProperties": false,
+      "description": "A declared electrical graph junction, never an exposed pad or landing.\n\nNo physical position, native pad, carried-contact correspondence or external\ntermination can be assigned to this node. It only orders internal passages.",
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "node_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+          "title": "Node Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id",
+        "label",
+        "basis"
+      ],
+      "title": "BoardInternalNode",
+      "type": "object"
+    },
     "BoardPath": {
       "additionalProperties": false,
       "properties": {
@@ -459,6 +489,14 @@
       ],
       "default": null
     },
+    "internal_nodes": {
+      "items": {
+        "$ref": "#/$defs/BoardInternalNode"
+      },
+      "maxItems": 5000,
+      "title": "Internal Nodes",
+      "type": "array"
+    },
     "kind": {
       "const": "board",
       "default": "board",
@@ -506,8 +544,11 @@
       "title": "Review Basis"
     },
     "schema_version": {
-      "const": "0.1",
       "default": "0.1",
+      "enum": [
+        "0.1",
+        "0.2"
+      ],
       "title": "Schema Version",
       "type": "string"
     },

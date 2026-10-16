@@ -41,3 +41,17 @@ for (const [width, height] of [[900, 500], [360, 400]] as const) {
     view.unmount(); expect(disconnect).toHaveBeenCalled();
   });
 }
+
+test('internal passage nodes are drawn distinctly and cannot become pad selections', () => {
+  const select = vi.fn();
+  const board: Board = { ...initial, schema_version: '0.2', internal_nodes: [{ node_id: 'between', label: 'Between parts', basis: 'Declared series path' }], paths: [
+    { local_id: 'first', from_terminal: 'a', to_terminal: 'between', via: 'component', component: { kind: 'capacitor', value: '100 nF', reference: 'C1', capacitance_f: '0.0000001', resistance_ohm: null }, switch: null, provenance: 'declared', basis: 'Declared' },
+    { local_id: 'second', from_terminal: 'between', to_terminal: 'b', via: 'component', component: { kind: 'resistor', value: '2k2', reference: 'R1', resistance_ohm: '2200', capacitance_f: null }, switch: null, provenance: 'declared', basis: 'Declared' },
+  ] };
+  render(<MantineProvider env="test"><BoardSketch board={board} title="Series" editable selected={null} onSelect={select} onChange={vi.fn()} /></MantineProvider>);
+  expect(screen.getByRole('img', { name: 'Internal graph node Between parts, not a physical pad' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Pad Between parts' })).toBeNull();
+  expect(screen.getAllByRole('button', { name: /^Path / })).toHaveLength(2);
+  fireEvent.keyDown(screen.getByRole('img', { name: 'Internal graph node Between parts, not a physical pad' }), { key: 'Enter' });
+  expect(select).not.toHaveBeenCalled();
+});

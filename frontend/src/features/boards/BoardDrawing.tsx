@@ -102,6 +102,11 @@ export function BoardDrawing({ layout, board, title, selectedPad = null, selecte
       </g>;
     })}</g>
     <g className="bv-pads">{layout.pads.map((p) => {
+      if (p.internal) return <g key={p.terminal_id} role="img" aria-label={`Internal graph node ${p.label}, not a physical pad`}>
+        <circle cx={p.x} cy={p.y} r={3} className="bv-sw-dot" />
+        <text x={p.x + 8} y={p.y - 6} className="bv-silk">{p.label}</text>
+        <title>{p.label} · internal graph junction only · not a termination target</title>
+      </g>;
       const tht = p.kind === "through_hole" || p.kind === "connector_contact";
       const labelX = p.anchor === "start" ? p.x - PAD_W / 2 - 6 : p.anchor === "end" ? p.x + PAD_W / 2 + 6 : p.x;
       const labelY = p.anchor === "middle" ? p.y - PAD_H / 2 - 4 : p.y + 4;

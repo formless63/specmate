@@ -154,6 +154,7 @@ export function CableWorkbench(props: WorkbenchProps) {
     if (!armed || !onChange) return;
     const at = splitTermKey(terminal);
     if (!at || at.endpointId !== armed.endpointId) return;
+    if (drawing.terminals.get(terminal)?.kind === "internal_graph_node") return;
     onChange(assignLanding(cable, armed.endpointId, armed.path, { layer_id: at.layerId, terminal_id: at.terminalId }));
     setArmed(null);
     select(wireKey(armed.path));
@@ -177,7 +178,7 @@ export function CableWorkbench(props: WorkbenchProps) {
             onDragArm={editable && mode !== "frozen" ? setArmed : undefined}
             onDragLanding={editable && mode !== "frozen" ? (endpointId, path, terminal) => {
               const at = splitTermKey(terminal);
-              if (at && at.endpointId === endpointId) onChange?.(assignLanding(cable, endpointId, path, { layer_id: at.layerId, terminal_id: at.terminalId }));
+              if (at && at.endpointId === endpointId && drawing.terminals.get(terminal)?.kind !== "internal_graph_node") onChange?.(assignLanding(cable, endpointId, path, { layer_id: at.layerId, terminal_id: at.terminalId }));
               select(wireKey(path)); setInspectorTab("connection");
             } : undefined}
             title={`Cable drawing of ${name}: End A stack, stock and End B stack. Click a wire, pin, pad or part to probe it.`} />

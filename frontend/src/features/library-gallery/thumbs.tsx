@@ -85,6 +85,9 @@ function BoardThumb({ content, title }: { content: Json; title: string }) {
     const members = terminals.filter((t) => (str(t.group) ?? "") === group).slice(0, 14);
     members.forEach((t, i) => position.set(String(t.terminal_id), [side === 0 ? 46 : 194, 24 + ((i + 0.5) * 72) / members.length]));
   });
+  const internal = arr(board.internal_nodes).map(obj);
+  internal.slice(0, 12).forEach((n, i) => position.set(String(n.node_id), [120, 24 + (i + .5) * 72 / Math.min(internal.length, 12)]));
+  const internalIds = new Set(internal.map(n => String(n.node_id)));
   const paths = arr(board.paths).map(obj).slice(0, 24);
   return <Frame title={title}>
     <rect x={30} y={16} width={180} height={88} rx={3} className="lg-board-outline" />
@@ -98,7 +101,7 @@ function BoardThumb({ content, title }: { content: Json; title: string }) {
         {component && <rect x={mx - 7} y={my - 3.5} width={14} height={7} className="lg-component" />}
       </g>;
     })}
-    {[...position.entries()].map(([id, [x, y]]) => <rect key={id} x={x - 3.5} y={y - 3.5} width={7} height={7} className="lg-pad" />)}
+    {[...position.entries()].map(([id, [x, y]]) => internalIds.has(id) ? <circle key={id} cx={x} cy={y} r={1.5}><title>Internal graph node, not a pad</title></circle> : <rect key={id} x={x - 3.5} y={y - 3.5} width={7} height={7} className="lg-pad" />)}
     <text x={120} y={114} textAnchor="middle" className="lg-thumb-caption">outline not recorded</text>
   </Frame>;
 }

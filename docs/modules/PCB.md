@@ -556,3 +556,18 @@ repin the record. Independent human assertions, source comparisons and ideal pas
 models retain separate draft tokens, source pins and freeze/review operations. Working
 references are freshly checked on activation and focus. Authority failures withdraw
 retained content while preserving local buffers and their original editing tokens.
+
+### Internal passage chains
+
+Board schema `0.2` adds `internal_nodes`: named, nonphysical junctions with their own
+stable IDs and declaration basis. Paths can connect physical terminals or these nodes,
+so an ordered capacitor → resistor → active-device chain retains every boundary without
+inventing solder pads. Internal IDs are distinct from terminal IDs. They cannot be
+carried-contact correspondence, end-stack joins or wire landing targets. Exact board
+tracing starts and ends at physical terminals and can walk internal nodes in between.
+
+The board drawing and cable drawing show internal junctions as dots, with an explicit
+nonphysical description, rather than pad artwork or landing controls. Copper inspection
+identifies them as `board_internal_node`; components and switches remain boundaries.
+A chain does not imply active-device behavior, physical continuity or manufacturing
+qualification. Existing schema `0.1` boards retain their physical-terminal-only shape.

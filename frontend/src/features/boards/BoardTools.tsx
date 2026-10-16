@@ -27,6 +27,8 @@ function BoardTableEditor({ value, onChange, definitions }: { value: Board; onCh
   const [group, setGroup] = useState("");
   const labels = new Map(value.terminals.map((t) => [t.terminal_id, t.label]));
   const terminalOptions = value.terminals.map((t) => ({ value: t.terminal_id, label: t.group ? `${t.label} · ${t.group}` : t.label }));
+  for (const n of value.internal_nodes ?? []) labels.set(n.node_id, `${n.label} · internal graph node`);
+  const pathOptions = [...terminalOptions, ...(value.internal_nodes ?? []).map(n => ({ value: n.node_id, label: `${n.label} · internal graph node, not a pad` }))];
   const setTerminal = (id: string, patch: Partial<Board["terminals"][number]>) => onChange({ ...value, terminals: value.terminals.map((t) => (t.terminal_id === id ? { ...t, ...patch } : t)) });
   const removeTerminal = (id: string) => onChange({
     ...value, terminals: value.terminals.filter((t) => t.terminal_id !== id),
@@ -34,7 +36,7 @@ function BoardTableEditor({ value, onChange, definitions }: { value: Board; onCh
     carried_connectors: value.carried_connectors.map((c) => ({ ...c, correspondence: c.correspondence.filter((x) => x.terminal_id !== id) })),
   });
   const addTerminal = () => {
-    const ids = value.terminals.map((t) => t.terminal_id);
+    const ids = [...value.terminals.map((t) => t.terminal_id), ...(value.internal_nodes ?? []).map(n => n.node_id)];
     onChange({ ...value, terminals: [...value.terminals, { terminal_id: terminalId(label, ids), label: label.trim(), group: group.trim() || null, kind: "unknown", side: "unknown", native_pad_ids: [], note: null }] });
     setLabel("");
   };
@@ -74,8 +76,8 @@ function BoardTableEditor({ value, onChange, definitions }: { value: Board; onCh
       <Table.Tbody>{value.paths.map((p) => {
         const name = `${labels.get(p.from_terminal) ?? "?"} to ${labels.get(p.to_terminal) ?? "?"}`;
         return <Table.Tr key={p.local_id}>
-          <Table.Td><Select size="xs" aria-label={`From pad of path ${p.local_id}`} value={p.from_terminal || null} data={terminalOptions} onChange={(v) => setPath(p.local_id, { from_terminal: v ?? "" })} /></Table.Td>
-          <Table.Td><Select size="xs" aria-label={`To pad of path ${p.local_id}`} value={p.to_terminal || null} data={terminalOptions} onChange={(v) => setPath(p.local_id, { to_terminal: v ?? "" })} /></Table.Td>
+          <Table.Td><Select size="xs" aria-label={`From pad of path ${p.local_id}`} value={p.from_terminal || null} data={pathOptions} onChange={(v) => setPath(p.local_id, { from_terminal: v ?? "" })} /></Table.Td>
+          <Table.Td><Select size="xs" aria-label={`To pad of path ${p.local_id}`} value={p.to_terminal || null} data={pathOptions} onChange={(v) => setPath(p.local_id, { to_terminal: v ?? "" })} /></Table.Td>
           <Table.Td><Select size="xs" aria-label={`How path ${name} is joined`} value={p.via} data={VIAS.map((v) => ({ value: v, label: VIA_LABELS[v]! }))} disabled={p.provenance !== "declared"}
             onChange={(v) => { const via = (v ?? "unknown") as BoardPath["via"]; setPath(p.local_id, { via, component: via === "component" ? p.component ?? emptyComponent() : null, switch: via === "switch" ? p.switch ?? { condition_key: value.conditions[0]?.key ?? "", closed_when: value.conditions[0]?.choices[0]?.key ?? "" } : null }); }} /></Table.Td>
           <Table.Td><PathDetail path={p} name={name} board={value} onChange={(patch) => setPath(p.local_id, patch)} /></Table.Td>
@@ -209,7 +211,7 @@ export function KicadProposal({ definitions, onUse, active = true, principalKey 
   </Stack></Card>;
 }
 
-const labelOf = (board: Board, id: string) => board.terminals.find((t) => t.terminal_id === id)?.label ?? id;
+const labelOf = (board: Board, id: string) => board.terminals.find((t) => t.terminal_id === id)?.label ?? board.internal_nodes?.find(n => n.node_id === id)?.label ?? id;
 
 function PathChip({ from, to, summary, native, unknown }: { from: string; to: string; summary: string; native?: boolean; unknown?: boolean }) {
   return <span className="sb-path-chip" data-native={native || undefined} data-unknown={unknown || undefined}>
@@ -329,7 +331,7 @@ export function PadInspector({ pad, board, onChange, onDone }: { pad: Board["ter
 }
 
 export function PathInspector({ path, board, onChange, onDone }: { path: BoardPath; board: Board; onChange: (v: Board) => void; onDone: () => void }) {
-  const label = (id: string) => board.terminals.find((t) => t.terminal_id === id)?.label ?? id;
+  const label = (id: string) => board.terminals.find((t) => t.terminal_id === id)?.label ?? board.internal_nodes?.find(n => n.node_id === id)?.label ?? id;
   const set = (patch: Partial<BoardPath>) => onChange({ ...board, paths: board.paths.map((p) => (p.local_id === path.local_id ? { ...p, ...patch } : p)) });
   const c = path.component;
   const put = (patch: Partial<NonNullable<BoardPath["component"]>>) => set({ component: { ...(c ?? emptyComponent()), ...patch } });

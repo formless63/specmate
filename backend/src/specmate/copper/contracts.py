@@ -40,6 +40,15 @@ class BoardTerminal(StrictModel):
     terminal_id: str
 
 
+class BoardInternalNode(StrictModel):
+    """Nonphysical junction inside one exact board occurrence; not a landing target."""
+
+    kind: Literal["board_internal_node"] = "board_internal_node"
+    node_id: str
+    endpoint_id: str | None = None
+    layer_id: str | None = None
+
+
 class CarriedContactTerminal(StrictModel):
     """A contact of a connector body that a board declares it carries."""
 
@@ -64,6 +73,7 @@ Terminal = Annotated[
     | ContactTerminal
     | PadTerminal
     | BoardTerminal
+    | BoardInternalNode
     | CarriedContactTerminal
     | StackTerminal,
     Field(discriminator="kind"),

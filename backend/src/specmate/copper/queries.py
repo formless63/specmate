@@ -249,6 +249,21 @@ class Builder:
                     declaration=join,
                 )
         for layer, board in resolved.boards.values():
+            for node in board.internal_nodes:
+                terminals[endpoint.local_id, layer.layer_id, node.node_id] = self.node(
+                    revision,
+                    path,
+                    {
+                        "kind": "board_internal_node",
+                        "endpoint_id": endpoint.local_id,
+                        "layer_id": layer.layer_id,
+                        "node_id": node.node_id,
+                    },
+                    f"Internal graph node: {node.label}",
+                    "internal_graph_node",
+                    board_revision_id=str(layer.board_revision_id),
+                    basis=node.basis,
+                )
             for board_path in board.paths:
                 members = [
                     terminals[endpoint.local_id, layer.layer_id, board_path.from_terminal],
@@ -429,6 +444,15 @@ class Builder:
             )
             for t in board.terminals
         }
+        for node in board.internal_nodes:
+            keys[node.node_id] = self.node(
+                revision,
+                path,
+                {"kind": "board_internal_node", "node_id": node.node_id},
+                f"Internal graph node: {node.label}",
+                "internal_graph_node",
+                basis=node.basis,
+            )
         for connector in board.carried_connectors:
             body = closure.values[connector.body_revision_id]
             contacts = {

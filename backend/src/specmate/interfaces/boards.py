@@ -102,6 +102,7 @@ def path_summary(path, board):
 def board_view(board, closure):
     """Labels with exact identities: carried contacts, paths and terminals without a path."""
     labels = {t.terminal_id: t.label for t in board.terminals}
+    labels.update({n.node_id: n.label for n in board.internal_nodes})
     landings = {}
     connectors = []
     for connector in board.carried_connectors:
@@ -164,6 +165,7 @@ def board_view(board, closure):
         "derived_from": board.derived_from.model_dump(mode="json") if board.derived_from else None,
         "review": board.review,
         "terminals": terminals,
+        "internal_nodes": [n.model_dump(mode="json") for n in board.internal_nodes],
         "connectors": connectors,
         "paths": paths,
         "continuity": "not_evaluated",
@@ -177,6 +179,7 @@ def board_view(board, closure):
 def board_model(board):
     """The board as a passive-interpreter graph and declared model (terminal IDs as nodes)."""
     nodes = [{"id": t.terminal_id} for t in board.terminals]
+    nodes.extend({"id": n.node_id} for n in board.internal_nodes)
     edges, passages = [], []
     for path in board.paths:
         evidence = REPORTED_NET if path.provenance == "reported_net_membership" else DECLARED_COPPER
@@ -248,6 +251,7 @@ def trace_board(user, query: TraceBoard):
     except ValueError as exc:
         raise ValidationFailed(str(exc)) from None
     labels = {k: t.label for k, t in terminals.items()}
+    labels.update({n.node_id: f"Internal graph node: {n.label}" for n in board.internal_nodes})
     for path in result["paths"]:
         path["terminal_labels"] = [labels[t] for t in path["terminal_ids"]]
     return {

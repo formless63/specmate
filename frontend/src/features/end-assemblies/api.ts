@@ -31,6 +31,7 @@ export type ResolvedLayer = {
   layer_id: string; kind: LayerKind; name: string | null; terminals: ResolvedTerminal[];
   variant_label?: string | null; pinout_name?: string | null; carried_connector_id?: string | null; carried_status?: "reviewed" | "unknown" | null;
   parts?: { local_id: string; name: string; summary: string; part_identity?: InlinePartIdentity }[]; electrical?: string;
+  internal_nodes?: { node_id: string; label: string; basis: string }[];
   paths?: { local_id: string; from_terminal: string; to_terminal: string; via: string; summary: string }[];
 };
 export type ResolvedJoin = {
