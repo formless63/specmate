@@ -457,6 +457,91 @@
       "title": "InlinePart",
       "type": "object"
     },
+    "IntentContactBinding": {
+      "additionalProperties": false,
+      "description": "A logical intent contact bound to one exact physical connector contact.",
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "intent_contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Intent Contact Id",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "side": {
+          "enum": [
+            "from",
+            "to"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "terminal_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "side",
+        "intent_contact_id",
+        "endpoint_id",
+        "layer_id",
+        "terminal_id",
+        "basis"
+      ],
+      "title": "IntentContactBinding",
+      "type": "object"
+    },
+    "IntentEndpointChoice": {
+      "additionalProperties": false,
+      "description": "An intent side mapped to one exact physical connector occurrence.",
+      "properties": {
+        "endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "side": {
+          "enum": [
+            "from",
+            "to"
+          ],
+          "title": "Side",
+          "type": "string"
+        }
+      },
+      "required": [
+        "side",
+        "endpoint_id",
+        "layer_id"
+      ],
+      "title": "IntentEndpointChoice",
+      "type": "object"
+    },
     "Join": {
       "additionalProperties": false,
       "description": "A declared connection between layers or distinct inline parts.",
@@ -524,7 +609,8 @@
           "enum": [
             "termination",
             "splice",
-            "shield_bond"
+            "shield_bond",
+            "solder"
           ],
           "title": "Kind",
           "type": "string"
@@ -999,6 +1085,22 @@
       },
       "maxItems": 256,
       "title": "Endpoints",
+      "type": "array"
+    },
+    "intent_contact_bindings": {
+      "items": {
+        "$ref": "#/$defs/IntentContactBinding"
+      },
+      "maxItems": 1000,
+      "title": "Intent Contact Bindings",
+      "type": "array"
+    },
+    "intent_endpoints": {
+      "items": {
+        "$ref": "#/$defs/IntentEndpointChoice"
+      },
+      "maxItems": 2,
+      "title": "Intent Endpoints",
       "type": "array"
     },
     "intent_revision_id": {

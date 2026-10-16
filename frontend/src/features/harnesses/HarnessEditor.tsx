@@ -1,3 +1,4 @@
+import { IntentBindings } from "../cables/IntentBindings";
 import { Alert, Button, Card, Group, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useQueries } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -81,6 +82,10 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange,
     </>}
     {(!section || section === 'joints') && <JointEditor value={value} choices={choices} denied={denied} onChange={onChange} />}
     {(!section || section === 'breakouts') && <BreakoutEditor value={value} choices={choices} denied={denied} onChange={onChange} />}
+    {value.schema_version === '0.3' && (!section || section === 'review') && <Stack>
+      <CatalogRevisionPicker label="Cable intent" title="Cable intent (optional)" kind="cable_intent" value={value.intent_revision_id ?? ''} definitions={definitions} onChange={id => onChange({ ...value, intent_revision_id: id || null })} />
+      <IntentBindings value={value} endpoints={value.endpoints} stacks={stacks.map(query => denied ? undefined : query.data)} onChange={patch => onChange({ ...value, ...patch })} />
+    </Stack>}
     {(!section || section === 'review') && <><Select label="Harness review" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Harness['review'] })} /><TextInput label="Harness review basis" value={value.review_basis ?? ''} onChange={e => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></>}
   </Stack>;
 }
@@ -105,7 +110,7 @@ function JointEditor({ value, choices, denied, onChange }: { value: Harness; cho
   const available = choices.filter(c => !value.joints.some(j => j.members.some(t => terminalKey(t) === c.value)));
   return <Stack><Title order={4}>Declared joints and shield bonds</Title><Text>One exact terminal belongs to one joint. A shield bond needs shield, drain or shell targets and an explicit basis.</Text>
     {!denied && value.joints.map((joint, index) => <Card key={joint.local_id} withBorder><Text>{joint.local_id} ({joint.kind}): {joint.members.map(terminalLabel).join(' ↔ ')}</Text><Text>Basis: {joint.basis}</Text><Button variant="subtle" onClick={() => onChange({ ...value, joints: value.joints.filter((_, i) => i !== index) })}>Remove joint {joint.local_id}</Button></Card>)}
-    <TextInput label="Joint stable ID" value={id} onChange={e => setId(e.currentTarget.value)} /><Select label="Joint declaration kind" data={['termination', 'splice', 'shield_bond']} value={kind} onChange={v => setKind(v as Joint['kind'])} /><MultiSelect label="Joint exact members" searchable data={available} disabled={denied} value={denied ? [] : members} onChange={setMembers} /><TextInput label="Joint declaration basis" value={basis} onChange={e => setBasis(e.currentTarget.value)} />
+    <TextInput label="Joint stable ID" value={id} onChange={e => setId(e.currentTarget.value)} /><Select label="Joint declaration kind" data={['termination', 'splice', 'shield_bond', 'solder']} value={kind} onChange={v => setKind(v as Joint['kind'])} /><MultiSelect label="Joint exact members" searchable data={available} disabled={denied} value={denied ? [] : members} onChange={setMembers} /><TextInput label="Joint declaration basis" value={basis} onChange={e => setBasis(e.currentTarget.value)} />
     <Button disabled={denied || !id || !basis || members.length < 2 || members.some(m => !available.some(c => c.value === m)) || value.joints.some(j => j.local_id === id)} onClick={() => { onChange({ ...value, joints: [...value.joints, { local_id: id, kind, members: members.map(m => choices.find(c => c.value === m)!.terminal), basis }] }); setId(''); setMembers([]); }}>Add declared joint</Button>
   </Stack>;
 }

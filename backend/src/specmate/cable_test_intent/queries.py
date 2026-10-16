@@ -65,10 +65,23 @@ def target(user, p, *, validate=True):
 
 def terminals(cable):
     if cable.get("topology") == "section_graph":
-        raise ValidationFailed(
-            "Section cable tests require occurrence-qualified section terminals; "
-            "the legacy two-end test format cannot represent this topology."
-        )
+        rows = []
+        for row in cable["terminals"]:
+            original = row["terminal"]
+            terminal = {
+                **original,
+                "kind": "stack_terminal" if original["kind"] == "endpoint" else "segment",
+            }
+            rows.append(
+                {
+                    "terminal": terminal,
+                    "label": " / ".join(
+                        str(value) for key, value in terminal.items() if key != "kind"
+                    ),
+                    "physical_role": row["feature_kind"],
+                }
+            )
+        return rows
     rows = []
     for endpoint in cable["endpoints"]:
         # Test terminals are connector contacts and stock features; an end without a
@@ -108,7 +121,9 @@ def terminals(cable):
 
 
 def terminal_key(value):
-    return value["endpoint_id"], value["kind"], value.get("contact_id") or value.get("element_path")
+    from specmate.cable_test_intent.contracts import Terminal
+
+    return Terminal.model_validate(value).key()
 
 
 def closure(user, content, kind=None, *, validate=True):

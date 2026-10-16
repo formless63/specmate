@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, StringConstraints, model_serializer, model_validator
 
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.cables.contracts import ElementPath
@@ -14,22 +14,56 @@ Declaration = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 
 
 class Terminal(StrictModel):
-    endpoint_id: LocalId
-    kind: Literal["contact", "stock_feature"]
+    endpoint_id: LocalId | None = None
+    kind: Literal["contact", "stock_feature", "stack_terminal", "segment"]
     contact_id: ContactId | None = None
     element_path: ElementPath | None = None
+    layer_id: LocalId | None = None
+    terminal_id: str | None = Field(default=None, min_length=1, max_length=100)
+    segment_id: LocalId | None = None
+    end: Literal["a", "b"] | None = None
 
     @model_validator(mode="after")
     def consistent(self):
-        if self.kind == "contact":
-            if self.contact_id is None or self.element_path is not None:
-                raise ValueError("Contact terminal requires only an exact contact ID.")
-        elif self.element_path is None or self.contact_id is not None:
-            raise ValueError("Stock terminal requires only an exact conductive feature path.")
+        if self.kind in ("contact", "stock_feature"):
+            if self.endpoint_id is None or any(
+                (self.layer_id, self.terminal_id, self.segment_id, self.end)
+            ):
+                raise ValueError(
+                    "Legacy terminals require only an endpoint and contact or stock feature."
+                )
+            if self.kind == "contact":
+                if self.contact_id is None or self.element_path is not None:
+                    raise ValueError("Contact terminal requires only an exact contact ID.")
+            elif self.element_path is None or self.contact_id is not None:
+                raise ValueError("Stock terminal requires only an exact conductive feature path.")
+        elif self.kind == "stack_terminal":
+            if not all((self.endpoint_id, self.layer_id, self.terminal_id)) or any(
+                (self.contact_id, self.element_path, self.segment_id, self.end)
+            ):
+                raise ValueError("Stack terminals require exact endpoint, layer and terminal IDs.")
+        elif not all((self.segment_id, self.end, self.element_path)) or any(
+            (self.endpoint_id, self.layer_id, self.terminal_id, self.contact_id)
+        ):
+            raise ValueError("Segment terminals require exact segment, end and conductive feature.")
         return self
 
     def key(self):
+        if self.kind == "stack_terminal":
+            return self.endpoint_id, self.kind, self.layer_id, self.terminal_id
+        if self.kind == "segment":
+            return self.segment_id, self.kind, self.end, self.element_path
         return self.endpoint_id, self.kind, self.contact_id or self.element_path
+
+    @model_serializer(mode="wrap")
+    def omit_unrecorded_addresses(self, handler):
+        data = handler(self)
+        for field in ("layer_id", "terminal_id", "segment_id", "end"):
+            if data.get(field) is None:
+                data.pop(field, None)
+        if self.kind == "segment":
+            data.pop("endpoint_id", None)
+        return data
 
 
 class DerivedFrom(StrictModel):

@@ -1,3 +1,4 @@
+import type { IntentBindingsValue } from "../cables/IntentBindings";
 import { apiErrorMessage } from "../../lib/api-errors";
 import type { EndStack, ResolvedStack } from '../end-assemblies/api';
 export { type Definition, type Identity } from '../identity/api';
@@ -12,10 +13,10 @@ export type SegmentTerminal = SegmentEnd & { kind: 'segment'; element_path: stri
 export type Endpoint = { local_id: string; label: string | null; end_assembly_revision_id: string | null; stack: EndStack | null };
 export type EndpointTerminal = { kind: 'endpoint'; endpoint_id: string; layer_id: string; terminal_id: string };
 export type Terminal = SegmentTerminal | EndpointTerminal;
-export type Joint = { local_id: string; kind: 'termination' | 'splice' | 'shield_bond'; members: Terminal[]; basis: string };
+export type Joint = { local_id: string; kind: 'termination' | 'splice' | 'shield_bond' | 'solder'; members: Terminal[]; basis: string };
 export type Fate = { local_id: string; kind: 'through'; trunk: SegmentTerminal; leg: SegmentTerminal; basis: string } | { local_id: string; kind: 'joint'; terminal: SegmentTerminal; joint_id: string } | { local_id: string; kind: 'unconnected'; terminal: SegmentTerminal; basis: string };
 export type Breakout = { local_id: string; trunk: SegmentEnd; legs: SegmentEnd[]; fates: Fate[] };
-export type Harness = { schema_version?: '0.2' | '0.3'; intent_revision_id?: string | null; sections: Section[]; segments: Segment[]; endpoints: Endpoint[]; joints: Joint[]; breakouts: Breakout[]; review: 'unreviewed' | 'reviewed'; review_basis: string | null };
+export type Harness = IntentBindingsValue & { schema_version?: '0.2' | '0.3'; intent_revision_id?: string | null; sections: Section[]; segments: Segment[]; endpoints: Endpoint[]; joints: Joint[]; breakouts: Breakout[]; review: 'unreviewed' | 'reviewed'; review_basis: string | null };
 export type Draft = { definition_id: string; draft_id: string; base_revision_id?: string | null; state: string; content: { harness?: Harness } };
 export type DeclaredRelationship = { id: string; breakout_id?: string; kind: string; members: Terminal[]; basis: string };
 export type Inspection = { revision_id: string; harness: Harness; terminals: { terminal: Terminal; feature_kind: string; layer_kind?: string; label?: string; contact_id?: string; signal?: ResolvedStack['layers'][number]['terminals'][number]['signal'] }[]; endpoints?: { local_id: string; label: string | null; end_assembly_revision_id: string | null; end_assembly_name: string | null; resolved_stack: ResolvedStack }[]; stored_schema_version?: string; declared_relationships: DeclaredRelationship[]; breakout_fates: { breakout_id: string; terminal: SegmentTerminal; fate: string }[]; quantities: { harness_count: number | null; segment_count: number | null; physical_piece_count: number | null; stock: { stock_revision_id: string; section_ids: string[]; piece_count: number | null; planned_cut_total_mm: string | null }[] }; continuity: string; compatibility: string; physical_qualification: string };

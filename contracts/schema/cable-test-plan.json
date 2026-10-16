@@ -256,22 +256,87 @@
           "default": null,
           "title": "Element Path"
         },
+        "end": {
+          "anyOf": [
+            {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
         "endpoint_id": {
-          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
-          "title": "Endpoint Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
         },
         "kind": {
           "enum": [
             "contact",
-            "stock_feature"
+            "stock_feature",
+            "stack_terminal",
+            "segment"
           ],
           "title": "Kind",
           "type": "string"
+        },
+        "layer_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer Id"
+        },
+        "segment_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Segment Id"
+        },
+        "terminal_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminal Id"
         }
       },
       "required": [
-        "endpoint_id",
         "kind"
       ],
       "title": "Terminal",

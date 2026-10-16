@@ -1,3 +1,4 @@
+import type { IntentBindingsValue } from "./IntentBindings";
 import { apiErrorMessage, fieldErrorMap } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 import type { LengthPlan, Projection } from "./Lengths";
@@ -10,7 +11,7 @@ export type ConnectorEndpoint = { local_id: string; label: string | null; body_r
 export type Endpoint = { local_id: string; label: string | null; stock_end: 'a' | 'b' | 'unknown'; end_assembly_revision_id: string | null; stack: EndStack | null };
 export type Assignment = { endpoint_id: string; element_path: string; layer_id: string; terminal_id: string; basis: string };
 export type ResolvedTermination = Assignment & { layer_kind: string; terminal_label: string; contact_id: string | null; signal: SignalRef | null; reaches: Reach[] };
-export type Cable = { lengths?: LengthPlan | null; schema_version?: '0.2'; stock_revision_id: string; intent_revision_id?: string | null; endpoints: Endpoint[]; assignments: Assignment[]; review: 'unreviewed' | 'reviewed'; review_basis: string | null };
+export type Cable = IntentBindingsValue & { lengths?: LengthPlan | null; schema_version?: '0.2'; stock_revision_id: string; intent_revision_id?: string | null; endpoints: Endpoint[]; assignments: Assignment[]; review: 'unreviewed' | 'reviewed'; review_basis: string | null };
 export type Draft = { definition_id: string; draft_id: string; state: string; content: { cable?: Cable } };
 export type InspectedEndpoint = Endpoint & {
   end_assembly_name?: string | null; end_assembly_revision_number?: number | null; resolved_stack?: ResolvedStack;

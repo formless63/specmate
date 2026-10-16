@@ -9,7 +9,7 @@ contacts) stays readable for frozen revisions; ``upgrade_content`` maps it to 0.
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, ValidationError, model_serializer, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
 from specmate.cables.lengths import LengthPlan
@@ -76,11 +76,34 @@ class StackTermination(StrictModel):
     basis: Text
 
 
+class IntentEndpointChoice(StrictModel):
+    """An intent side mapped to one exact physical connector occurrence."""
+
+    side: Literal["from", "to"]
+    endpoint_id: LocalId
+    layer_id: LocalId
+
+
+class IntentContactBinding(StrictModel):
+    """A logical intent contact bound to one exact physical connector contact."""
+
+    side: Literal["from", "to"]
+    intent_contact_id: ContactId
+    endpoint_id: LocalId
+    layer_id: LocalId
+    terminal_id: StackTerminalId
+    basis: Text
+
+
 class Cable(StrictModel):
     schema_version: Literal["0.2"] = "0.2"
     stock_revision_id: UUID
     # The cable intent this cable is meant to satisfy; pinned, never a pass by itself.
     intent_revision_id: UUID | None = None
+    intent_endpoints: list[IntentEndpointChoice] = Field(default_factory=list, max_length=2)
+    intent_contact_bindings: list[IntentContactBinding] = Field(
+        default_factory=list, max_length=1000
+    )
     lengths: LengthPlan | None = None
     endpoints: list[CableEnd] = Field(min_length=2, max_length=2)
     assignments: list[StackTermination] = Field(default_factory=list, max_length=2048)
@@ -100,6 +123,7 @@ class Cable(StrictModel):
 
     @model_validator(mode="after")
     def consistent(self):
+        validate_intent_choices(self.intent_endpoints, self.intent_contact_bindings)
         unique([e.local_id for e in self.endpoints])
         known = [e.stock_end for e in self.endpoints if e.stock_end != "unknown"]
         if len(known) != len(set(known)):
@@ -108,6 +132,15 @@ class Cable(StrictModel):
         if self.review == "reviewed" and not self.review_basis:
             raise ValueError("Reviewed cable assignments require a basis.")
         return self
+
+    @model_serializer(mode="wrap")
+    def omit_unmapped_intent(self, handler):
+        data = handler(self)
+        if not self.intent_endpoints:
+            data.pop("intent_endpoints", None)
+        if not self.intent_contact_bindings:
+            data.pop("intent_contact_bindings", None)
+        return data
 
 
 def upgrade_content(value: dict) -> dict:
@@ -164,6 +197,26 @@ class SectionCable(Harness):
 
     schema_version: Literal["0.3"] = "0.3"
     intent_revision_id: UUID | None = None
+    intent_endpoints: list[IntentEndpointChoice] = Field(default_factory=list, max_length=2)
+    intent_contact_bindings: list[IntentContactBinding] = Field(
+        default_factory=list, max_length=1000
+    )
+
+    @model_validator(mode="after")
+    def unique_intent_choices(self):
+        validate_intent_choices(self.intent_endpoints, self.intent_contact_bindings)
+        return self
+
+
+def validate_intent_choices(choices, bindings):
+    if choices and bindings:
+        raise ValueError("Choose whole-end mappings or per-contact bindings, not both.")
+    unique([(b.side, b.intent_contact_id) for b in bindings])
+    unique([(b.side, b.endpoint_id, b.layer_id, b.terminal_id) for b in bindings])
+    if choices:
+        if {c.side for c in choices} != {"from", "to"} or len(choices) != 2:
+            raise ValueError("Map both intent sides to exact connector occurrences.")
+        unique([(c.endpoint_id, c.layer_id) for c in choices])
 
 
 CableContent = Cable | SectionCable

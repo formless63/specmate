@@ -10,6 +10,7 @@ are not measured continuity and never physical qualification. Conventions only f
 
 import json
 from itertools import pairwise
+from uuid import UUID
 
 from specmate.cables.queries import Closure
 from specmate.interfaces.contracts import ConnectorBody, Pinout, Port
@@ -93,6 +94,8 @@ def mating_map(end_layer, end_body, intent_pinout, closure):
 
 def node_ref(node):
     """What a path node is in the cable (a terminal or a conductor end), for drawings."""
+    if node[0] == "s":
+        return {"segment_id": node[1], "end": node[2], "element_path": node[3]}
     if node[0] == "t":
         return {"endpoint_id": node[1], "layer_id": node[2], "terminal_id": node[3]}
     return {"endpoint_id": node[1], "element_path": node[2]}
@@ -117,8 +120,20 @@ class Graph:
                     kind,
                     f"{kind} {terminal['label']}",
                 )
+            for layer, board in resolved.boards.values():
+                for node in getattr(board, "internal_nodes", []):
+                    self.labels[("t", endpoint_id, layer.layer_id, node.node_id)] = (
+                        "internal_graph_node",
+                        node.label,
+                    )
             for a, b, status, text, detail in resolved.edges:
-                self.edge(("t", endpoint_id, *a), ("t", endpoint_id, *b), status, text, detail)
+                self.edge(
+                    ("t", endpoint_id, *a),
+                    ("t", endpoint_id, *b),
+                    status,
+                    text,
+                    {**detail, "endpoint_id": endpoint_id, "layer_id": a[0]},
+                )
         for path, element in closure.elements.items():
             ends = [e.local_id for e in closure.cable.endpoints]
             for e in ends:
@@ -154,7 +169,7 @@ class Graph:
         self.limited = False
         while stack and len(found) < MAX_PATHS:
             node, steps, seen = stack.pop()
-            if node[0] == "c":
+            if node[0] in ("c", "s"):
                 touched.add(node)
             if node != start and self.is_contact(node):
                 found.append((node, steps))
@@ -192,7 +207,7 @@ class Check:
         self.intent = closure.values.get(intent_revision_id)
         if not isinstance(self.intent, CableIntent):
             raise ValidationFailed("Checks need an exact cable intent revision.")
-        self.graph = Graph(closure)
+        self.graph = self._graph(closure)
         self.views = {
             "from": end_view(closure, self.intent.from_revision_id),
             "to": end_view(closure, self.intent.to_revision_id),
@@ -201,11 +216,17 @@ class Check:
             side: {r["contact_id"]: r for r in v["rows"]} for side, v in self.views.items()
         }
         self.parents = {}
-        self._parents(closure.stock.structure, "")
+        self._stock_parents()
         self.ends = self._map_ends()
         self.conventions = self._conventions()
 
     # -- set-up
+
+    def _graph(self, closure):
+        return Graph(closure)
+
+    def _stock_parents(self):
+        self._parents(self.closure.stock.structure, "")
 
     def _parents(self, node, prefix):
         path = f"{prefix}.{node.id}" if prefix else node.id
@@ -215,11 +236,18 @@ class Check:
 
     def _pinout(self, revision_id):
         value = self.closure.values[revision_id]
-        return self.closure.values[value.pinout_revision_id] if isinstance(value, Port) else value
+        if isinstance(value, Port):
+            return self.closure.values.get(value.pinout_revision_id)
+        return value
 
     def _map_ends(self):
         """Which cable end plugs into the intent's from end and which into its to end."""
         sides = {"from": self.intent.from_revision_id, "to": self.intent.to_revision_id}
+        if self.closure.cable.intent_contact_bindings:
+            return self._binding_ends(sides)
+        choices = {choice.side: choice for choice in self.closure.cable.intent_endpoints}
+        if choices:
+            return self._chosen_ends(sides, choices)
         options = {}
         for side, revision_id in sides.items():
             pinout = self._pinout(revision_id)
@@ -260,6 +288,75 @@ class Check:
             }
         return ends
 
+    def _chosen_ends(self, sides, choices):
+        ends = {}
+        for side, revision_id in sides.items():
+            choice = choices[side]
+            endpoint, resolved = self.closure.endpoints[choice.endpoint_id]
+            layer, body, _ = resolved.connectors[choice.layer_id]
+            expected = self._pinout(revision_id)
+            if not isinstance(expected, Pinout):
+                raise ValidationFailed("Composite intent ports require exact per-contact bindings.")
+            mapping, status, reason = mating_map(layer, body, expected, self.closure)
+            ends[side] = {
+                "endpoint_id": endpoint.local_id,
+                "layer_id": layer.layer_id,
+                "label": endpoint.label or endpoint.local_id,
+                "mapping": mapping or {},
+                "reverse": {v: k for k, v in (mapping or {}).items()},
+                "mating": dim(status, reason),
+            }
+        return ends
+
+    def _binding_ends(self, sides):
+        ends = {
+            side: {
+                "endpoint_id": None,
+                "label": self.views[side]["name"],
+                "mapping": {},
+                "reverse": {},
+                "contacts": {},
+                "contact_mating": {},
+                "mating": dim("unknown", "Per-contact physical mating requires each exact member."),
+            }
+            for side in sides
+        }
+        for binding in self.closure.cable.intent_contact_bindings:
+            side = binding.side
+            row = self.pins[side].get(binding.intent_contact_id)
+            if row is None:
+                raise ValidationFailed("Intent binding names no contact of its exact intent port.")
+            _, resolved = self.closure.endpoints[binding.endpoint_id]
+            layer, body, _ = resolved.connectors[binding.layer_id]
+            member = row.get("member") or {}
+            expected = (
+                self.closure.values.get(UUID(member["pinout_revision_id"]))
+                if member.get("pinout_revision_id")
+                else self._pinout(sides[side])
+            )
+            contact = member.get("contact_id") or binding.intent_contact_id
+            status, reason = (
+                "unknown",
+                "Logical contact binding does not establish physical mating.",
+            )
+            if isinstance(expected, Pinout):
+                mapping, status, reason = mating_map(layer, body, expected, self.closure)
+                if mapping is not None and mapping.get(contact) != binding.terminal_id:
+                    status, reason = (
+                        "fail",
+                        "The chosen physical contact differs from the exact mating declaration.",
+                    )
+            ends[side]["contacts"][binding.intent_contact_id] = (
+                "t",
+                binding.endpoint_id,
+                binding.layer_id,
+                binding.terminal_id,
+            )
+            ends[side]["contact_mating"][binding.intent_contact_id] = dim(
+                status, reason, binding.basis
+            )
+        return ends
+
     def _conventions(self):
         from specmate.interfaces.conventions import stock_conventions
 
@@ -281,17 +378,28 @@ class Check:
 
     def near(self, side, contact_id):
         end = self.ends[side]
+        if "contacts" in end:
+            return end["contacts"].get(contact_id)
         mapped = end["mapping"].get(contact_id)
-        layer = self.graph.connector.get(end["endpoint_id"])
+        layer = end.get("layer_id") or self.graph.connector.get(end["endpoint_id"])
         if mapped is None or layer is None:
             return None
         return ("t", end["endpoint_id"], layer, mapped)
 
     def port_contact(self, node):
         for side, end in self.ends.items():
-            if node[1] == end["endpoint_id"]:
+            if "contacts" in end:
+                for contact, actual in end["contacts"].items():
+                    if node == actual:
+                        return side, contact
+            if node[1] == end["endpoint_id"] and (
+                not end.get("layer_id") or node[2] == end["layer_id"]
+            ):
                 return side, end["reverse"].get(node[3])
         return None, None
+
+    def _contact_mating(self, side, contact_id):
+        return self.ends[side].get("contact_mating", {}).get(contact_id, self.ends[side]["mating"])
 
     def pin_label(self, side, contact_id):
         row = self.pins[side].get(contact_id)
@@ -303,7 +411,11 @@ class Check:
         name = self.views[side]["name"]
         chips = [{"kind": "port_pin", "label": f"{name} {self.pin_label(side, contact_id)}"}]
         chips.append(
-            {"kind": "mated", "label": "mated", "status": self.ends[side]["mating"]["status"]}
+            {
+                "kind": "mated",
+                "label": "mated",
+                "status": self._contact_mating(side, contact_id)["status"],
+            }
         )
         chips.append(
             {"kind": "contact", "label": self.graph.labels[start][1], "ref": node_ref(start)}
@@ -311,7 +423,13 @@ class Check:
         for _, to, status, text, detail in steps:
             step = {"kind": detail["kind"], "label": text, "status": status}
             if detail.get("element_path"):
-                step["ref"] = {"element_path": detail["element_path"]}
+                step["ref"] = {
+                    "element_path": detail.get("stock_element_path", detail["element_path"])
+                }
+                if detail.get("section_id"):
+                    step["ref"].update(
+                        section_id=detail["section_id"], segment_id=detail["segment_id"]
+                    )
             chips.append(step)
             chips.append(
                 {
@@ -325,7 +443,7 @@ class Check:
                 {
                     "kind": "mated",
                     "label": "mated",
-                    "status": self.ends[far_side]["mating"]["status"],
+                    "status": self._contact_mating(far_side, far_contact)["status"],
                 }
             )
             chips.append(
@@ -416,7 +534,7 @@ class Check:
             "port pin facts",
         )
 
-    def parts_dim(self, row, components):
+    def parts_dim(self, row, components, details=()):
         if not row.required_parts:
             return dim("not_evaluated", "The intent requires no part on this row.")
         found = []
@@ -426,11 +544,23 @@ class Check:
             )
             if kind is None:
                 return dim("unknown", f"A required {part.conditioning} is not evaluated.")
-            candidates = [c for c in components if c.kind == kind]
+            if part.where != "anywhere":
+                side = "from" if part.where == "from_end" else "to"
+                contacts = [row.from_contact_id] if side == "from" else row.to_contact_ids
+                endpoints = {node[1] for contact in contacts if (node := self.near(side, contact))}
+                candidates = [
+                    d["component"]
+                    for d in details
+                    if d.get("component") is not None
+                    and d.get("endpoint_id") in endpoints
+                    and d["component"].kind == kind
+                ]
+            else:
+                candidates = [c for c in components if c.kind == kind]
             if not candidates:
                 return dim(
                     "fail",
-                    f"No declared {kind} on the path; the intent needs {part.value or kind}.",
+                    f"No declared {kind} at {part.where}; the intent needs {part.value or kind}.",
                 )
             if part.value is None:
                 found.append(f"{kind} present")
@@ -461,6 +591,11 @@ class Check:
     def return_dim(self, row, centers):
         if row.return_policy in ("not_applicable",):
             return dim("not_evaluated", "This row is itself a return.")
+        if row.return_policy == "dedicated_screen" and self.closure.cable.intent_contact_bindings:
+            return dim(
+                "unknown",
+                "Dedicated screen assessment for per-contact port composition is not evaluated.",
+            )
         if row.return_policy != "dedicated_screen":
             return dim("not_evaluated", "The intent states no specific return for this row.")
         if not centers:
@@ -535,7 +670,14 @@ class Check:
             "to_labels": [self.pin_label("to", c) for c in row.to_contact_ids],
             "signal": self.closure.describe(row.signal_ref) if row.signal_ref else None,
         }
-        mating = self.ends["from"]["mating"], self.ends["to"]["mating"]
+        mating = [self.ends["from"]["mating"], self.ends["to"]["mating"]]
+        if self.closure.cable.intent_contact_bindings:
+            mating = [
+                self._contact_mating(side, contact)
+                for side, contacts in (("from", [row.from_contact_id]), ("to", row.to_contact_ids))
+                for contact in contacts
+                if contact is not None
+            ]
         mating_status = (
             "fail"
             if "fail" in (m["status"] for m in mating)
@@ -546,6 +688,20 @@ class Check:
         dims = {k: dim("not_evaluated", "Not evaluated for this row.") for k in DIMENSIONS}
         dims["shield"] = dim("not_evaluated", "Shielding is checked for the whole cable.")
         dims["mating"] = dim(mating_status, "; ".join(m["reason"] for m in mating))
+        if self.closure.cable.intent_contact_bindings:
+            missing_bindings = [
+                (side, contact)
+                for side, contacts in (("from", [row.from_contact_id]), ("to", row.to_contact_ids))
+                for contact in contacts
+                if contact is not None and self.near(side, contact) is None
+            ]
+            if missing_bindings:
+                dims["connection"] = dim(
+                    "unknown",
+                    "Exact physical bindings are missing for "
+                    + ", ".join(f"{side}/{contact}" for side, contact in missing_bindings),
+                )
+                return {**base, "outcome": "unknown", "dimensions": dims, "path": [], "reached": []}
         if row.question is not None:
             dims["connection"] = dim("unknown", "The intent row has an open question.")
             return {**base, "outcome": "unknown", "dimensions": dims, "path": [], "reached": []}
@@ -563,11 +719,17 @@ class Check:
         far = {}
         near_others = []
         for node, steps in found:
-            _, port_contact = self.port_contact(node)
-            if node[1] == far_id:
+            mapped_side, port_contact = self.port_contact(node)
+            if mapped_side == far_side or (
+                node[1] == far_id
+                and (
+                    not self.ends[far_side].get("layer_id")
+                    or node[2] == self.ends[far_side]["layer_id"]
+                )
+            ):
                 far.setdefault(port_contact or node[3], steps)
             else:
-                near_others.append(port_contact or node[3])
+                near_others.append(port_contact or "/".join(node[1:]))
         if row.requirement == "must_not_connect":
             if touched:
                 where = ", ".join(sorted(self.pin_label(far_side, c) for c in far)) or "a conductor"
@@ -684,7 +846,7 @@ class Check:
         dims["level"] = self.level_dim(
             row, "to", [c for c in row.to_contact_ids if c in far], components
         )
-        dims["required_parts"] = self.parts_dim(row, components)
+        dims["required_parts"] = self.parts_dim(row, components, [step[-1] for step in steps])
         dims["return"] = self.return_dim(row, centers)
         dims["convention"] = self.convention_dim(row, centers)
         path = self.chips(side, contact, start, steps, far_side, chosen) if chosen else []
@@ -735,6 +897,14 @@ class Check:
                 "wired outside the intent: " + ", ".join(outside) + ".",
                 "declared topology",
             )
+        return {"isolation": isolation, "shield": self._shield_dim()}
+
+    def _shield_dim(self):
+        if self.closure.cable.intent_contact_bindings:
+            return dim(
+                "unknown",
+                "Overall shield bonding for per-contact port composition is not evaluated.",
+            )
         policy = self.intent.shield.policy
         overall = [
             c for c in self.closure.stock.structure.children if c.kind in ("shield", "drain")
@@ -770,7 +940,7 @@ class Check:
                     "declared topology",
                 )
             )
-        return {"isolation": isolation, "shield": shield}
+        return shield
 
     def result(self):
         rows = [self.row(r) for r in self.intent.rows]
@@ -783,7 +953,11 @@ class Check:
             "intent_name": self.intent_revision.definition.name,
             "intent_number": self.intent_revision.number,
             "ends": {
-                side: {k: v for k, v in end.items() if k not in ("mapping", "reverse")}
+                side: {
+                    k: v
+                    for k, v in end.items()
+                    if k not in ("mapping", "reverse", "contacts", "contact_mating")
+                }
                 | {"intent_end": self.views[side]["name"]}
                 for side, end in self.ends.items()
             },
@@ -802,13 +976,9 @@ def check(user, content, kind, intent_revision_id=None, dependencies=()):
     from specmate.interfaces.wiring import is_section_cable
 
     if is_section_cable(content):
-        from specmate.cables.queries import authorize_content
+        from specmate.cables.section_intent import check_section_cable
 
-        authorize_content(user, content)
-        raise ValidationFailed(
-            "Section cable intent mapping requires exact endpoint and connector "
-            "occurrence choices; the two-end checker cannot infer them."
-        )
+        return check_section_cable(user, content, kind, intent_revision_id, dependencies)
     cable = parse_content(content, kind)
     intent_id = intent_revision_id or (cable.intent_revision_id if cable else None)
     if intent_id is None:

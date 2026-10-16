@@ -524,7 +524,8 @@
           "enum": [
             "termination",
             "splice",
-            "shield_bond"
+            "shield_bond",
+            "solder"
           ],
           "title": "Kind",
           "type": "string"

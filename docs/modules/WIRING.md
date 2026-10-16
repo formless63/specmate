@@ -941,9 +941,11 @@ A solder join can name `through: {layer_id, terminal_id}` for a third board term
 the **same solder point**. It creates one three-member copper joint, not a component,
 extra wire or second material demand. Shells still require explicit electrical bonds.
 The editor, declared copper projection and cable/harness canvas retain this terminal.
-The two-port intent checker reports an unresolved connector occurrence rather than
-assuming a connector when an end contains several; occurrence selection for intent
-mapping is a separate extension. End preparation likewise does not infer a single body.
+Intent checking uses `intent_endpoints` to select exact from/to connector occurrences,
+or `intent_contact_bindings` to map each logical port contact to its physical endpoint,
+layer and terminal with a basis. The latter supports composite device ports without
+inventing a connector body. The checker does not infer an occurrence when several are
+possible. End preparation likewise does not infer a single body.
 
 ### Cable section graphs (content 0.3)
 
@@ -966,7 +968,13 @@ declaration, resolved endpoints, section quantities and explicit terminal relati
 It does not synthesize the singleton-stock `conductors`/`lengths` projection. The editor,
 Formboard, material/preparation plans, coordinated documents, shared scene and export
 packages use the section graph. Exports contain the exact cable JSON and a section
-Formboard rather than a flattened conductor CSV. Two-end intent mapping and the legacy
-bench-test terminal format cannot represent this graph: those operations reject it
-explicitly pending occurrence-qualified mappings and test terminal contracts. Neither a
-successful projection nor an authored relationship proves physical continuity.
+Formboard rather than a flattened conductor CSV. Intent checking preserves the exact section/segment/feature path and checks characteristic
+impedance against every traversed stock revision. Component placement requirements apply
+to the selected source or destination end. Dedicated-screen and overall-shield assessments
+across sections remain explicitly unknown; no combined stock is fabricated.
+Bench plans can address `stack_terminal` (endpoint/layer/terminal) and `segment`
+(segment/end/element path) as well as legacy two-end contact/stock-feature addresses.
+Authored expectations remain independent of performed tests. A `solder` joint explicitly
+records multiple stock feature ends and endpoint terminals at one physical solder point;
+it is separate from inherent stock construction bonds. Neither a successful projection
+nor an authored relationship proves physical continuity.

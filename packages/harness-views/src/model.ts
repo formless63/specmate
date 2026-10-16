@@ -24,7 +24,7 @@ export function endpointPins(ep: HarnessEndpoint): string[] {
 export interface EndTerminalInfo { label: string; layerKind: string; signals: { label: string; name: string | null; type: string | null; status: string }[]; parts: string[] }
 /** Per endpoint: a display name for its stack and its terminals keyed `${layer_id}/${terminal_id}`. */
 export type EndInfoMap = Readonly<Record<string, { name: string | null; terminals: Readonly<Record<string, EndTerminalInfo>> } | undefined>>;
-export interface HarnessJoint { local_id: string; kind: 'termination' | 'splice' | 'shield_bond'; members: HarnessTerminal[]; basis: string }
+export interface HarnessJoint { local_id: string; kind: 'termination' | 'splice' | 'shield_bond' | 'solder'; members: HarnessTerminal[]; basis: string }
 export interface HarnessBreakout { local_id: string; trunk: SegmentEnd; legs: SegmentEnd[]; fates: { local_id: string; kind: string }[] }
 export interface HarnessView {
   sections: HarnessSection[]; segments: HarnessSegment[]; endpoints: HarnessEndpoint[]; joints: HarnessJoint[]; breakouts: HarnessBreakout[];

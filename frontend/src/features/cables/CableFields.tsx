@@ -1,3 +1,4 @@
+import { IntentBindings } from "./IntentBindings";
 import { LengthsEditor } from './Lengths';
 import { Alert, Anchor, Group, SegmentedControl, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
@@ -74,6 +75,7 @@ export function CableFields({ value, onChange, definitions, sources, errors = {}
       <Title order={4}>Intent</Title>
       <Text size="sm" c="dimmed">What this cable must connect, if stated. Checking the cable against it comes later; it never passes by itself.</Text>
       <RevisionPicker label="Intent" title="Cable intent (optional)" kind="cable_intent" value={value.intent_revision_id ?? ''} onChange={intent => onChange({ ...value, intent_revision_id: intent || null })} definitions={definitions} />
+      <IntentBindings value={value} endpoints={value.endpoints} stacks={sources.resolved.map(query => query.data)} onChange={patch => onChange({ ...value, ...patch })} />
     </Stack>
     </>}{families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={chooseFamily} />
       {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => chooseFamily(null)} />}</Group>}

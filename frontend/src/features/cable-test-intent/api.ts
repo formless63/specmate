@@ -1,5 +1,5 @@
 import { requestJson, runOperation } from '../workspace/api';
-export type Terminal = { endpoint_id: string; kind: 'contact' | 'stock_feature'; contact_id?: string | null; element_path?: string | null };
+export type Terminal = { endpoint_id?: string | null; kind: 'contact' | 'stock_feature' | 'stack_terminal' | 'segment'; layer_id?: string | null; terminal_id?: string | null; segment_id?: string | null; end?: 'a' | 'b' | null; contact_id?: string | null; element_path?: string | null };
 export type Evidence = { status: 'unknown' | 'unverified_citation' | 'registered_file'; citation?: string | null; source_bundle_revision_id?: string | null; source_path?: string | null; sha256?: string | null; rights?: string | null };
 export type Pair = { local_id: string; first: Terminal; second: Terminal; intent: 'continuity' | 'isolation' | 'unknown'; basis: string; evidence: Evidence; signal?: string | null; expected_resistance_ohm?: number | null; derived_from?: { intent_revision_id: string; row_ids: string[] } | null };
 export type Label = { local_id: string; text: string; endpoint_id?: string | null; terminal?: Terminal | null; basis: string; evidence: Evidence };
@@ -10,8 +10,8 @@ export type Definition = { definition_id: string; name: string; kind: string };
 export type Target = { root_revision_id: string; root_snapshot_id: string; root_sha256: string; cable_revision_id: string; cable_sha256: string; occurrence_path: string[]; endpoints: { local_id: string; label: string | null }[]; terminals: { terminal: Terminal; label: string; physical_role: string }[] };
 export type Inspection = { revision_id: string; sha256: string; root_snapshot_id: string; root_sha256: string; cable_sha256: string; test_plan: TestPlan; evidence: { kind: string; local_id: string; evidence: Evidence }[]; physical_test: string; physical_continuity: string; physical_qualification: string };
 export const initialPlan = (): TestPlan => ({ root_revision_id: '', occurrence_path: [], cable_revision_id: '', pairs: [], labels: [] });
-export const keyOf = (t: Terminal) => JSON.stringify([t.endpoint_id, t.kind, t.contact_id || t.element_path]);
-export const terminalText = (t: Terminal) => `${t.endpoint_id} · ${t.kind} · ${t.contact_id || t.element_path}`;
+export const keyOf = (t: Terminal) => JSON.stringify(t.kind === 'stack_terminal' ? [t.endpoint_id, t.kind, t.layer_id, t.terminal_id] : t.kind === 'segment' ? [t.segment_id, t.kind, t.end, t.element_path] : [t.endpoint_id, t.kind, t.contact_id || t.element_path]);
+export const terminalText = (t: Terminal) => t.kind === 'stack_terminal' ? `${t.endpoint_id} / ${t.layer_id} / ${t.terminal_id}` : t.kind === 'segment' ? `${t.segment_id} / ${t.end} / ${t.element_path}` : `${t.endpoint_id} · ${t.kind} · ${t.contact_id || t.element_path}`;
 export const read = <T,>(path: string) => requestJson<T>(`/api/v0/${path}`);
 export async function command<T>(name: string, payload: unknown, state?: string) {
   return (await runOperation<T>(name, payload, { expectedState: state })).result;

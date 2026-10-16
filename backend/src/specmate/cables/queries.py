@@ -17,7 +17,7 @@ from specmate.interfaces.end_stacks import ResolvedStack, stack_references
 from specmate.interfaces.intent_contracts import CableIntent
 from specmate.interfaces.queries import Lookup
 from specmate.interfaces.queries import parse_content as parse_interface
-from specmate.interfaces.wiring import is_section_cable
+from specmate.interfaces.wiring import is_section_cable, validate_intent_endpoints
 from specmate.operations import NotFound, ValidationFailed
 from specmate.wire_stock.schemas import StockSpecification
 
@@ -172,6 +172,7 @@ class Closure(Lookup):
                     raise ValidationFailed("A cable end pins an exact end assembly revision.")
                 stack = assembly.stack
             self.endpoints[endpoint.local_id] = (endpoint, ResolvedStack(stack, self))
+        validate_intent_endpoints(self.cable, self.endpoints)
         for assignment in self.cable.assignments:
             endpoint = self.endpoints.get(assignment.endpoint_id)
             if endpoint is None:
@@ -488,7 +489,16 @@ def length_impact(user, before_id, after_id):
     if before["definition_id"] != after["definition_id"]:
         raise ValidationFailed("Length comparison requires revisions of one cable definition.")
     if before.get("topology") == "section_graph" or after.get("topology") == "section_graph":
-        fields = ("sections", "segments", "endpoints", "joints", "breakouts", "intent_revision_id")
+        fields = (
+            "sections",
+            "segments",
+            "endpoints",
+            "joints",
+            "breakouts",
+            "intent_revision_id",
+            "intent_endpoints",
+            "intent_contact_bindings",
+        )
         changes = [
             field for field in fields if before["cable"].get(field) != after["cable"].get(field)
         ]

@@ -96,7 +96,7 @@ def test_flying_lead_and_exact_multi_section_impact(users, project):
     assert impact["changes"] == ["sections"]
     assert impact["stock_revision_changed"] is False
     assert impact["preparation_review_required"] and impact["document_review_required"]
-    with pytest.raises(ValidationFailed, match="occurrence choices"):
+    with pytest.raises(ValidationFailed, match="Pin a cable intent"):
         op(users["viewer"], "cable_intent.check", {"cable_revision_id": second["revision_id"]})
 
 
@@ -170,3 +170,40 @@ def test_section_cable_exports_exact_graph_and_formboard_without_single_stock_pr
     assert "harness" not in exported
     assert f"{path}/formboard-print.html" in files
     assert f"{path}/conductors.csv" not in files  # cannot flatten shared physical identities
+
+
+def test_section_bench_expectations_use_exact_segment_end_and_layer_addresses(users, project):
+    from .test_cable_test_intent import create as create_tests
+    from .test_cable_test_intent import expectation
+    from .test_cable_test_intent import freeze as freeze_tests
+
+    user = users["owner"]
+    value = section_cable(user, project)
+    frozen = freeze(user, create(user, project, value))
+    target = op(
+        users["viewer"],
+        "cable_test_plan.inspect_target",
+        {"root_revision_id": frozen["revision_id"], "cable_revision_id": frozen["revision_id"]},
+    )
+    addresses = [row["terminal"] for row in target["terminals"]]
+    first = {"kind": "segment", "segment_id": "trunk", "end": "a", "element_path": "stock.core"}
+    second = {
+        "kind": "stack_terminal",
+        "endpoint_id": "input",
+        "layer_id": "connector",
+        "terminal_id": "a",
+    }
+    assert first in addresses and second in addresses
+    plan = {
+        "root_revision_id": frozen["revision_id"],
+        "cable_revision_id": frozen["revision_id"],
+        "pairs": [expectation(first, second, "continuity")],
+    }
+    saved = freeze_tests(user, create_tests(user, project, plan))
+    read = op(users["viewer"], "cable_test_plan.read", {"revision_id": saved["revision_id"]})
+    assert read["test_plan"]["pairs"][0]["first"]["segment_id"] == "trunk"
+    assert read["physical_test"] == "not_performed"
+    bad = copy.deepcopy(plan)
+    bad["pairs"][0]["first"]["segment_id"] = "foreign-lead"
+    with pytest.raises(ValidationFailed, match="exact cable terminals"):
+        create_tests(user, project, bad)

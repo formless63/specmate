@@ -377,9 +377,10 @@ class Builder:
                 revision,
                 path,
                 [relationship.get("breakout_id"), relationship["id"]],
-                relationship["kind"],
+                "join" if relationship["kind"] == "solder" else relationship["kind"],
                 [resolve(t) for t in relationship["members"]],
                 relationship["basis"],
+                **({"declaration": relationship} if relationship["kind"] == "solder" else {}),
             )
         for fate in closure.breakout_fates:
             if fate["fate"] not in {"unknown", "unconnected"}:

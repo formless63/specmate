@@ -117,7 +117,7 @@ class HarnessEnd(StrictModel):
 
 class Joint(StrictModel):
     local_id: LocalId
-    kind: Literal["termination", "splice", "shield_bond"]
+    kind: Literal["termination", "splice", "shield_bond", "solder"]
     members: list[Terminal] = Field(min_length=2, max_length=64)
     basis: Text
 

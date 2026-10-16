@@ -24,7 +24,7 @@ from specmate.interfaces.end_assembly_contracts import EndAssembly
 from specmate.interfaces.end_stacks import ResolvedStack, stack_references
 from specmate.interfaces.queries import Lookup
 from specmate.interfaces.queries import parse_content as parse_interface
-from specmate.interfaces.wiring import is_section_cable
+from specmate.interfaces.wiring import is_section_cable, validate_intent_endpoints
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
 from specmate.wire_stock.schemas import StockSpecification
@@ -229,6 +229,7 @@ class Closure(Lookup):
                         }
                     )
                 self.terminals[terminal_key(terminal)] = record
+        validate_intent_endpoints(self.harness, self.endpoints)
         if len(self.terminals) > 20000:
             raise ValidationFailed("Harness terminal limit exceeded.")
         for section in self.harness.sections:
@@ -260,6 +261,10 @@ class Closure(Lookup):
             if joint.kind == "termination" and (len(records) != 2 or segments != 1):
                 raise ValidationFailed(
                     "A termination joins one segment end to one endpoint terminal."
+                )
+            if joint.kind == "solder" and not (1 <= segments < len(records)):
+                raise ValidationFailed(
+                    "A solder joint names stock feature ends and endpoint terminals."
                 )
             if joint.kind == "splice" and segments != len(records):
                 raise ValidationFailed("A splice joins segment ends.")
