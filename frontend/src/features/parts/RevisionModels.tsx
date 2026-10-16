@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import type { Catalog } from '../identity/api';
 import { ApiError, requestJson } from '../workspace/api';
+import './parts.css';
 
 const PartModel = lazy(() => import('./PartModel').then(module => ({ default: module.PartModel })));
 
