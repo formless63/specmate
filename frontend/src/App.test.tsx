@@ -219,7 +219,7 @@ test("firmware and mechanical tools mount with scoped read controls", async () =
   fireEvent.click(screen.getByRole("button", { name: "New design" }));
   fireEvent.click(await screen.findByRole("button", { name: "Prepare device" }));
   await screen.findByRole("button", { name: "Save device" });
-  fireEvent.click(screen.getByRole("tab", { name: "Firmware", exact: true }));
+  fireEvent.click(screen.getByRole("tab", { name: "Firmware" }));
   fireEvent.click(await screen.findByText("Review firmware on repeated boards", { exact: true }));
   expect(await screen.findByText(/Select a saved Device draft or frozen revision/)).toBeTruthy();
   expect(screen.queryByRole("combobox", { name: "Owning assembly" })).toBeNull();
