@@ -620,3 +620,14 @@ test('Home New opens independent option-set and configuration forms without an e
   expect(await screen.findByRole('textbox',{name:`${menu} name`})).toBeTruthy();expect(new URLSearchParams(window.location.search).get('kind')).toBe(kind);expect(new URLSearchParams(window.location.search).get('status')).toBe('new');expect(screen.queryByRole('heading',{name:'No designs yet'})).toBeNull();
  }
 });
+
+test('Library Advanced aliases mount only the canonical controller without a hidden duplicate workspace', async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByRole('button', { name: 'Account menu, signed in as local-user' });
+  await openTool('Reviewed matching');
+  await screen.findByRole('heading', { name: 'Reviewed matching' });
+  expect(screen.getAllByRole('heading', { name: 'Reviewed matching', hidden: true })).toHaveLength(1);
+  expect(window.location.pathname).toBe('/library');
+  expect(new URLSearchParams(window.location.search).get('section')).toBe('matching');
+  expect(new URLSearchParams(window.location.search).get('tool')).toBeNull();
+});

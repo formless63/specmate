@@ -145,7 +145,6 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const { openLens } = url;
   const setActive = useCallback((value: string) => {
     openLens(value);
-    setVisited((current) => current.tools.has(value) ? current : { key: current.key, tools: new Set([...current.tools, value]) });
   }, [openLens]);
   const { selectProject } = scope;
   const changeScope = useCallback((projectId: string | null) => { setFocus(null); selectProject(projectId); }, [selectProject]);
