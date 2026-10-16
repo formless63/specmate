@@ -59,7 +59,7 @@ export function usePartSession(props: SessionProps) {
   }, [signature]);
   const ready = active && confirmed === signature;
   const change = (content: Content) => { if (!busy && ready && editing && canonical(content) !== canonical(buffer)) { undo.current.push(structuredClone(buffer)); edits.current += 1; setBuffer(content); } };
-  const undoEdit = () => { const previous = undo.current.at(-1); if (previous && ready && !busy && editing) { undo.current.pop(); edits.current += 1; setBuffer(previous); } };
+  const undoEdit = () => { const previous = undo.current.at(-1); if (previous && active && !busy && editing) { undo.current.pop(); edits.current += 1; setBuffer(previous); } };
   const intentKey = (operation: string, payload: unknown, state?: string) => { const fingerprint = canonical([operation, payload, state]); let key = keys.current.get(fingerprint); if (!key) { key = randomUUID(); keys.current.set(fingerprint, key); } return key; };
   async function save() {
     if (!ready || busy || !editing || !name.trim() || definitionId && !base) return;

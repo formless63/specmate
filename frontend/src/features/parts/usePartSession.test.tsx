@@ -123,3 +123,14 @@ test('selected-state domain authority gates frozen disclosure without borrowing 
   act(()=>result.current.change({...result.current.buffer,domain_pin:'local'}));await waitFor(()=>expect(result.current.ready).toBe(true));
   expect(authorizeContent.mock.calls.filter(([content])=>content.domain_pin==='local').every(([,context])=>context===undefined)).toBe(true);
 });
+
+test('a denied newly added reference can be undone locally before disclosure without bypassing saved authority', async () => {
+  const api=server(); const authorizeContent=async(content:Content)=>{if(content.domain_pin==='denied')throw new Error('New reference unavailable');};
+  const {result}=mount({definitionId:null,revisionNumber:null,authorizeContent});await waitFor(()=>expect(result.current.ready).toBe(true));
+  act(()=>result.current.change({...result.current.buffer,domain_pin:'denied'}));await waitFor(()=>expect(result.current.error).toBe('New reference unavailable'));expect(result.current.ready).toBe(false);
+  act(()=>result.current.undoEdit());await waitFor(()=>expect(result.current.ready).toBe(true));expect(result.current.buffer.domain_pin).toBeUndefined();expect(api.calls).toEqual([]);
+});
+test('explicit saved reload and local undo never reveal a source-revoked saved record', async () => {
+  const api=server(),{result}=mount({revisionNumber:null,draftRequested:true});await waitFor(()=>expect(result.current.ready).toBe(true));act(()=>result.current.change({...result.current.buffer,local_note:'Retained'}));
+  api.deny(true);await act(async()=>result.current.refresh());expect(result.current.ready).toBe(false);act(()=>result.current.undoEdit());await act(async()=>result.current.refresh(true));expect(result.current.ready).toBe(false);expect(result.current.errorStatus).toBe(403);
+});

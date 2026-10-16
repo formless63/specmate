@@ -34,3 +34,9 @@ test.each([422,403])('explicit draft recovery is metadata-free and available onl
  if(status===403){expect(screen.queryByText('Advanced: choose a working draft')).toBeNull();return;}
  fireEvent.click(screen.getByText('Advanced: choose a working draft'));fireEvent.change(screen.getByLabelText('Explicit working draft ID'),{target:{value:'chosen'}});fireEvent.click(screen.getByRole('button',{name:'Open chosen draft'}));await screen.findByRole('heading',{name:'Synthetic chosen'});expect(screen.getByLabelText('Declared basis')).toHaveProperty('value','Explicit');
 });
+test('new local reference denial offers a metadata-free undo without exposing the retained editor',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>reply({})));
+ mount({definitionId:null,revisionNumber:null,authorizeContent:async content=>{if(content.basis==='Denied local pin')throw new Error('Local reference denied');}});
+ fireEvent.change(await screen.findByRole('textbox',{name:'Declared basis'}),{target:{value:'Denied local pin'}});await screen.findByText('Local reference denied');expect(screen.queryByRole('textbox',{name:'Declared basis'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Undo last local edit'}));await waitFor(()=>expect(screen.getByRole('textbox',{name:'Declared basis'})).toHaveProperty('value',''));
+});
