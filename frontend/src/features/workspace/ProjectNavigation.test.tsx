@@ -10,6 +10,11 @@ vi.mock("../cables/CablePanel", () => ({ CablePanel: ({ projectId }: { projectId
   const [text, setText] = useState("");
   return <><input aria-label="Unsaved cable buffer" value={text} onChange={event => setText(event.currentTarget.value)} /><output aria-label="Editor project">{projectId ?? "none"}</output></>;
 } }));
+// Keep this integration check focused on shell lifetime; cable editing is covered by its mounted tests.
+vi.mock("../designs/NewCable", () => ({ NewCable: () => {
+  const [text, setText] = useState("");
+  return <><input aria-label="Unsaved cable buffer" value={text} onChange={event => setText(event.currentTarget.value)} /><output aria-label="Editor project">none</output></>;
+} }));
 beforeEach(() => { localStorage.clear(); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 vi.mock("../releases/ReleasesPanel", () => ({ ReleasesPanel: ({ initialReleaseId }: { initialReleaseId: string | null }) => <output aria-label="Opened release">{initialReleaseId}</output> }));
@@ -31,7 +36,7 @@ function rail(name: string) { fireEvent.click(within(screen.getByRole("navigatio
 async function returnToCable() {
   rail("Designs");
   fireEvent.click(await screen.findByRole("button", { name: "New design" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Cable", hidden: true }));
+  fireEvent.click(await screen.findByRole("button", { name: "Prepare cable" }));
   fireEvent.click(await screen.findByRole("button", { name: "Keep existing form" }));
 }
 
