@@ -1,0 +1,260 @@
+{
+  "$defs": {
+    "ExactIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "definition_id": {
+          "format": "uuid",
+          "title": "Definition Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "number": {
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "definition_id",
+        "revision_id",
+        "name",
+        "kind",
+        "number",
+        "sha256"
+      ],
+      "title": "ExactIdentity",
+      "type": "object"
+    },
+    "LineupRow": {
+      "additionalProperties": false,
+      "properties": {
+        "design": {
+          "$ref": "#/$defs/ExactIdentity"
+        },
+        "family": {
+          "$ref": "#/$defs/ExactIdentity"
+        },
+        "family_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Family Number"
+        },
+        "in_project": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "In Project"
+        },
+        "selected_options": {
+          "items": {
+            "$ref": "#/$defs/SelectedOption"
+          },
+          "title": "Selected Options",
+          "type": "array"
+        },
+        "variant": {
+          "$ref": "#/$defs/ProductVariant"
+        }
+      },
+      "required": [
+        "family",
+        "family_number",
+        "variant",
+        "selected_options",
+        "design"
+      ],
+      "title": "LineupRow",
+      "type": "object"
+    },
+    "ProductVariant": {
+      "additionalProperties": false,
+      "properties": {
+        "declared_length_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,15}0*$)\\d{0,10}\\.\\d{0,4}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Length Mm"
+        },
+        "design_revision_id": {
+          "format": "uuid",
+          "title": "Design Revision Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Number"
+        },
+        "options": {
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_-]{0,79}$": {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            }
+          },
+          "title": "Options",
+          "type": "object"
+        }
+      },
+      "required": [
+        "local_id",
+        "design_revision_id"
+      ],
+      "title": "ProductVariant",
+      "type": "object"
+    },
+    "SelectedOption": {
+      "additionalProperties": false,
+      "properties": {
+        "axis_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Axis Id",
+          "type": "string"
+        },
+        "axis_label": {
+          "title": "Axis Label",
+          "type": "string"
+        },
+        "value_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Value Id",
+          "type": "string"
+        },
+        "value_label": {
+          "title": "Value Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "axis_id",
+        "axis_label",
+        "value_id",
+        "value_label"
+      ],
+      "title": "SelectedOption",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "basis": {
+      "const": "latest_frozen_family_at_page_anchor_current_authority",
+      "title": "Basis",
+      "type": "string"
+    },
+    "next_after": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Next After"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/LineupRow"
+      },
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "results",
+    "as_of",
+    "basis",
+    "next_after"
+  ],
+  "title": "LineupResult",
+  "type": "object"
+}

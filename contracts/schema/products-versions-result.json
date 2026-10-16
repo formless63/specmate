@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "DraftChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "format": "uuid",
+          "title": "Draft Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "draft_id",
+        "version",
+        "label"
+      ],
+      "title": "DraftChoice",
+      "type": "object"
+    },
+    "FrozenChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "definition_id": {
+          "format": "uuid",
+          "title": "Definition Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "number": {
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "definition_id",
+        "revision_id",
+        "name",
+        "kind",
+        "number",
+        "sha256"
+      ],
+      "title": "FrozenChoice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "drafts": {
+      "items": {
+        "$ref": "#/$defs/DraftChoice"
+      },
+      "title": "Drafts",
+      "type": "array"
+    },
+    "next_offset": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Next Offset"
+    },
+    "revisions": {
+      "items": {
+        "$ref": "#/$defs/FrozenChoice"
+      },
+      "title": "Revisions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "revisions",
+    "drafts",
+    "next_offset"
+  ],
+  "title": "VersionsResult",
+  "type": "object"
+}

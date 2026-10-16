@@ -153,6 +153,7 @@ def _authorize_retained_design(name, ctx, payload, scope):
         "firmware",
         "part",
         "kit",
+        "product_family",
     }:
         if snapshot is not None:
             from specmate.design.operations import authorize_snapshot

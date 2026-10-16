@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "anyOf": [
+        {
+          "maxLength": 3000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After"
+    },
+    "limit": {
+      "default": 25,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "LineupQuery",
+  "type": "object"
+}
