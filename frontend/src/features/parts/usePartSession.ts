@@ -5,7 +5,7 @@ import { authorizeReferences, canonical, command, PART_KINDS, readRecord, refere
 
 export type SessionProps = {
   freezeOperation?: string;
-  authorizeContent?: (content: Content) => Promise<void>; contentSignature?: (content: Content) => string;
+  authorizeContent?: (content: Content, selectedRecord?: PartRecord) => Promise<void>; contentSignature?: (content: Content) => string;
   allowedKinds?: readonly string[]; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
   initial: { kind: string; content: Content; name?: string }; onCreated: (id: string, open: boolean) => void; onSelect: (number: number | null, working: boolean) => void; onAccessLost?: () => void;
 };
@@ -38,7 +38,7 @@ export function usePartSession(props: SessionProps) {
       const next = saved && (!snapshot.base || discard) ? saved.content : snapshot.buffer;
       // The selected server state and the private retained buffer can have different pins.
       // Validate both before revealing either; an unsaved edit cannot borrow saved authority.
-      if (snapshot.props.authorizeContent && current) await snapshot.props.authorizeContent(current.selected.content);
+      if (snapshot.props.authorizeContent && current) await snapshot.props.authorizeContent(current.selected.content, current);
       if (!current || saved) {
         await authorizeReferences(next);
         await snapshot.props.authorizeContent?.(next);

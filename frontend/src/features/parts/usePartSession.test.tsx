@@ -110,3 +110,16 @@ test('explicit draft choice remains a validation response distinct from access d
   await waitFor(() => expect(result.current.errorStatus).toBe(422));
   expect(result.current.error).toBe('Choose an explicit working draft.'); expect(result.current.ready).toBe(false);
 });
+
+test('selected-state domain authority gates frozen disclosure without borrowing its context for retained edits', async () => {
+  server(); let denied = true;
+  const authorizeContent = vi.fn(async (_content: Content, selectedRecord?: PartRecord) => { if (selectedRecord?.selected.kind === 'revision' && denied) throw new Error('Current exact review evidence denied'); });
+  const {result, props, rerender} = mount({authorizeContent});
+  await waitFor(()=>expect(result.current.error).toBe('Current exact review evidence denied')); expect(result.current.ready).toBe(false); expect(result.current.record).toBeNull();
+  expect(authorizeContent.mock.calls[0]?.[1]?.selected).toMatchObject({kind:'revision',revision_id:'r1'});
+  denied=false; await act(async()=>result.current.refresh()); expect(result.current.ready).toBe(true);
+  rerender({...props,revisionNumber:null,draftRequested:true});await waitFor(()=>expect(result.current.ready).toBe(true));
+  expect(authorizeContent.mock.calls.some(([,context])=>context?.selected.kind==='draft')).toBe(true); expect(authorizeContent.mock.calls.some(([,context])=>context===undefined)).toBe(true);
+  act(()=>result.current.change({...result.current.buffer,domain_pin:'local'}));await waitFor(()=>expect(result.current.ready).toBe(true));
+  expect(authorizeContent.mock.calls.filter(([content])=>content.domain_pin==='local').every(([,context])=>context===undefined)).toBe(true);
+});
