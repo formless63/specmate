@@ -66,13 +66,13 @@ function server() {
   }));
   return { commands, conflict: (value: boolean) => { conflict = value; }, deny: (value: boolean) => { deny = value; }, failFreeze: (value: boolean) => { failFreeze = value; }, denySave: (value: boolean) => { denySave = value; }, denyRecord: (id: string) => deniedRecords.add(id) };
 }
-function mount(path = "/designs/c1", permissions = ["workspace.read", "design.edit", "design.freeze", "item.create"]) {
+function mount(path = "/designs/c1", permissions = ["workspace.read", "design.edit", "design.freeze", "item.create"], latestRevision: number | null = 2) {
   const history = createMemoryHistory({ initialEntries: [path] });
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Routed() {
     const nav = useNavigation()!;
     return <ProbeProvider probe={nav.location.probe} onProbe={probe => nav.navigate({ probe })}>
-      <CableRecordHost record={nav.location.probe ? libraryRecord(nav.location.probe.object, "Synthetic cable", { latest_revision: 2 }) : undefined} workspaceId="w1" principalKey="user:w1" active={!!nav.location.probe} />
+      <CableRecordHost record={nav.location.probe ? libraryRecord(nav.location.probe.object, "Synthetic cable", { latest_revision: latestRevision }) : undefined} workspaceId="w1" principalKey="user:w1" active={!!nav.location.probe} />
     </ProbeProvider>;
   }
   render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={permissions}><NavigationProvider history={history}><HistoryScopeProvider value={{ workspaceId: "w1", principalKey: "user:w1" }}><Routed /></HistoryScopeProvider></NavigationProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
@@ -283,4 +283,28 @@ test('a denied Save withdraws the current host and recovery retains the working 
   await waitFor(() => expect(api.commands).toHaveLength(2));
   expect(api.commands.map(command => command.expected_state)).toEqual(['v1', 'v1']);
   expect(api.commands[1]!.idempotency_key).toBe(api.commands[0]!.idempotency_key);
+});
+
+
+test("pending draft keeps Save and both Freeze controls disabled until its CAS base is loaded", async () => {
+  const api = server(), originalFetch = globalThis.fetch;
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+    const response = await originalFetch(input, init);
+    if (input.includes("cables/drafts/")) await pending;
+    return response;
+  }));
+  mount("/designs/c1", undefined, null);
+  expect((await screen.findByRole("button", { name: "Freeze…" })) as HTMLButtonElement).toHaveProperty("disabled", true);
+  expect(screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).toHaveProperty("disabled", true);
+  fireEvent.click(screen.getByRole("button", { name: "Cable versions" }));
+  const freeze = await screen.findByRole("button", { name: "Freeze next revision" });
+  expect(freeze as HTMLButtonElement).toHaveProperty("disabled", true);
+  fireEvent.click(freeze);
+  expect(api.commands).toHaveLength(0);
+  await act(async () => { release(); });
+  await waitFor(() => expect(freeze as HTMLButtonElement).toHaveProperty("disabled", false));
+  expect(screen.getByRole("button", { name: "Freeze…" }) as HTMLButtonElement).toHaveProperty("disabled", false);
+  expect(screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).toHaveProperty("disabled", true);
 });
