@@ -94,7 +94,7 @@ export function LibraryHome({ principalKey }: { principalKey: string }) {
   const startNew = (toolId: string, view: LibraryView) => {
     const designForms: Record<string, string> = { cables: "new-cable", harnesses: "new-harness", assemblies: "new-assembly" };
     const designForm = designForms[toolId];
-    navigation?.navigate({ area: areaOfTool(toolId).id, lens: designForm ?? toolId, probe: null });
+    navigation?.navigate({ area: areaOfTool(toolId).id, lens: designForm ?? toolId, probe: null, ...(["intents", "cable-test-intent"].includes(toolId) ? { filters: { status: "new" } } : {}) });
     if (!designForm) requestNew(view);
   };
   const data = home.data;

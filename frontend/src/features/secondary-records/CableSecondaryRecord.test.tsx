@@ -175,3 +175,15 @@ test('a changed returned kind withdraws retained secondary content instead of us
   expect(screen.queryByRole('textbox', { name: 'Pair stable ID' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull(); expect(api.writes).toHaveLength(0);
 });
+
+test.each([
+  ['cable_intent', '/designs/recipes?status=new', 'Recipe name'],
+  ['cable_test_plan', '/designs?tool=cable-test-intent&status=new', 'Test plan name'],
+] as const)('App opens deliberate New %s as a local form without engineering writes', async (_kind, path, label) => {
+  const api = workspaceServer({ projects: [] }); window.history.replaceState(null, '', path);
+  render(<MantineProvider env="test"><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><App /></QueryClientProvider></MantineProvider>);
+  const name = await screen.findByRole('textbox', { name: label }); fireEvent.change(name, { target: { value: 'Prepared local secondary' } });
+  expect(window.location.search).toContain('status=new');
+  expect((screen.getByRole('button', { name: 'Save draft' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(api.state.operations.filter(row => !['library.home', 'library.previews'].includes(row.operation))).toHaveLength(0);
+});

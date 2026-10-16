@@ -7,6 +7,8 @@ import { initialPlan, inspectTarget, type TestPlan } from '../cable-test-intent/
 import { authorizeConnectorReferences } from '../interfaces/connector-api';
 import { IntentEditor, IntentInspector } from '../intents/IntentEditor';
 import { emptyIntent, type CableIntent } from '../intents/api';
+import { useNewRequest } from '../library-gallery/newRequest';
+import { LIBRARY_VIEWS } from '../shell/scope';
 import { listLibraryTable } from '../library-gallery/table-api';
 import { useNavigation } from '../navigation';
 import { areaOfTool } from '../shell/areas';
@@ -29,7 +31,8 @@ function RetainedRecords(props: Props) {
   const { record, kind, active } = props, probe = useProbe()?.probe, nav = useNavigation(), cache = useQueryClient();
   const [targets, setTargets] = useState<Record<string, { record: LibraryRecord; revision: number | null; working: boolean }>>({});
   const [selected, setSelected] = useState<string | null>(null);
-  const working = nav?.location.filters?.status === 'draft';
+  const working = nav?.location.filters?.status === 'draft', create = usePermission('item.create');
+  useNewRequest(LIBRARY_VIEWS[toolFor(kind)]!, active && create.allowed, () => nav?.navigate({ probe: null, filters: { status: 'new' } }));
   useEffect(() => {
     if (active && record?.kind === kind && probe?.object === record.record_id) {
       setTargets(current => ({ ...current, [record.record_id]: { record, revision: probe.rev, working } }));

@@ -183,3 +183,13 @@ test("New… still reveals the New form in a collection editor", async () => {
   </ProbeProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
   await waitFor(() => expect(reveal).toHaveBeenCalledWith(true, "signal set"));
 });
+
+test.each([
+  ['Cable intent', '/designs/recipes?status=new'],
+  ['Cable test plan', '/designs?tool=cable-test-intent&status=new'],
+])('New %s marks deliberate secondary creation before the old no-probe redirect can apply', async (label, expected) => {
+  serve('editor'); const history = show('editor');
+  fireEvent.click(await screen.findByRole('button', { name: 'New…' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: label }));
+  expect(`${history.location.pathname}${history.location.search}`).toBe(expected);
+});

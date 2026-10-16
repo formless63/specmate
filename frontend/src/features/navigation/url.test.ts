@@ -165,3 +165,12 @@ test('record route registry preserves all old exact pins and paths after removin
     expect(reopened.lens, tool.id).toBe(['cables', 'harnesses', 'assemblies'].includes(legacy.lens) ? 'designs' : legacy.lens);
   }
 });
+
+test('explicit New secondary records retain internal creation routes while ordinary old document links still return to Designs', () => {
+  const plan = parseLocation('/designs', '?tool=cable-test-intent&status=new');
+  expect(plan.lens).toBe('cable-test-intent'); expect(plan.probe).toBeNull(); expect(plan.filters).toEqual({ status: 'new' });
+  expect(parseLocation('/designs', '?tool=cable-test-intent').lens).toBe('designs');
+  expect(parseLocation('/project', '?lens=cable-test-intent').lens).toBe('designs');
+  const recipe = parseLocation('/designs/recipes', '?status=new'); expect(recipe.lens).toBe('intents'); expect(recipe.probe).toBeNull();
+  expect(parseLocation('/library', '?lens=intents').lens).toBe('new-cable');
+});

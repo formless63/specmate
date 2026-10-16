@@ -95,8 +95,8 @@ export function parseLocation(pathname: string, search: string): WorkspaceLocati
     malformed ||= probe === null;
   }
   if (legacy && !probe && ["cables", "harnesses", "assemblies"].includes(lens)) lens = "designs";
-  if (!probe && ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(lens)) lens = "designs";
-  if (legacy && lens === "intents" && !probe) { lens = "new-cable"; filters.kind = "cable"; filters.start = "ports"; }
+  if (!probe && ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(lens) && !(lens === "cable-test-intent" && filters.status === "new")) lens = "designs";
+  if (legacy && lens === "intents" && !probe && filters.status !== "new") { lens = "new-cable"; filters.kind = "cable"; filters.start = "ports"; }
   if (!probe && BOARD_RECORD_SECTIONS[lens]) { filters.section = BOARD_RECORD_SECTIONS[lens]!; lens = "pcb"; }
   if (lens === "discovery") filters.palette = "open";
   if (lens === 'mechanical-sources') lens = 'hardware';
