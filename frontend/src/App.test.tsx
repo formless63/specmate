@@ -206,14 +206,30 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
 test("firmware and mechanical tools mount with scoped read controls", async () => {
   await openAuthenticatedProjectTools();
   await openTool("Board firmware");
-  await screen.findByRole("heading", { name: "Firmware on repeated boards" });
-  expect(screen.getByRole("button", { name: "Show occurrence firmware" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Designs" })).toBeTruthy();
+  expect(window.location.pathname).toBe("/designs");
+  expect(screen.queryByRole("button", { name: "Show occurrence firmware" })).toBeNull();
   await openTool("Mechanical sources");
   await screen.findByRole("heading", { name: "Shells & hardware" });
   expect(screen.getByRole("button", { name: "New enclosure or mechanical source" })).toBeTruthy();
   await openTool("Firmware impact");
-  await screen.findByRole("heading", { name: "Firmware change and observation review" });
-  expect(screen.getByRole("button", { name: "Show firmware impact" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Designs" })).toBeTruthy();
+  expect(window.location.pathname).toBe("/designs");
+  expect(screen.queryByRole("heading", { name: "Firmware change and observation review" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "New design" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Prepare device" }));
+  await screen.findByRole("button", { name: "Save device" });
+  fireEvent.click(screen.getByRole("tab", { name: "Firmware", exact: true }));
+  fireEvent.click(await screen.findByText("Review firmware on repeated boards", { exact: true }));
+  expect(await screen.findByText(/Select a saved Device draft or frozen revision/)).toBeTruthy();
+  expect(screen.queryByRole("combobox", { name: "Owning assembly" })).toBeNull();
+  fireEvent.click(screen.getByText("Firmware declarations and builds", { exact: true }));
+  fireEvent.click(await screen.findByRole("button", { name: "New firmware declaration" }));
+  const field = await screen.findByRole("textbox", { name: "Firmware name" });
+  fireEvent.change(field, { target: { value: "Prepared independent declaration" } });
+  expect(screen.getByRole("textbox", { name: "Toolchain name" })).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Save firmware draft" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "Show firmware" })).toBeNull();
 });
 
 test("retired Device pickers redirect to Designs and current Device sections mount with scoped controls", async () => {
