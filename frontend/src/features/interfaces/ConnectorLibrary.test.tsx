@@ -15,7 +15,7 @@ vi.mock('./ConnectorRecordPage', () => ({ ConnectorRecordPage: (props: Connector
 afterEach(cleanup);
 function mount() {
   const history = createMemoryHistory({ initialEntries: ['/library/connectors/body@2'] });
-  function Routed() { const nav = useNavigation()!; return <ProbeProvider probe={nav.location.probe} onProbe={probe => nav.navigate({ probe })}><ConnectorLibrary active={['interfaces', 'ports', 'end-assemblies'].includes(nav.location.lens)} toolId={nav.location.lens} principalKey="owner" workspaceId="w1" projectFilterId={nav.location.project} projects={[]} onOpenInProject={vi.fn()} /></ProbeProvider>; }
+  function Routed() { const nav = useNavigation()!; return <ProbeProvider probe={nav.location.probe} onProbe={probe => nav.navigate({ probe })}><ConnectorLibrary recordKind={nav.location.probe?.object === 'body' ? 'connector_body' : null} active={['interfaces', 'ports', 'end-assemblies'].includes(nav.location.lens)} toolId={nav.location.lens} principalKey="owner" workspaceId="w1" projectFilterId={nav.location.project} projects={[]} onOpenInProject={vi.fn()} /></ProbeProvider>; }
   render(<MantineProvider env="test"><QueryClientProvider client={new QueryClient()}><PermissionsProvider permissions={['workspace.read', 'item.create']}><NavigationProvider history={history}><Routed /></NavigationProvider></PermissionsProvider></QueryClientProvider></MantineProvider>); return history;
 }
 test('new device port changes canonical route and retains exact prepared pinout through rail/list navigation', async () => {
