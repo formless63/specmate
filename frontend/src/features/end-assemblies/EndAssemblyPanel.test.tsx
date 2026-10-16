@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
-import { EndAssemblyPanel } from "./EndAssemblyPanel";
+import { ConnectorRecordPage } from "../interfaces/ConnectorRecordPage";
 import { StackView } from "./StackEditor";
 import type { ResolvedStack } from "./api";
 
@@ -44,21 +44,22 @@ test("a resolved stack reads by labels: chips, declared reaches, unknown steps a
 test("new end assembly: layers are added in wire-outward order and create sends the stack", async () => {
   const posts: { operation?: string; payload?: { interface?: { stack: { layers: { kind: string }[] } } } }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
-    if (options?.method === "POST") { posts.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: { definition_id: "d", draft_id: "x", state: "draft-v1", kind: "end_assembly", content: {} } }), { status: 200 }); }
+    if (options?.method === "POST") { posts.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: { definition_id: "d", draft_id: "x", state: "draft-v1", kind: "end_assembly", content: { interface: posts.at(-1)?.payload?.interface } } }), { status: 200 }); }
     return new Response(JSON.stringify(url.endsWith("workspace/definitions") ? [] : url.includes("drafts/") ? { definition_id: "d", draft_id: "x", state: "draft-v1", content: {} } : {}), { status: 200 });
   }));
-  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create", "design.edit"]}><EndAssemblyPanel projectId={null} /></PermissionsProvider>));
-  fireEvent.change(screen.getByLabelText("End assembly name"), { target: { value: "Plug end" } });
-  fireEvent.click(screen.getByRole("button", { name: "Add shell" }));
-  fireEvent.click(screen.getByRole("button", { name: "Add board" }));
-  fireEvent.click(screen.getByRole("button", { name: "Create end assembly draft" }));
+  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create", "design.edit"]}><ConnectorRecordPage definitionId={null} revisionNumber={null} draftRequested={false} active principalKey="test" workspaceId="w1" projects={[]} onBack={() => {}} onSelect={() => {}} onCreated={() => {}} onNew={() => {}} onOpen={() => {}} onOpenInProject={() => {}} initial={{ kind: "end_assembly" }} /></PermissionsProvider>));
+  fireEvent.change(await screen.findByLabelText("Connector name"), { target: { value: "Plug end" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add connector" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add shell" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add board" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Save connector" }));
   await vi.waitFor(() => expect(posts.some((p) => p.operation === "interface.create")).toBe(true));
   const created = posts.find((p) => p.operation === "interface.create")!;
   expect(created.payload!.interface!.stack.layers.map((l) => l.kind)).toEqual(["board", "connector", "shell"]);
 });
 
-test("viewers see the editor fields as read-only and cannot create", () => {
+test("viewers see the editor fields as read-only and cannot create", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })));
-  render(wrap(<PermissionsProvider permissions={["workspace.read"]}><EndAssemblyPanel projectId={null} /></PermissionsProvider>));
-  expect((screen.getByRole("button", { name: "Create end assembly draft" }) as HTMLButtonElement).disabled).toBe(true);
+  render(wrap(<PermissionsProvider permissions={["workspace.read"]}><ConnectorRecordPage definitionId={null} revisionNumber={null} draftRequested={false} active principalKey="test" workspaceId="w1" projects={[]} onBack={() => {}} onSelect={() => {}} onCreated={() => {}} onNew={() => {}} onOpen={() => {}} onOpenInProject={() => {}} initial={{ kind: "end_assembly" }} /></PermissionsProvider>));
+  expect((await screen.findByRole("button", { name: "Save connector" }) as HTMLButtonElement).disabled).toBe(true);
 });

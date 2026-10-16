@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FrozenWirePreview } from './FrozenWirePreview';
 import { ProbeProvider } from '../probe';
-import { WireStockPanel } from './WireStockPanel';
 import { stockPresets } from './presets';
 import { profileRevision } from './profile-test-fixtures';
 
@@ -37,11 +36,10 @@ function installApi(exactProfile = profileRevision(), frozenStock = stockPresets
   });
   vi.stubGlobal('fetch', fetcher); return fetcher;
 }
-test('shows pinned construction independently of the edited draft and locks frozen profile suggestions', async () => {
+test('selects exact frozen construction and locks matching profile suggestions', async () => {
   const fetcher = installApi();
-  render(<MantineProvider><ProbeProvider probe={{ object: 'stock-definition', rev: 1, path: [] }} onProbe={() => {}}><WireStockPanel projectId="project1" /></ProbeProvider></MantineProvider>);
-  await screen.findByText(byContent(/Section: 8 mm × 8 mm/));
-  // The same probe also selects the frozen definition.
+  render(<MantineProvider><FrozenWirePreview projectId="project1" /></MantineProvider>);
+  await choose('Frozen stock definition', /Synthetic stock/);
   await choose('Exact stock revision', /Synthetic stock · r1/);
   await screen.findByText(byContent(/Section: 3 mm × 3 mm/)); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   await choose('Matching frozen profile', /Synthetic stripping · revision 1 · profile-r1/);
@@ -54,9 +52,6 @@ test('shows pinned construction independently of the edited draft and locks froz
   const cut = frozen.getByLabelText('End A cut mm') as HTMLInputElement;
   expect(cut.value).toBe('12'); expect(cut.closest('fieldset')!.disabled).toBe(true);
   expect(frozen.queryByRole('button', { name: 'Reset preview profile' })).toBeNull();
-  fireEvent.change(screen.getByLabelText('stock.jacket outer diameter mm'), { target: { value: '9' } });
-  expect(screen.getByText(byContent(/Section: 9 mm × 9 mm/))).toBeTruthy();
-  expect(screen.getByText(byContent(/Section: 3 mm × 3 mm/))).toBeTruthy(); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(fetcher.mock.calls.every(([, options]) => !(options as RequestInit | undefined)?.method)).toBe(true);
   await choose('Exact stock revision', /Synthetic stock · r2/);
   await screen.findByText(byContent(/Section: 8 mm × 8 mm/)); expect(screen.getAllByText('stock-r2', { selector: 'code' }).length).toBeGreaterThan(0);

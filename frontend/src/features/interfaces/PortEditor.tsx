@@ -1,14 +1,11 @@
 import { DefinitionSelect } from '../../components/library/DefinitionSelect';
-import { Alert, Button, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SbStatus, SbUnknown } from "../../components/sb";
-import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
-import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
-import { ContinueDraftButton } from "../scope/ContinueDraftButton";
-import { CONDITIONING, command, initialInterface, read, unknownPortPin, type CableEnd, type DeclaredQuantity, type Definition, type Draft, type EndRow, type Identity, type Inspection, type Pinout, type PinoutRole, type Port, type PortPin } from "./api";
+import { CONDITIONING, read, unknownPortPin, type CableEnd, type DeclaredQuantity, type Definition, type EndRow, type Identity, type Inspection, type Pinout, type PinoutRole, type Port, type PortPin } from "./api";
 import { DeclaredValue, SignalTypeChip } from "./SignalSetPanel";
 import "./signals.css";
 import { BEHAVIOR, COUPLING, NEED_LABELS, PortWorkbench, TERMINATION } from "../pinout-editor/PortWorkbench";
@@ -18,77 +15,6 @@ import { useLatestRevisionDefault } from '../../lib/useLatestRevisionDefault';
 const ROLES: { value: PinoutRole; label: string }[] = [
   { value: "unknown", label: "Role unknown" }, { value: "source", label: "Source" }, { value: "sink", label: "Sink" }, { value: "bidirectional", label: "Bidirectional" },
 ];
-/** Ports lens: device sockets and plugs, one port per pinout variant, with per-pin device facts. */
-export function PortPanel({ projectId }: { projectId: string | null }) {
-  return <Ports key={projectId ?? "library"} projectId={projectId} />;
-}
-
-function Ports({ projectId }: { projectId: string | null }) {
-  const cache = useQueryClient();
-  const createGate = usePermission("item.create");
-  const freezeGate = usePermission("design.freeze");
-  const [name, setName] = useState("");
-  const [value, setValue] = useState<Port>(() => initialInterface("port") as Port);
-  const [definitionId, setDefinitionId] = useState<string | null>(null);
-  const [draftId, setDraftId] = useState<string | null>(null);
-  const [revisionId, setRevisionId] = useState<string | null>(null);
-  const definitions = useQuery({ queryKey: ["port-definitions", projectId], queryFn: () => read<Definition[]>("workspace/definitions") });
-  const identity = useQuery({ queryKey: ["port-identity", definitionId], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}`), enabled: !!definitionId });
-  const draft = useQuery({ queryKey: ["port-draft", draftId], queryFn: () => read<Draft>(`interfaces/drafts/${draftId}`), enabled: !!draftId });
-  const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); };
-  const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
-  useOpenProbed(definitionIn(definitions.data, ["port"]), (id) => { pick(id); openNewest(id); });
-  const create = useMutation({ mutationFn: () => command<Draft>("interface.create", { name, interface: value }), onSuccess: async (data) => {
-    setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null);
-    await referenceFromProject(projectId, data.definition_id, "port");
-    await cache.invalidateQueries({ queryKey: ["port-definitions", projectId] });
-  } });
-  const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("interface.freeze", { draft_id: draftId }, draft.data?.state), onSuccess: async (data) => {
-    setRevisionId(data.revision_id);
-    await cache.invalidateQueries({ queryKey: ["port-draft", draftId] });
-    await cache.invalidateQueries({ queryKey: ["port-identity", definitionId] });
-  } });
-  const ports = (definitions.data ?? []).filter((d) => d.kind === "port");
-  return <Stack>
-    <Title order={2}>Ports</Title>
-    <Text size="sm">A port is a device socket or plug as the outside world sees it: one port per pinout variant. The variant gives each contact its signal; the port adds what the device does there. Anything not stated stays unknown. A cable end can also be given by a pinout variant alone.</Text>
-    {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Group align="end">
-      <Select label="Port" searchable placeholder={ports.length ? "Choose a port" : "No ports yet"} data={ports.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
-      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
-      {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
-    </Group>
-    {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {revisionId && <CableEndInspector key={revisionId} revisionId={revisionId} />}
-    {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && <><PortDraft key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["port-draft", draftId] }); }} />
-      <Group><Button loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze port</Button><ReadOnlyNote permission="design.freeze">Freezing ports is unavailable.</ReadOnlyNote></Group></>}
-    {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-    <Card withBorder><Stack gap="xs">
-      <Title order={3}>New port</Title>
-      <InspectionScope permission="item.create">
-        <TextInput label="Port name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        <PortEditor value={value} onChange={setValue} definitions={definitions.data ?? []} mode="create" />
-      </InspectionScope>
-      <Group><Button disabled={!name.trim() || !value.device_label.trim() || !value.pinout_revision_id} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create port draft</Button><ReadOnlyNote permission="item.create">Creating ports is unavailable.</ReadOnlyNote></Group>
-      {create.isError && <Alert color="red">{create.error.message}</Alert>}
-    </Stack></Card>
-  </Stack>;
-}
-
-function PortDraft({ draft, definitions, onSaved }: { draft: Draft; definitions?: Definition[]; onSaved: () => Promise<void> }) {
-  const editGate = usePermission("design.edit");
-  const [value, setValue] = useState<Port>(() => (draft.content.interface as Port | undefined) ?? (initialInterface("port") as Port));
-  const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
-  return <Card withBorder><Stack gap="xs"><Title order={3}>Edit port draft</Title>
-    <InspectionScope permission="design.edit"><PortEditor value={value} onChange={setValue} definitions={definitions} /></InspectionScope>
-    <Group><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save port draft</Button><ReadOnlyNote permission="design.edit">Saving ports is unavailable.</ReadOnlyNote></Group>
-    {save.isError && <Alert color="red">{save.error.message}</Alert>}
-  </Stack></Card>;
-}
-
-/** Port editor: device, pinout variant, condition choices and a dense per-contact facts table. */
 export function PortEditor({ value, onChange, definitions, mode = "draft" }: { value: Port; onChange: (v: Port) => void; definitions?: Definition[]; mode?: WorkbenchMode }) {
   const [variantDefinition, setVariantDefinition] = useState<string | null>(null);
   const identity = useQuery({ queryKey: ["port-variant-identity", variantDefinition], queryFn: () => read<Identity>(`catalog/definitions/${variantDefinition}`), enabled: !!variantDefinition });

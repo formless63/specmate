@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, expect, test } from "vitest";
-import { MmEntry } from "./WireStockPanel";
+import { MmEntry } from "./MmEntry";
 
 function Harness({ initial = null }: { initial?: number | null }) {
   const [value, setValue] = useState<number | null>(initial);

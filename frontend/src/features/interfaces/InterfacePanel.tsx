@@ -7,7 +7,7 @@ import { useState } from "react";
 import { command, read, initialInterface, type Body, type Definition, type Draft, type Identity, type Inspection, type Interface, type Mapping, type Orientation, type Pinout, type Trace } from "./api";
 import { SignalSetEditor } from "./SignalSetPanel";
 import { ConventionEditor } from "./ConventionPanel";
-import { PortEditor } from "./PortPanel";
+import { PortEditor } from "./PortEditor";
 import { MatingList } from "./Mating";
 import { PinoutVariantFields, PinSignalCell, PinoutVariantList } from "./PinoutSignals";
 import { PinoutWorkbench, type WorkbenchMode } from "../pinout-editor/PinoutWorkbench";

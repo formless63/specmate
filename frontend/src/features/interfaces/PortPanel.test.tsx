@@ -4,8 +4,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
+import { ConnectorRecordPage } from "./ConnectorRecordPage";
 import { MatingList } from "./Mating";
-import { CableEndInspector, PortEditor, PortPanel } from "./PortPanel";
+import { CableEndInspector, PortEditor } from "./PortEditor";
 import { initialInterface, unknownPortPin, type CableEnd, type Pinout, type Port } from "./api";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
@@ -96,11 +97,11 @@ test("a frozen end hatches every unstated fact and marks must-not-connect pins",
   expect(screen.getByText("Console AV out")).toBeTruthy();
 });
 
-test("a viewer reads ports but authoring is withheld", () => {
+test("a viewer reads ports but authoring is withheld", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]))));
-  render(wrap(<PortPanel projectId={null} />, ["workspace.read"]));
-  expect((screen.getByText("Create port draft").closest("button") as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Creating ports is unavailable/)).toBeTruthy();
+  render(wrap(<ConnectorRecordPage definitionId={null} revisionNumber={null} draftRequested={false} active principalKey="test" workspaceId="w1" projects={[]} onBack={() => {}} onSelect={() => {}} onCreated={() => {}} onNew={() => {}} onOpen={() => {}} onOpenInProject={() => {}} initial={{ kind: "port" }} />, ["workspace.read"]));
+  expect(((await screen.findByText("Save connector")).closest("button") as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Freeze saved connector" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 test("mating lists declared partners, reverse declarations and unreviewed as unknown", () => {

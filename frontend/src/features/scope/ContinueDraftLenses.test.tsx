@@ -12,7 +12,6 @@ import { MaterialAccountingPanel } from "../material-accounting/MaterialAccounti
 import { emptyPlan } from "../material-accounting/api";
 import { EndPreparationPanel } from "../end-preparation/EndPreparationPanel";
 import { emptyProfile as emptyEndProfile } from "../end-preparation/api";
-import { EndAssemblyPanel } from "../end-assemblies/EndAssemblyPanel";
 import { IntentPanel } from "../intents/IntentPanel";
 import { CablePanel } from "../cables/CablePanel";
 import { initialCable } from "../cables/api";
@@ -63,7 +62,6 @@ test.each([
 });
 
 test.each([
-  ["End assemblies", "end_assembly", <EndAssemblyPanel projectId={null} />, "Freeze end assembly"],
   ["Intents", "cable_intent", <IntentPanel projectId={null} />, "Freeze intent"],
 ] as const)("%s: Open lands frozen-first and shows Continue draft", async (_name, kind, panel, freeze) => {
   serve(kind, { interface: null }, {});

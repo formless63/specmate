@@ -6,7 +6,7 @@ import { BomPanel } from "../bom/BomPanel";
 import { CableEditor } from "../cables/CablePanel";
 import { initialCable } from "../cables/api";
 import { connectorStack } from "../end-assemblies/api";
-import { WireStockPanel } from "../wire-stock/WireStockPanel";
+import { NewStockRecord } from "../../test/stock-record";
 import { stockPresets } from "../wire-stock/presets";
 import { PREFILL_TARGETS } from "./usePreferenceDefaults";
 
@@ -39,9 +39,12 @@ const wrap = (children: React.ReactNode) => <MantineProvider><QueryClientProvide
 const stockFacts = () => structuredClone(stockPresets.coax!.facts);
 
 test("wire stock: new element color and size system are pre-filled, marked and clearable", async () => {
-  render(wrap(<WireStockPanel workspaceId="ws" />));
+  render(wrap(<NewStockRecord stock={structuredClone(stockPresets.coax!)} />));
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/v0/preferences"), expect.anything()));
   await new Promise(resolve => setTimeout(resolve, 50));
+  fireEvent.click(screen.getByRole("tab", { name: "More" }));
+  fireEvent.click(screen.getByText("Advanced · exact specification tree"));
+  await screen.findByRole("button", { name: "Add element to stock" });
   fireEvent.click(screen.getByRole("button", { name: "Add element to stock" }));
   const color = screen.getByLabelText(/^stock\.conductor-[a-f0-9-]+ color$/) as HTMLInputElement;
   expect(color.value).toBe("red");
@@ -52,9 +55,12 @@ test("wire stock: new element color and size system are pre-filled, marked and c
 });
 
 test("editing a pre-filled value removes its mark", async () => {
-  render(wrap(<WireStockPanel workspaceId="ws" />));
+  render(wrap(<NewStockRecord stock={structuredClone(stockPresets.coax!)} />));
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/v0/preferences"), expect.anything()));
   await new Promise(resolve => setTimeout(resolve, 50));
+  fireEvent.click(screen.getByRole("tab", { name: "More" }));
+  fireEvent.click(screen.getByText("Advanced · exact specification tree"));
+  await screen.findByRole("button", { name: "Add element to stock" });
   fireEvent.click(screen.getByRole("button", { name: "Add element to stock" }));
   const color = screen.getByLabelText(/^stock\.conductor-[a-f0-9-]+ color$/);
   fireEvent.change(color, { target: { value: "blue" } });
@@ -62,9 +68,12 @@ test("editing a pre-filled value removes its mark", async () => {
 });
 
 test("a preference never fills an engineering fact, rating or dimension", async () => {
-  render(wrap(<WireStockPanel workspaceId="ws" />));
+  render(wrap(<NewStockRecord stock={structuredClone(stockPresets.coax!)} />));
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/v0/preferences"), expect.anything()));
   await new Promise(resolve => setTimeout(resolve, 50));
+  fireEvent.click(screen.getByRole("tab", { name: "More" }));
+  fireEvent.click(screen.getByText("Advanced · exact specification tree"));
+  await screen.findByRole("button", { name: "Add element to stock" });
   fireEvent.click(screen.getByRole("button", { name: "Add element to stock" }));
   fireEvent.click(screen.getByRole("button", { name: "Save stock" }));
   await screen.findByText(/^Saved /);
