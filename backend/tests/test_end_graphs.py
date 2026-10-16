@@ -144,3 +144,32 @@ def test_legacy_end_stack_serialization_preserves_shape(kit):
     assert json.dumps(parsed.model_dump(mode="json"), sort_keys=True) == json.dumps(
         serialized, sort_keys=True
     )
+
+
+def test_versioned_local_contact_solder_bridge_preserves_legacy_and_component_guards(
+    users, project, kit
+):
+    end = examples.din_adapter_end(kit["board"], kit["plug"], kit["plug_variant"])
+    stack = end["stack"]
+    stack["joins"] = [
+        {
+            "local_id": "local-return-bridge",
+            "kind": "solder",
+            "basis": "Explicit synthetic local jumper drawing",
+            "a": {"layer_id": "connector", "terminal_id": "3"},
+            "b": {"layer_id": "connector", "terminal_id": "7"},
+        }
+    ]
+    with pytest.raises(ValidationError, match="Same-layer"):
+        EndStack.model_validate(stack)
+    stack["graph_version"] = "0.2"
+    revision = freeze(users["owner"], create(users["owner"], project, end))
+    view = op(users["viewer"], "interface.read", {"revision_id": revision["revision_id"]})[
+        "end_stack"
+    ]
+    bridge = next(j for j in view["joins"] if j["local_id"] == "local-return-bridge")
+    assert bridge["a"]["terminal_id"] == "3" and bridge["b"]["terminal_id"] == "7"
+    invalid = copy.deepcopy(stack)
+    invalid["joins"][0]["kind"] = "integrated"
+    with pytest.raises(ValidationError, match="Same-layer"):
+        EndStack.model_validate(invalid)

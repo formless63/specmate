@@ -185,8 +185,14 @@ class EndStack(StrictModel):
                 raise ValueError("A carrier solder terminal belongs to a board occurrence.")
             if join.a.layer_id == join.b.layer_id:
                 layer = layers[join.a.layer_id]
-                if layer.kind != "inline":
+                if layer.kind != "inline" and not (
+                    self.graph_version == "0.2"
+                    and join.kind == "solder"
+                    and layer.kind in {"board", "connector"}
+                ):
                     raise ValueError("Same-layer joins require distinct declared inline parts.")
+                if layer.kind != "inline":
+                    continue
                 owners = {
                     f"{part.local_id}.{lead}": part.local_id
                     for part in layer.parts
