@@ -216,22 +216,41 @@ test("firmware and mechanical tools mount with scoped read controls", async () =
   expect(screen.getByRole("button", { name: "Show firmware impact" })).toBeTruthy();
 });
 
-test("shared, assembly, connected and drawing views mount with scoped read controls", async () => {
-  await openAuthenticatedProjectTools();
-  await openTool("Shared scene");
-  await screen.findByRole("heading", { name: "Shared scene" });
-  expect(screen.getByRole("button", { name: "Refresh scene access" })).toBeTruthy();
-  await openTool("Devices");
-  await screen.findByRole("heading", { name: "Designs" });
-  fireEvent.click(screen.getByRole("button", { name: "New design" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Prepare device" }));
-  expect(await screen.findByRole("button", { name: "Save device" })).toBeTruthy();
-  await openTool("Connected views");
-  await screen.findByRole("heading", { name: "Contextual inspection" });
-  expect(screen.getByRole("button", { name: "Refresh contextual scene choices" })).toBeTruthy();
-  await openTool("Scene drawings");
-  await screen.findByRole("heading", { name: "Scene inspection drawings" });
-  expect(screen.getByRole("button", { name: "Inspect drawing scene" })).toBeTruthy();
+test("retired Device pickers redirect to Designs and current Device sections mount with scoped controls", async () => {
+  const fetchMock = server({ authenticated: true });
+  const base = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (path, options) => {
+    if (path === '/api/v0/operations' && JSON.parse(String(options?.body)).operation === 'release.list') return reply({ result: { releases: [], next_after: null } });
+    if (path === '/api/v0/mechanical-proposals/workspaces/w1/boards') return reply({ boards: [] });
+    if (path === '/api/v0/mechanical-proposals/workspaces/w1/drafts') return reply({ drafts: [], truncated: false });
+    return base(path, options);
+  });
+  renderApp();
+  await screen.findByRole('button', { name: 'Account menu, signed in as local-user' });
+  await openProject('Project A');
+  for (const label of ['Shared scene', 'Connected views', 'Scene drawings']) {
+    await openTool(label);
+    expect(await screen.findByRole('heading', { name: 'Designs' })).toBeTruthy();
+    expect(window.location.pathname).toBe('/designs');
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('tool')).toBeNull());
+  }
+  await openTool('Devices');
+  fireEvent.click(await screen.findByRole('button', { name: 'New design' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Prepare device' }));
+  expect(await screen.findByRole('button', { name: 'Save device' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Capture saved assembly' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByText(/Save the declaration, then choose Capture saved assembly/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('tab', { name: 'Tree' }));
+  expect(screen.getByRole('tab', { name: 'Tree' }).getAttribute('aria-selected')).toBe('true');
+  fireEvent.click(screen.getByRole('tab', { name: 'Interfaces' }));
+  expect(await screen.findByRole('button', { name: 'New interface mapping' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('tab', { name: 'Drawings' }));
+  expect(await screen.findByRole('textbox', { name: 'Drawing frozen scene snapshot ID' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Inspect drawing scene' }).hasAttribute('disabled')).toBe(true);
+  fireEvent.click(screen.getByRole('tab', { name: 'Enclosure' }));
+  expect(await screen.findByRole('button', { name: 'Create proposal draft' })).toBeTruthy();
+  const operations = fetchMock.mock.calls.filter(([path]) => path === '/api/v0/operations').map(([, options]) => JSON.parse(String(options?.body)).operation as string);
+  expect(operations.filter(operation => !['library.previews', 'library.home', 'workspace.settings.get', 'collaboration.list', 'collaboration.inbox', 'release.list'].includes(operation))).toEqual([]);
 });
 
 test("interfaces and knowledge mount with scoped read controls", async () => {
