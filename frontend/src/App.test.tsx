@@ -541,3 +541,12 @@ test('Products tabs share the shell and retain an unsaved structured family acro
   await waitFor(() => expect((screen.getByLabelText('Family name') as HTMLInputElement).value).toBe('Synthetic local family'));
   expect(screen.queryByRole('heading', { name: 'Choose a project' })).toBeNull();
 });
+
+
+test('an exact secondary source review opens independently of unavailable broader current metadata', async () => {
+  const definition='10000000-0000-0000-0000-000000000011';const fallback=server({authenticated:true,role:'editor'});const paths:string[]=[];
+  const content={pcb_assertion:{kind:'pcb_assertion',method:'human_assertion',source_role:'schematic',source:{source_revision_id:'10000000-0000-0000-0000-000000000012',manifest_sha256:'a'.repeat(64),path:'synthetic.sch',sha256:'b'.repeat(64),rights:'Synthetic'},coverage:'partial',coverage_basis:'Independent exact assertion',terminals:[]}};
+  vi.stubGlobal('fetch',vi.fn(async(path:string,options?:RequestInit)=>{paths.push(path);if(path.startsWith(`/api/v0/workspace/library/${definition}`))return reply({error:{message:'Broader current metadata unavailable'}},403);if(path.includes(`/catalog/definitions/${definition}/record?`))return reply({definition_id:definition,workspace_id:'w1',kind:'pcb_assertion',name:'Exact historic secondary',selected:{kind:'revision',revision_id:'historic-review',number:7,snapshot_id:'historic-snapshot',sha256:'c'.repeat(64),content}});if(path.includes('/pcb-disagreement/revisions/historic-review'))return reply({revision_id:'historic-review',definition_id:definition,sha256:'c'.repeat(64),content,projection:{parity:'not_evaluated',physical_qualification:'not_evaluated'}});return fallback(path,options);}));
+  window.history.pushState(null,'',`/library/boards/${definition}@7/~/slot?tool=pcb-disagreement`);window.dispatchEvent(new PopStateEvent('popstate'));renderApp();
+  expect(await screen.findByRole('heading',{name:'Exact historic secondary'})).toBeTruthy();expect(paths.some(path=>path.includes(`/catalog/definitions/${definition}/record?revision_number=7`))).toBe(true);expect(screen.queryByText('Opening the exact board section…')).toBeNull();expect(window.location.pathname).toContain(`${definition}@7/~/slot`);
+});

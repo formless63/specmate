@@ -1,0 +1,10 @@
+import { Alert, Button, Group, Select, Stack, TextInput } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { newestFirst, revisionOptionLabel } from '../../lib/revision-labels';
+import { authorityDenied, read, type Definition, type Identity } from './api';
+export function RevisionPicker({ label, kinds, value, onChange, definitions, onDenied }: { label: string; kinds: string[]; value: string; onChange: (value: string) => void; definitions: Definition[]; onDenied?: (id: string) => void }) {
+  const [definition, setDefinition] = useState<string | null>(null); const [offset, setOffset] = useState(0);
+  const query = useQuery({ queryKey: ['end-preparation-picker', definition, offset], queryFn: async () => { const id = definition!; try { return await read<Identity>(`catalog/definitions/${id}?offset=${offset}`); } catch (reason) { if (authorityDenied(reason)) onDenied?.(id); throw reason; } }, enabled: !!definition, retry: false });
+  return <Stack gap="xs"><Select label={`${label} definition`} searchable data={definitions.filter(d => kinds.includes(d.kind)).map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={id => { setDefinition(id); setOffset(0); }} /><Select label={`${label} revision`} disabled={query.isError || query.isFetching} value={value || null} data={newestFirst(query.isError || query.isFetching ? [] : query.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(query.data?.name, r.number) }))} onChange={id => onChange(id ?? '')} /><TextInput label={`${label} exact revision ID`} value={value} onChange={e => onChange(e.currentTarget.value)} />{query.error && <Alert color="red">{query.error.message}</Alert>}{query.data && !query.isError && <Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={query.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}</Stack>;
+}

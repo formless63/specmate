@@ -7,14 +7,14 @@ import { FormulaInspection } from './ProfileEditor';
 import { RevisionChoice } from './RevisionChoice';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function CutCalculation({ definitions, onDenied, authorityScope = 0 }: { definitions: Definition[]; onDenied?: (request: Request, authorityScope: number) => void; authorityScope?: number }) {
+export function CutCalculation({ definitions, onDenied, authorityScope = 0, profileRevisionId = '', active = true, scopeKey = '' }: { profileRevisionId?: string; active?: boolean; scopeKey?: string; definitions: Definition[]; onDenied?: (request: Request, authorityScope: number) => void; authorityScope?: number }) {
   const [target, setTarget] = useState('');
-  const [applications, setApplications] = useState<Application[]>([{ section_id: null, profile_revision_id: '' }]);
+  const [applications, setApplications] = useState<Application[]>([{ section_id: null, profile_revision_id: profileRevisionId }]);
   const [quantity, setQuantity] = useState('1');
   const currentScope = useRef(authorityScope);
   currentScope.current = authorityScope;
   const [request, setRequest] = useState<Request | null>(null);
-  const result = useQuery({ queryKey: ['preparation-computation', request], queryFn: async () => {
+  const result = useQuery({ queryKey: scopeKey ? ['preparation-computation', scopeKey, request] : ['preparation-computation', request], queryFn: async () => {
     const submitted = request!;
     const scope = authorityScope;
     try { return await postRead<Result>('compute', submitted); }
@@ -24,17 +24,17 @@ export function CutCalculation({ definitions, onDenied, authorityScope = 0 }: { 
       if (scope === currentScope.current && error instanceof Error && authorityDenied(error)) onDenied?.(submitted, scope);
       throw error;
     }
-  }, enabled: !!request, retry: false });
+  }, enabled: active && !!request, retry: false });
   const validQuantity = quantity === '' || (/^[1-9][0-9]*$/.test(quantity) && Number(quantity) <= 1000000);
   return <Card withBorder><Stack><Title order={3}>Apply exact profiles to frozen cable or harness</Title>
     <RevisionChoice label="Preparation subject" kinds={['cable', 'harness']} definitions={definitions} value={target} onChange={id => { setTarget(id); setRequest(null); }} />
     <Text>One application per retained physical section. Leave section ID blank for a cable. Shared harness segments do not create extra stock pieces.</Text>
     {applications.map((a, index) => <Card key={index} withBorder><Stack><TextInput label={`Application ${index + 1} harness section ID`} value={a.section_id ?? ''} onChange={e => { setApplications(applications.map((item, i) => i === index ? { ...item, section_id: e.currentTarget.value || null } : item)); setRequest(null); }} /><RevisionChoice label={`Application ${index + 1} profile`} kinds={['preparation_profile']} definitions={definitions} value={a.profile_revision_id} onChange={id => { setApplications(applications.map((item, i) => i === index ? { ...item, profile_revision_id: id } : item)); setRequest(null); }} /><Button variant="subtle" onClick={() => { setApplications(applications.filter((_, i) => i !== index)); setRequest(null); }}>Remove application {index + 1}</Button></Stack></Card>)}
-    <Button onClick={() => { setApplications([...applications, { section_id: null, profile_revision_id: '' }]); setRequest(null); }}>Add physical-section application</Button>
+    <Button onClick={() => { setApplications([...applications, { section_id: null, profile_revision_id: profileRevisionId }]); setRequest(null); }}>Add physical-section application</Button>
     <TextInput label="Requested units" description="Blank means unknown quantity." value={quantity} onChange={e => { setQuantity(e.currentTarget.value); setRequest(null); }} />
     <Group><Button disabled={!target || !applications.length || applications.some(a => !a.profile_revision_id) || !validQuantity} onClick={() => { const next = { revision_id: target, applications, quantity: quantity ? Number(quantity) : null }; if (JSON.stringify(next) === JSON.stringify(request)) void result.refetch(); else setRequest(next); }}>Compute preparation cuts</Button><Button disabled={!request} loading={result.isFetching} onClick={() => { void result.refetch(); }}>Refresh computed cut access</Button></Group>
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
-    {result.data && !result.isError && !result.isFetching && request && <CutResult result={result.data} />}
+    {active && result.data && !result.isError && !result.isFetching && request && <CutResult result={result.data} />}
   </Stack></Card>;
 }
 const mm = (value: string | null) => <SbQuantity value={value} unit="mm" />;

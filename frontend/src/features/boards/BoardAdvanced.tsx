@@ -9,7 +9,7 @@ import { requestJson } from '../workspace/api';
 import { command } from '../pcb/api';
 import { CopperInspector } from '../copper/CopperPanel';
 import { scopeLabel, type Graph } from '../copper/api';
-import { EvidenceEditor } from '../passive-passages/PassivePassagesWorkspace';
+import { EvidenceEditor } from '../passive-passages/EvidenceEditor';
 import { PathExplanation } from '../passive-passages/PathExplanation';
 import { interpretModel, type Draft, type Evidence, type Inspection, type Interpretation, type Model, type Passage } from '../passive-passages/api';
 import { ContextRecordChoices } from './ContextRecordChoices';
@@ -63,7 +63,7 @@ function PassiveModelEditor({ root, active, principalKey, workspaceId }: { root:
   </Stack>;
 }
 
-function PassageModelFields({ value, root, onChange, disabled }: { value: Model; root: Graph; onChange: (value: Model) => void; disabled: boolean }) {
+export function PassageModelFields({ value, root, onChange, disabled }: { value: Model; root: Graph; onChange: (value: Model) => void; disabled: boolean }) {
   const [filter, setFilter] = useState(''); const [boundaryPage, setBoundaryPage] = useState(0);
   const conditions = value.conditions ?? [];
   const choices = (selected: string) => { const search = filter.toLowerCase(); const nodes = root.nodes.filter(node => `${scopeLabel(node.occurrence_path)} ${node.label} ${node.id}`.toLowerCase().includes(search)).slice(0, 100); const chosen = root.nodes.find(node => node.id === selected); if (chosen && !nodes.some(node => node.id === selected)) nodes.unshift(chosen); return [{ value: '', label: 'Choose an exact terminal' }, ...nodes.map(node => ({ value: node.id, label: `${scopeLabel(node.occurrence_path)} · ${node.label} · ${node.id}` }))]; };
@@ -84,7 +84,7 @@ function PassageModelFields({ value, root, onChange, disabled }: { value: Model;
   </Stack>;
 }
 
-export function BoardPassiveReview({ review, active, principalKey, workspaceId, onChanged }: { review: Inspection; active: boolean; principalKey: string; workspaceId: string; onChanged: () => void }) {
+export function BoardPassiveReview({ review, active, principalKey, workspaceId, onChanged, onAccessLost }: { onAccessLost?: (failure: unknown) => void; review: Inspection; active: boolean; principalKey: string; workspaceId: string; onChanged: () => void }) {
   const gate = usePermission('design.edit'); const [decision, setDecision] = useState('needs_evidence'); const [basis, setBasis] = useState(''); const [evidence, setEvidence] = useState<Evidence>({ status: 'unknown' });
   const [from, setFrom] = useState<string | null>(null); const [to, setTo] = useState<string | null>(null); const [meaning, setMeaning] = useState('dc_continuity'); const [copper, setCopper] = useState('unspecified'); const [frequency, setFrequency] = useState(''); const [assignments, setAssignments] = useState<Record<string, string>>({}); const [filter, setFilter] = useState('');
   const [result, setResult] = useState<Interpretation | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const generation = useRef(0); const lifetime = useRef(0); const inFlight = useRef(false); const alive = useRef(false); const currentActive = useRef(active); currentActive.current = active; const reviewKeys = useRef(new Map<string, string>());
@@ -103,13 +103,13 @@ export function BoardPassiveReview({ review, active, principalKey, workspaceId, 
   async function query() {
     if (!alive.current || !currentActive.current || inFlight.current || !from || !to || review.decision !== 'accepted') return; const token = ++generation.current; const requestLifetime = lifetime.current; const submitted = queryKey; inFlight.current = true; setBusy(true); setError(''); setResult(null);
     try { const result = await interpretModel({ revision_id: review.revision_id, from_terminal_id: from, to_terminal_id: to, query: meaning, copper_assumption: copper, ...(meaning === 'signal' && frequency ? { frequency_hz: frequency } : {}), condition_assignments: Object.entries(assignments).filter(([, state]) => state).map(([condition_id, state]) => ({ condition_id, state })) }); if (alive.current && token === generation.current && latestQuery.current === submitted && currentActive.current) setResult(result); }
-    catch (failure) { if (alive.current && token === generation.current) setError(failure instanceof Error ? failure.message : String(failure)); }
+    catch (failure) { if (alive.current && token === generation.current) { setError(failure instanceof Error ? failure.message : String(failure)); onAccessLost?.(failure); } }
     finally { if (alive.current && requestLifetime === lifetime.current) { inFlight.current = false; setBusy(false); } }
   }
   async function appendReview() {
     if (!alive.current || !currentActive.current || inFlight.current || !gate.allowed || !basis.trim() || !reviewAllowed) return; const requestLifetime = lifetime.current; const payload = { revision_id: review.revision_id, decision, basis, evidence }; const fingerprint = JSON.stringify([payload, review.state]); const key = reviewKeys.current.get(fingerprint) ?? randomUUID(); reviewKeys.current.set(fingerprint, key); if (reviewKeys.current.size > 8) reviewKeys.current.delete(reviewKeys.current.keys().next().value!); inFlight.current = true; setBusy(true); setError('');
     try { await command('passage.review', payload, undefined, review.state, key); if (alive.current && requestLifetime === lifetime.current) onChanged(); }
-    catch (failure) { if (alive.current && requestLifetime === lifetime.current) setError(failure instanceof Error ? failure.message : String(failure)); }
+    catch (failure) { if (alive.current && requestLifetime === lifetime.current) { setError(failure instanceof Error ? failure.message : String(failure)); onAccessLost?.(failure); } }
     finally { if (alive.current && requestLifetime === lifetime.current) { inFlight.current = false; setBusy(false); } }
   }
   return <Stack gap="xs"><Text fw={500}>Frozen ideal model · {review.decision}</Text><RevisionLabel id={review.revision_id} role="Exact model" sha256={review.sha256} /><Text size="xs">{review.model.model_basis}. Review and interpretation do not establish physical continuity, transfer, compatibility or qualification.</Text>{error && <Alert color="red">{error}</Alert>}
@@ -118,7 +118,7 @@ export function BoardPassiveReview({ review, active, principalKey, workspaceId, 
     <TextInput size="xs" label="Filter model query terminals" value={filter} onChange={event => setFilter(event.currentTarget.value)} /><NativeSelect size="xs" label="Query from terminal" value={from ?? ''} data={[{ value: '', label: 'Choose exact terminal' }, ...choices(from)]} onChange={event => setFrom(event.currentTarget.value || null)} /><NativeSelect size="xs" label="Query to terminal" value={to ?? ''} data={[{ value: '', label: 'Choose exact terminal' }, ...choices(to)]} onChange={event => setTo(event.currentTarget.value || null)} />
     <NativeSelect size="xs" label="Passive query meaning" value={meaning} data={['dc_continuity', 'shortness', 'resistance', 'signal']} onChange={event => setMeaning(event.currentTarget.value)} /><NativeSelect size="xs" label="Copper model assumption" value={copper} data={[{ value: 'unspecified', label: 'Unspecified · affected paths remain unknown' }, { value: 'ideal_zero_resistance', label: 'Declared ideal zero resistance' }]} onChange={event => setCopper(event.currentTarget.value)} />
     {meaning === 'signal' && <TextInput size="xs" label="Signal frequency in hertz" value={frequency} onChange={event => setFrequency(event.currentTarget.value)} />}
-    {(review.model.conditions ?? []).map(condition => <NativeSelect size="xs" key={condition.local_id} label={`Query state for ${condition.local_id}`} value={assignments[condition.local_id] ?? ''} data={[{ value: '', label: 'Unspecified · unknown' }, ...condition.states.map(state => ({ value: state, label: state }))]} onChange={event => setAssignments(current => ({ ...current, [condition.local_id]: event.currentTarget.value }))} />)}
+    {(review.model.conditions ?? []).map(condition => <NativeSelect size="xs" key={condition.local_id} label={`Query state for ${condition.local_id}`} value={assignments[condition.local_id] ?? ''} data={[{ value: '', label: 'Unspecified · unknown' }, ...condition.states.map(state => ({ value: state, label: state }))]} onChange={event => { const state = event.currentTarget.value; setAssignments(current => ({ ...current, [condition.local_id]: state })); }} />)}
     {review.decision !== 'accepted' && <Text size="xs">This frozen model requires an accepted independent review before interpretation.</Text>}<Button size="xs" disabled={busy || !from || !to || review.decision !== 'accepted'} onClick={() => void query()}>Interpret exact reviewed model</Button>
     {result && active && <PathExplanation result={result} graph={review.graph} />}
   </Stack>;

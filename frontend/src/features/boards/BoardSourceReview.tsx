@@ -6,7 +6,7 @@ import { RevisionLabel } from '../../lib/IdentityLabel';
 import { getIntake, type PopulationReview } from '../pcb/api';
 import { requestJson } from '../workspace/api';
 import { AssertionEditor, ComparisonEditor, SourcePicker } from '../pcb-disagreement/Editors';
-import { ProjectionView } from '../pcb-disagreement/PcbDisagreementPanel';
+import { ProjectionView } from '../pcb-disagreement/ProjectionView';
 import { NativeExtraction } from '../pcb-disagreement/NativeExtraction';
 import { blankAssertion, blankComparison, type Draft, type FilePin, type Frozen, type Input, type NativeAccepted, type NativeAttempts, type Projection, type SourceFiles, type Value } from '../pcb-disagreement/api';
 import { FrozenDefinitionPicker } from './FrozenDefinitionPicker';

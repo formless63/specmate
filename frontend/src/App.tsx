@@ -38,6 +38,7 @@ const WorkspaceAccessPanel = lazy(() => import("./features/project-access/Worksp
 const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
 const EvidencePanel = lazy(() => import("./features/evidence/EvidencePanel").then((module) => ({ default: module.EvidencePanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
+const EngineeringSecondaryLibrary = lazy(() => import("./features/records/EngineeringSecondaryLibrary").then(module => ({ default: module.EngineeringSecondaryLibrary })));
 const ConnectorLibrary = lazy(() => import("./features/interfaces/ConnectorLibrary").then(module => ({ default: module.ConnectorLibrary })));
 const BoardLibrary = lazy(() => import("./features/boards/BoardLibrary").then(module => ({ default: module.BoardLibrary })));
 const PartsLibrary = lazy(() => import('./features/parts/PartsLibrary').then(module => ({ default: module.PartsLibrary })));
@@ -58,16 +59,9 @@ const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/Catalo
 const HarnessLibrary = lazy(() => import("./features/harnesses/HarnessLibrary").then(module => ({ default: module.HarnessLibrary })));
 const CopperPanel = lazy(() => import("./features/copper/CopperPanel").then((module) => ({ default: module.CopperPanel })));
 const RevisionUpgradeWorkspace = lazy(() => import("./features/revision-upgrades/RevisionUpgradeWorkspace").then((module) => ({ default: module.RevisionUpgradeWorkspace })));
-const PcbDisagreementPanel = lazy(() => import("./features/pcb-disagreement/PcbDisagreementPanel").then((module) => ({ default: module.PcbDisagreementPanel })));
-
-const PassivePassagesWorkspace = lazy(() => import("./features/passive-passages/PassivePassagesWorkspace").then((module) => ({ default: module.PassivePassagesWorkspace })));
 
 const MaterialAccountingPanel = lazy(() => import("./features/material-accounting/MaterialAccountingPanel").then((module) => ({ default: module.MaterialAccountingPanel })));
 
-const PreparationPanel = lazy(() => import("./features/preparation/PreparationPanel").then((module) => ({ default: module.PreparationPanel })));
-
-
-const EndPreparationPanel = lazy(() => import("./features/end-preparation/EndPreparationPanel").then((module) => ({ default: module.EndPreparationPanel })));
 
 const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((module) => ({ default: module.SourcesPanel })));
 
@@ -256,6 +250,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
+  if (["preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(toolId) && !["board", "pcb_population"].includes(record?.kind ?? "")) return <EngineeringSecondaryLibrary active={lens.active === toolId} toolId={toolId} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onAccessLost={scope.refresh} onOpenInProject={(projectId, item) => onOpenInProject(projectId, toolId, item)} />;
   if (BOARD_RECORD_SECTIONS[toolId] && (!record || ["board", "pcb_population"].includes(record.kind ?? ""))) return <Text role="status">Opening the exact board section…</Text>;
   if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
@@ -330,16 +325,12 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   const { workspaceId } = scope;
   const onAccessChanged = scope.refresh;
   switch (toolId) {
-    case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
-    case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
     // Firmware definitions are declared here; per-occurrence firmware choices follow.
     case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;
     case "configurations": return <ConfigurationsPanel projectId={projectId} />;
     case "mechanical-sources": return <MechanicalSourcesPanel workspaceId={workspaceId} />;
     case "bom": return <BomPanel active={active === toolId} projectId={projectId} workspaceId={workspaceId} />;
     case "material-accounting": return <MaterialAccountingPanel active={active === toolId} projectId={projectId} />;
-    case "preparation": return <PreparationPanel projectId={projectId} />;
-    case "end-preparation": return <EndPreparationPanel projectId={projectId} />;
     case "sources": return <SourcesPanel workspaceId={workspaceId} projectId={projectId} />;
     // Inventory includes workspace-scoped Sourcing (plans, stock and offers all live in the workspace).
     case "inventory": return <InventoryPanel active={active === toolId} workspaceId={workspaceId} projectId={projectId ?? undefined} initialWorkId={navigation?.location.filters?.work_batch ?? null} />;
@@ -348,7 +339,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     default: return null;
   }
 }
-
 
 function ToolPanel({ value, library, children }: { value: string; /** Project-scope library list shown above the tool. */ library?: ReactNode; children: ReactNode }) {
   return <Tabs.Panel value={value} pt="lg"><ToolLoadingBoundary><Suspense fallback={<Text role="status">Loading tool…</Text>}>

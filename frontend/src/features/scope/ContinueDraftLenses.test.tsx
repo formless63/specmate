@@ -6,12 +6,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
 import type { ProbeTarget } from "../navigation/url";
 import { ProbeProvider } from "../probe";
-import { PreparationPanel } from "../preparation/PreparationPanel";
-import { emptyProfile } from "../preparation/api";
 import { MaterialAccountingPanel } from "../material-accounting/MaterialAccountingPanel";
 import { emptyPlan } from "../material-accounting/api";
-import { EndPreparationPanel } from "../end-preparation/EndPreparationPanel";
-import { emptyProfile as emptyEndProfile } from "../end-preparation/api";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -45,10 +41,8 @@ function serve(kind: string, content: unknown, frozen: Record<string, unknown>, 
 const button = () => screen.findByRole("button", { name: "Continue draft (edit)" });
 
 test.each([
-  ["Preparation", "preparation_profile", <PreparationPanel />, { preparation_profile: emptyProfile() }, "Edit preparation draft",
-    { revision_id: "rev-1", sha256: "a", stock_sha256: "b", profile: { stock_revision_id: "s", formulas: [] } }],
   ["Material accounting", "material_plan", <MaterialAccountingPanel />, { material_plan: emptyPlan() }, "Edit material plan", {}],
-  ["End preparation", "end_preparation_profile", <EndPreparationPanel />, { end_preparation_profile: emptyEndProfile() }, "Edit end preparation draft", {}],
+
 ] as const)("%s: Open lands on the frozen revision; Continue draft selects and loads the newest draft", async (_name, kind, panel, content, heading, frozen) => {
   serve(kind, content, frozen);
   render(<Shell kind={kind}>{panel}</Shell>);

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Alert, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { read, type Definition, type Frozen } from '../end-preparation/api';
-import { RevisionPicker } from '../end-preparation/EndPreparationPanel';
+import { RevisionPicker } from '../end-preparation/RevisionPicker';
 import type { SidePreparation } from './SideView';
 
 /**

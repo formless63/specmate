@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { NativeExtraction, NativeInspector } from './NativeExtraction';
 import { PermissionsProvider } from '../../lib/permissions';
 import { ComparisonEditor } from './Editors';
-import { PcbDisagreementInspector } from './PcbDisagreementPanel';
+import { PcbDisagreementInspector } from './ProjectionView';
 import { type Comparison, type NativeAccepted, type Projection } from './api';
 
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
