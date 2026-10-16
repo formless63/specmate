@@ -323,7 +323,6 @@ function WorkspaceLens({ toolId, scope, projectId, active, onStatusChanged, upgr
 function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scope: WorkspaceScope; projectId: string | null; active: string }) {
   const navigation = useNavigation();
   const { workspaceId } = scope;
-  const onAccessChanged = scope.refresh;
   switch (toolId) {
     case "mechanical-sources": return <MechanicalSourcesPanel workspaceId={workspaceId} />;
     case "bom": return <BomPanel active={active === toolId} projectId={projectId} workspaceId={workspaceId} />;
