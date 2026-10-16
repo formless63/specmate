@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
-import { IntentEditor, NewIntent } from "./IntentPanel";
+import { IntentEditor, IntentInspector } from "./IntentEditor";
 import { emptyIntent, type IntentRow } from "./api";
 import { layoutWiring } from "./wiring-model";
 import type { CableEnd, ResolvedSignal } from "../interfaces/api";
@@ -44,7 +45,6 @@ function serve(posts: { operation: string; payload: { interface?: { rows: Intent
 }
 
 async function chooseEnds() {
-  fireEvent.change(screen.getByLabelText("Intent name"), { target: { value: "Console to monitor" } });
   for (const [label, id] of [["From end", "from-rev"], ["To end", "to-rev"]] as const) {
     fireEvent.click(screen.getByRole("button", { name: `Advanced: paste exact revision ID for ${label}` }));
     fireEvent.change(await screen.findByLabelText(`${label} exact revision ID`), { target: { value: id } });
@@ -65,41 +65,25 @@ test("the layout draws matched lines, crossed must-not-connect stubs, part marke
   expect(first!.options.map((o) => o.y)).toEqual([12, 60]);
 });
 
-test("answer a question on its pin callout, save, then freeze: open questions and unsaved answers block freezing", async () => {
-  const posts: { operation: string; payload: { interface?: { rows: IntentRow[] } } }[] = [];
-  serve(posts);
-  const frozen = vi.fn();
-  render(wrap(<NewIntent projectId={null} definitions={[]} onFrozen={frozen} />));
-  const callout = await chooseEnds();
-  expect(screen.getByText("1 open question")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Line Red video" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "From pin must not connect" })).toBeTruthy();
-  expect(screen.getByText("R 470 Ω")).toBeTruthy();
-  // The fallback table keeps every row, including the question, behind a disclosure.
-  const table = screen.getByRole("table", { name: "Intent rows", hidden: true });
-  expect(within(table).getByText("Video ground is declared on 2 contacts.")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Save intent draft" }));
-  const freeze = await screen.findByRole("button", { name: "Freeze intent" });
-  expect((freeze as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Answer 1 open question to unlock freezing/)).toBeTruthy();
-  fireEvent.click(within(callout).getByRole("button", { name: "All 2" }));
-  await waitFor(() => expect(screen.getByText("none open")).toBeTruthy());
-  expect(screen.queryByRole("group", { name: /Question on/ })).toBeNull();
-  expect(screen.getAllByRole("button", { name: "Line Video ground" })).toHaveLength(2);
-  expect((screen.getByRole("button", { name: "Freeze intent" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText("Save the answers to unlock freezing.")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-  await waitFor(() => expect(posts.some((p) => p.operation === "interface.update")).toBe(true));
-  const saved = posts.find((p) => p.operation === "interface.update")!.payload.interface!.rows.find((r) => r.row_id === "from-3")!;
-  expect(saved).toMatchObject({ to_contact_ids: ["5", "17"], question: null, pairing: "answered" });
-  await waitFor(() => expect((screen.getByRole("button", { name: "Freeze intent" }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: "Freeze intent" }));
-  await waitFor(() => expect(frozen).toHaveBeenCalledWith("intent-rev"));
+test("answer a question on its pin callout preserves intent rows and must-not-connect declarations", async () => {
+  serve([]); const onValue = vi.fn();
+  function Editable() { const [value, setValue] = useState(emptyIntent()); return <IntentEditor value={value} definitions={[]} onChange={next => { setValue(next); onValue(next); }} />; }
+  render(wrap(<Editable />)); const callout = await chooseEnds();
+  expect(screen.getByRole('button', { name: 'Line Red video' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'From pin must not connect' })).toBeTruthy();
+  expect(screen.getByText('R 470 Ω')).toBeTruthy();
+  const table = screen.getByRole('table', { name: 'Intent rows', hidden: true });
+  expect(within(table).getByText('Video ground is declared on 2 contacts.')).toBeTruthy();
+  fireEvent.click(within(callout).getByRole('button', { name: 'All 2' }));
+  await waitFor(() => expect(screen.getByText('none open')).toBeTruthy());
+  expect(onValue.mock.lastCall![0].rows.find((row: IntentRow) => row.row_id === 'from-3')).toMatchObject({ to_contact_ids: ['5', '17'], question: null, pairing: 'answered' });
+  expect(onValue.mock.lastCall![0].rows.find((row: IntentRow) => row.row_id === 'from-8')).toMatchObject({ requirement: 'must_not_connect', basis: 'Supply stays inside' });
 });
 
 test("selecting a line opens it in the inspector, where its requirement is edited", async () => {
   serve([]);
-  render(wrap(<NewIntent projectId={null} definitions={[]} />));
+  function Editable() { const [value, setValue] = useState(emptyIntent()); return <IntentEditor value={value} onChange={setValue} definitions={[]} />; }
+  render(wrap(<Editable />));
   await chooseEnds();
   fireEvent.click(screen.getByRole("button", { name: "Line Red video" }));
   const inspector = screen.getByRole("complementary", { name: "Intent inspector" });
@@ -125,4 +109,25 @@ test("below 900 px the questions move into the inspector; a viewer sees them but
   expect(answer.title).toMatch(/Read-only access/);
   fireEvent.click(answer);
   expect(change).not.toHaveBeenCalled();
+});
+
+test('a frozen intent withdraws retained face wiring when either exact end read is denied', async () => {
+  let denied = false; const onDenied = vi.fn(), cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const value = { ...emptyIntent(), from_revision_id: 'from-rev', to_revision_id: 'to-rev', rows: proposed };
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => new Response(JSON.stringify(path.includes('from-rev/end') && denied ? { error: { message: 'Exact source withdrawn' } } : path.includes('from-rev/end') ? FROM : path.includes('to-rev/end') ? TO : { revision_id: 'intent-rev', interface: value, intent: { from: { ...FROM, name: 'From', revision_number: 1 }, to: { ...TO, name: 'To', revision_number: 1 }, check: { reason: 'Not evaluated' } } }), { status: path.includes('from-rev/end') && denied ? 403 : 200 })));
+  render(<MantineProvider><QueryClientProvider client={cache}><IntentInspector revisionId="intent-rev" onAccessDenied={onDenied} /></QueryClientProvider></MantineProvider>);
+  await screen.findByRole('button', { name: 'Line Red video' }); denied = true;
+  await act(async () => { await cache.refetchQueries({ queryKey: ['intent-end', 'from-rev'] }); });
+  await screen.findByText('Exact source withdrawn'); expect(screen.queryByRole('button', { name: 'Line Red video' })).toBeNull(); expect(onDenied).toHaveBeenCalled();
+  denied = false; await act(async () => { await cache.refetchQueries({ queryKey: ['intent-end', 'from-rev'] }); });
+  await screen.findByRole('button', { name: 'Line Red video' });
+});
+test('a held row proposal cannot overwrite a newer authored intent value', async () => {
+  let complete: ((response: Response) => void) | null = null;
+  vi.stubGlobal('fetch', vi.fn(async (path: string) => path.includes('intents/propose') ? new Promise<Response>(resolve => { complete = resolve; }) : new Response(JSON.stringify(path.includes('from-rev/end') ? FROM : path.includes('to-rev/end') ? TO : {}))));
+  function Editable() { const [value, setValue] = useState({ ...emptyIntent(), from_revision_id: 'from-rev', to_revision_id: 'to-rev' }); return <IntentEditor value={value} onChange={setValue} definitions={[]} />; }
+  render(wrap(<Editable />)); fireEvent.click(await screen.findByRole('button', { name: 'Propose rows from the two ends' })); await waitFor(() => expect(complete).not.toBeNull());
+  fireEvent.change(await screen.findByLabelText('Description'), { target: { value: 'Newer hand-authored purpose' } });
+  await act(async () => complete!(new Response(JSON.stringify({ rows: proposed }))));
+  expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe('Newer hand-authored purpose'); expect(screen.queryByRole('button', { name: 'Line Red video' })).toBeNull();
 });

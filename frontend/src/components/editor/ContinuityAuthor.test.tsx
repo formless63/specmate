@@ -6,7 +6,7 @@ import { PermissionsProvider } from "../../lib/permissions";
 import type { TestPlan } from "../../features/cable-test-intent/api";
 import { ContinuityAuthor } from "./ContinuityAuthor";
 
-vi.mock("../../features/cable-test-intent/CableTestIntentPanel", () => ({ PlanEditor: ({ value, onChange, onAuthorityChange, disabled }: { value: TestPlan; onChange: (v: TestPlan) => void; onAuthorityChange: (v: boolean) => void; disabled: boolean }) => {
+vi.mock("../../features/cable-test-intent/PlanEditor", () => ({ PlanEditor: ({ value, onChange, onAuthorityChange, disabled }: { value: TestPlan; onChange: (v: TestPlan) => void; onAuthorityChange: (v: boolean) => void; disabled: boolean }) => {
   useEffect(() => onAuthorityChange(false), [onAuthorityChange]);
   return <input aria-label="Prepared label" disabled={disabled} value={value.labels[0]?.text ?? ""} onChange={event => onChange({ ...value, labels: [{ local_id: "label-1", text: event.currentTarget.value, basis: "Synthetic authoring basis", evidence: { status: "unknown" } }] })} />;
 } }));

@@ -1,132 +1,17 @@
-import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { SbStatus, SbUnknown } from '../../components/sb';
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../workspace/api';
-import { command, deriveFromIntent, initialPlan, inspectTarget, keyOf, read, terminalText, type Definition, type Derivation, type Draft, type Evidence, type Identity, type Inspection, type Label, type Pair, type TestPlan } from './api';
-import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
+import { deriveFromIntent, inspectTarget, keyOf, read, terminalText, type Derivation, type Evidence, type Inspection, type Label, type Pair, type TestPlan } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
-
-/** Library cable test plans. `projectId` is optional context: new plans are then also referenced by that project. */
-export function CableTestIntentPanel({ projectId = null }: { projectId?: string | null }) {
-  const cache = useQueryClient();
-  const createGate = usePermission('item.create');
-  const [name, setName] = useState('');
-  const [value, setValue] = useState(initialPlan);
-  const [definitionId, setDefinitionId] = useState<string | null>(null);
-  const [draftId, setDraftId] = useState<string | null>(null);
-  const [revisionId, setRevisionId] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
-  const [blocked, setBlocked] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const authorityVersion = useRef(0);
-  const restoreAttempt = useRef<object | null>(null);
-  const activePlan = useRef<{ draftId: string; value: TestPlan } | null>(null);
-  const [refresh, setRefresh] = useState(0);
-  const [targetDenied, setTargetDenied] = useState(true);
-  const [saved, setSaved] = useState<Draft | null>(null);
-  const [retainedDraft, setRetainedDraft] = useState<Draft | null>(null);
-  const activeEditor = useRef({ projectId, definitionId, draftId, generation: 0 });
-  if (activeEditor.current.projectId !== projectId || activeEditor.current.definitionId !== definitionId || activeEditor.current.draftId !== draftId) activeEditor.current = { projectId, definitionId, draftId, generation: activeEditor.current.generation + 1 };
-  const editorGeneration = activeEditor.current.generation;
-  function workspaceDenied(e: Error) {
-    if (activeEditor.current.generation !== editorGeneration) return;
-    if (e instanceof ApiError && [401, 403, 404].includes(e.status)) {
-      authorityVersion.current += 1;
-      setBlocked(true);
-    }
-  }
-  async function guardedRead<T>(path: string) {
-    try { return await read<T>(path); }
-    catch (e) { if (e instanceof Error) workspaceDenied(e); throw e; }
-  }
-  const definitions = useQuery({ queryKey: ['test-plan-definitions', projectId, refresh], queryFn: () => guardedRead<Definition[]>('workspace/definitions') });
-  const identity = useQuery({ queryKey: ['test-plan-identity', definitionId, offset, refresh], queryFn: () => guardedRead<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
-  const draft = useQuery({ queryKey: ['test-plan-draft', draftId, refresh], queryFn: () => guardedRead<Draft>(`cable-test-intent/drafts/${draftId}`), enabled: !!draftId });
-  useEffect(() => { if (draft.data?.draft_id === draftId && !draft.isError) setRetainedDraft(draft.data); }, [draft.data, draftId, draft.isError]);
-  const editorDraft = draft.data ?? (retainedDraft?.draft_id === draftId ? retainedDraft : null);
-  const hidden = blocked || restoring || definitions.isError || identity.isError || draft.isError || definitions.isFetching;
-  const error = workspaceDenied;
-  const create = useMutation({ mutationFn: (submitted: { projectId: string | null; name: string; value: TestPlan; generation: number }) => command<Draft>('cable_test_plan.create', { name: submitted.name, test_plan: submitted.value }), onSuccess: async (d, submitted) => { if (activeEditor.current.generation !== submitted.generation) return; setSaved(d); setDefinitionId(d.definition_id); setDraftId(d.draft_id); await cache.invalidateQueries({ queryKey: ['test-plan-definitions', projectId] }); await referenceFromProject(submitted.projectId, d.definition_id, 'cable test plan'); }, onError: (e, submitted) => { if (activeEditor.current.generation === submitted.generation) error(e); } });
-  useEffect(() => { setName(''); setValue(initialPlan()); setDefinitionId(null); setDraftId(null); setRevisionId(null); setSaved(null); setRetainedDraft(null); setOffset(0); setBlocked(false); setRestoring(false); restoreAttempt.current = null; activePlan.current = null; }, [projectId]);
-  const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setSaved(null); setOffset(0); };
-  // The identity read is keyed by the definition, so its data belongs to definitionId.
-  const openNewest = useOpenNewest(identity.data && definitionId ? { ...identity.data, definition_id: definitionId } : undefined, setDraftId, setRevisionId);
-  useOpenProbed(definitionIn(definitions.isError ? undefined : definitions.data, ['cable_test_plan']), (id) => { pick(id); openNewest(id); });
-  async function refreshAuthority() {
-    const attempt = {};
-    restoreAttempt.current = attempt;
-    const version = authorityVersion.current;
-    const selectedDraft = draftId && activePlan.current?.draftId === draftId ? activePlan.current.value : null;
-    setRestoring(true);
-    try {
-      const checks: Promise<unknown>[] = [read<Definition[]>('workspace/definitions')];
-      if (definitionId) checks.push(read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`));
-      if (draftId) checks.push(read<Draft>(`cable-test-intent/drafts/${draftId}`));
-      if (revisionId) checks.push(read<Inspection>(`cable-test-intent/revisions/${revisionId}`));
-      // Recheck the unsaved target too; fresh server draft reads never replace its values or CAS.
-      if (selectedDraft) checks.push(inspectTarget(selectedDraft));
-      else if (value.root_revision_id && value.cable_revision_id) checks.push(inspectTarget(value));
-      const results = await Promise.allSettled(checks);
-      if (activeEditor.current.generation !== editorGeneration || restoreAttempt.current !== attempt) return;
-      if (results.some(result => result.status === 'rejected') || authorityVersion.current !== version) {
-        setBlocked(true);
-        return;
-      }
-      setBlocked(false);
-      setRefresh(n => n + 1);
-    } finally {
-      if (restoreAttempt.current === attempt) setRestoring(false);
-    }
-  }
-  return <Stack>
-    <Title order={2}>Cable test intent and labels</Title>
-    <Text>Declare expected terminal pairs for an exact cable revision or contextual occurrence. Expectations and label text record intent; this plan records no performed physical test or qualification.</Text>
-    <Button loading={restoring} disabled={restoring} onClick={() => void refreshAuthority()}>Refresh test-plan access</Button>
-    {hidden && <Alert color="red">Retained test-plan content is hidden while access is unavailable or being rechecked.</Alert>}
-    <div hidden={hidden}><fieldset disabled={create.isPending} style={{ border: 0, padding: 0 }}><Card withBorder><Stack>
-      <Title order={3}>New test plan</Title><TextInput label="Test-plan name" value={name} onChange={e => setName(e.currentTarget.value)} />
-      <PlanEditor disabled={create.isPending} key={projectId ?? 'library'} value={value} onChange={setValue} refresh={refresh} hidden={hidden} onAuthorityChange={setTargetDenied} />
-      <Button disabled={targetDenied || !name.trim() || hidden} loading={create.isPending} {...createGate.props} onClick={() => create.mutate({ projectId, name, value, generation: editorGeneration })}>Create test-plan draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
-    </Stack></Card></fieldset></div>
-    {create.isError && <Alert color="red">{create.error.message}</Alert>}
-    {[definitions, identity, draft].filter(q => q.isError).map((q, i) => <Alert key={i} color="red">{q.error?.message}</Alert>)}
-    {!hidden && <Select label="Test-plan definition" disabled={create.isPending} searchable data={(definitions.data ?? []).filter(d => d.kind === 'cable_test_plan').map(d => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />}
-    {!hidden && identity.data && <>
-      <Select label="Test-plan draft" disabled={create.isPending} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setSaved(null); } }} />
-      <Select label="Frozen test plan" data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} value={revisionId} onChange={setRevisionId} />
-      <Group><Button disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>Earlier plans</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(n => n + 50)}>Later plans</Button></Group>
-    </>}
-    {editorDraft && <DraftEditor key={`${projectId}:${editorDraft.draft_id}`} draft={editorDraft} committed={saved} hidden={hidden || draft.isFetching} refresh={refresh} onValueChange={v => { if (activeEditor.current.generation === editorGeneration && draftId) activePlan.current = { draftId, value: v }; }} onError={e => { if (activeEditor.current.generation === editorGeneration) error(e); }} onSaved={async d => { if (activeEditor.current.generation !== editorGeneration) return; setSaved(d); await cache.invalidateQueries({ queryKey: ['test-plan-draft', d.draft_id] }); }} onFrozen={async (r, d) => { if (activeEditor.current.generation !== editorGeneration) return; setRevisionId(r); setSaved(d); await cache.invalidateQueries({ queryKey: ['test-plan-draft', d.draft_id] }); await cache.invalidateQueries({ queryKey: ['test-plan-identity', definitionId] }); }} />}
-    {revisionId && <PlanInspector key={`${projectId}:${revisionId}`} revisionId={revisionId} hidden={hidden} refresh={refresh} onAccessDenied={workspaceDenied} />}
-  </Stack>;
-}
-
-export function DraftEditor({ draft, committed, hidden = false, refresh = 0, onError, onSaved, onFrozen, onValueChange }: { onValueChange?: (value: TestPlan) => void; draft: Draft; committed?: Draft | null; hidden?: boolean; refresh?: number; onError: (e: Error) => void; onSaved: (d: Draft) => Promise<void>; onFrozen: (r: string, d: Draft) => Promise<void> }) {
-  const editGate = usePermission('design.edit');
-  const freezeGate = usePermission('design.freeze');
-  const [base, setBase] = useState(draft);
-  const [value, setValue] = useState(draft.content.test_plan);
-  const [denied, setDenied] = useState(true);
-  useEffect(() => onValueChange?.(value), [value, onValueChange]);
-  useEffect(() => { if (committed?.draft_id === base.draft_id) setBase(committed); }, [committed, base.draft_id]);
-  const save = useMutation({ mutationFn: () => command<Draft>('cable_test_plan.update', { draft_id: base.draft_id, test_plan: value }, base.state), onSuccess: async d => { setBase(d); setValue(d.content.test_plan); await onSaved(d); }, onError });
-  const freeze = useMutation({ mutationFn: () => command<{ revision_id: string; draft: Draft }>('cable_test_plan.freeze', { draft_id: base.draft_id }, base.state), onSuccess: async r => { setBase(r.draft); await onFrozen(r.revision_id, r.draft); }, onError });
-  // Keep the editing baseline and unsaved values mounted through query refresh/denial.
-  return <div hidden={hidden}><fieldset disabled={save.isPending || freeze.isPending} style={{ border: 0, padding: 0 }}><Card withBorder><Stack><Title order={3}>Edit test-plan draft</Title><Text>{base.state}</Text>
-    <PlanEditor disabled={save.isPending || freeze.isPending} value={value} onChange={setValue} hidden={hidden} refresh={refresh} onAuthorityChange={setDenied} onAccessDenied={onError} />
-    <Group><Button disabled={denied || hidden || save.isPending || freeze.isPending} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save test-plan draft</Button><Button disabled={denied || hidden || save.isPending || freeze.isPending} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate()}>Freeze saved test plan</Button></Group><ReadOnlyNote permission="design.edit">Saving and freezing test plans are unavailable.</ReadOnlyNote>
-    <Text size="sm">Freezing captures the saved draft. Save changed expectations first.</Text>
-    {save.isError && <Alert color="red">{save.error.message}</Alert>}{freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-  </Stack></Card></fieldset></div>;
-}
 
 export function PlanEditor({ value, onChange, hidden = false, refresh = 0, disabled = false, onAuthorityChange, onAccessDenied, fixedTarget = false, active = true, principalKey }: { principalKey?: string; fixedTarget?: boolean; active?: boolean; onAccessDenied?: (error: Error) => void; disabled?: boolean; value: TestPlan; onChange: (v: TestPlan) => void; hidden?: boolean; refresh?: number; onAuthorityChange?: (denied: boolean) => void }) {
   const [authorityBlocked, setAuthorityBlocked] = useState(false);
   const refreshRef = useRef({ epoch: refresh, pending: false });
   if (refreshRef.current.epoch !== refresh) refreshRef.current = { epoch: refresh, pending: true };
+  const previousActive = useRef(active);
+  if (previousActive.current !== active) { previousActive.current = active; if (active) refreshRef.current = { epoch: refresh, pending: true }; }
   const [first, setFirst] = useState<string | null>(null);
   const [second, setSecond] = useState<string | null>(null);
   const [pairId, setPairId] = useState('');
@@ -250,13 +135,15 @@ function ProposeFromIntent({ value, disabled, onUse }: { value: TestPlan; disabl
 function LabelTable({ labels }: { labels: Label[] }) {
   return <Table><Table.Thead><Table.Tr><Table.Th>Label</Table.Th><Table.Th>Text</Table.Th><Table.Th>Target</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{labels.map(l => <Table.Tr key={l.local_id}><Table.Td>{l.local_id}</Table.Td><Table.Td>{l.text}</Table.Td><Table.Td>{l.terminal ? terminalText(l.terminal) : l.endpoint_id ?? 'whole cable'}</Table.Td><Table.Td>{l.basis}</Table.Td></Table.Tr>)}</Table.Tbody></Table>;
 }
-export function PlanInspector({ revisionId, hidden = false, refresh = 0, onAccessDenied }: { onAccessDenied?: (error: Error) => void; revisionId: string; hidden?: boolean; refresh?: number }) {
+export function PlanInspector({ revisionId, hidden = false, refresh = 0, onAccessDenied, active = true }: { active?: boolean; onAccessDenied?: (error: Error) => void; revisionId: string; hidden?: boolean; refresh?: number }) {
   const [blocked, setBlocked] = useState(false);
   const refreshRef = useRef({ epoch: refresh, pending: false });
   if (refreshRef.current.epoch !== refresh) refreshRef.current = { epoch: refresh, pending: true };
+  const previousActive = useRef(active);
+  if (previousActive.current !== active) { previousActive.current = active; if (active) refreshRef.current = { epoch: refresh, pending: true }; }
   const explicitRefresh = useRef({ pending: false });
   const query = useQuery({
-    queryKey: ['test-plan-inspection', revisionId, refresh],
+    queryKey: ['test-plan-inspection', revisionId, refresh], enabled: active,
     queryFn: async () => {
       const manual = explicitRefresh.current;
       try {
@@ -276,7 +163,7 @@ export function PlanInspector({ revisionId, hidden = false, refresh = 0, onAcces
       }
     },
   });
-  const available = !blocked && !hidden && !query.isFetching && !query.isError && query.data;
+  const available = active && !blocked && !hidden && !query.isFetching && !query.isError && query.data;
   return <Card withBorder><Stack><Title order={3}>Frozen test plan</Title><Button loading={query.isFetching} onClick={() => { explicitRefresh.current = { pending: true }; void query.refetch(); }}>Refresh frozen test-plan access</Button>
     {blocked && !query.isError && <Alert color="red">Frozen test-plan access must be explicitly rechecked.</Alert>}
     {query.isError && <Alert color="red">{query.error.message}</Alert>}

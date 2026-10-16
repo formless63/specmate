@@ -12,7 +12,6 @@ import { MaterialAccountingPanel } from "../material-accounting/MaterialAccounti
 import { emptyPlan } from "../material-accounting/api";
 import { EndPreparationPanel } from "../end-preparation/EndPreparationPanel";
 import { emptyProfile as emptyEndProfile } from "../end-preparation/api";
-import { IntentPanel } from "../intents/IntentPanel";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -57,15 +56,4 @@ test.each([
   fireEvent.click(await button());
   expect(await screen.findByRole("heading", { name: heading })).toBeTruthy();
   await waitFor(() => expect(screen.queryByRole("button", { name: "Continue draft (edit)" })).toBeNull());
-});
-
-test.each([
-  ["Intents", "cable_intent", <IntentPanel projectId={null} />, "Freeze intent"],
-] as const)("%s: Open lands frozen-first and shows Continue draft", async (_name, kind, panel, freeze) => {
-  serve(kind, { interface: null }, {});
-  render(<Shell kind={kind}>{panel}</Shell>);
-  expect(screen.queryByRole("button", { name: freeze })).toBeNull();
-  fireEvent.click(await button());
-  expect(await screen.findByRole("button", { name: freeze })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Continue draft (edit)" })).toBeNull();
 });

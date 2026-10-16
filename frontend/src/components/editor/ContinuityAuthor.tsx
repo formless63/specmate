@@ -1,6 +1,6 @@
 import { Alert, Button, Group, Stack, Text, TextInput } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
-import { PlanEditor } from "../../features/cable-test-intent/CableTestIntentPanel";
+import { PlanEditor } from "../../features/cable-test-intent/PlanEditor";
 import { initialPlan, read, type Draft, type Identity, type Inspection, type TestPlan } from "../../features/cable-test-intent/api";
 import { runOperation } from "../../features/workspace/api";
 import { usePermission } from "../../lib/permissions";

@@ -38,7 +38,6 @@ const WorkspaceAccessPanel = lazy(() => import("./features/project-access/Worksp
 const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
 const EvidencePanel = lazy(() => import("./features/evidence/EvidencePanel").then((module) => ({ default: module.EvidencePanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
-const IntentPanel = lazy(() => import("./features/intents/IntentPanel").then((module) => ({ default: module.IntentPanel })));
 const ConnectorLibrary = lazy(() => import("./features/interfaces/ConnectorLibrary").then(module => ({ default: module.ConnectorLibrary })));
 const BoardLibrary = lazy(() => import("./features/boards/BoardLibrary").then(module => ({ default: module.BoardLibrary })));
 const PartsLibrary = lazy(() => import('./features/parts/PartsLibrary').then(module => ({ default: module.PartsLibrary })));
@@ -50,6 +49,7 @@ const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/Physical
 const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
 const VocabularyLibrary = lazy(() => import("./features/vocabulary/VocabularyLibrary").then(module => ({ default: module.VocabularyLibrary })));
 const HistoryPage = lazy(() => import("./features/history/History").then(module => ({ default: module.HistoryPage })));
+const CableSecondaryRecord = lazy(() => import("./features/secondary-records/CableSecondaryRecord").then(module => ({ default: module.CableSecondaryRecord })));
 const CableRecordHost = lazy(() => import("./features/cables/CableRecordEditor").then(module => ({ default: module.CableRecordHost })));
 const NewCable = lazy(() => import("./features/designs/NewCable").then(module => ({ default: module.NewCable })));
 const NewDesign = lazy(() => import("./features/designs/NewDesign").then(module => ({ default: module.NewDesign })));
@@ -66,7 +66,6 @@ const MaterialAccountingPanel = lazy(() => import("./features/material-accountin
 
 const PreparationPanel = lazy(() => import("./features/preparation/PreparationPanel").then((module) => ({ default: module.PreparationPanel })));
 
-const CableTestIntentPanel = lazy(() => import("./features/cable-test-intent/CableTestIntentPanel").then((module) => ({ default: module.CableTestIntentPanel })));
 
 const EndPreparationPanel = lazy(() => import("./features/end-preparation/EndPreparationPanel").then((module) => ({ default: module.EndPreparationPanel })));
 
@@ -175,7 +174,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles", "intents", "cable-test-intent"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -260,6 +259,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (BOARD_RECORD_SECTIONS[toolId] && (!record || ["board", "pcb_population"].includes(record.kind ?? ""))) return <Text role="status">Opening the exact board section…</Text>;
   if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
+  if (["intents", "cable-test-intent"].includes(toolId)) return <CableSecondaryRecord kind={toolId === "intents" ? "cable_intent" : "cable_test_plan"} record={record} workspaceId={scope.workspaceId} principalKey={scope.principalKey} active={lens.active === toolId} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
   // Make panels own their lists and purpose-specific exact selections.
   if (["inventory", "physical-units", "material-accounting", "bom"].includes(toolId)) return <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />;
@@ -330,7 +330,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   const { workspaceId } = scope;
   const onAccessChanged = scope.refresh;
   switch (toolId) {
-    case "intents": return <IntentPanel projectId={projectId} />;
     case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
     case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
     // Firmware definitions are declared here; per-occurrence firmware choices follow.
@@ -341,7 +340,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "material-accounting": return <MaterialAccountingPanel active={active === toolId} projectId={projectId} />;
     case "preparation": return <PreparationPanel projectId={projectId} />;
     case "end-preparation": return <EndPreparationPanel projectId={projectId} />;
-    case "cable-test-intent": return <CableTestIntentPanel projectId={projectId} />;
     case "sources": return <SourcesPanel workspaceId={workspaceId} projectId={projectId} />;
     // Inventory includes workspace-scoped Sourcing (plans, stock and offers all live in the workspace).
     case "inventory": return <InventoryPanel active={active === toolId} workspaceId={workspaceId} projectId={projectId ?? undefined} initialWorkId={navigation?.location.filters?.work_batch ?? null} />;

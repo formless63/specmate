@@ -8,7 +8,7 @@ import { cable } from '../cable-workbench/fixtures';
 import { emptyIntent } from '../intents/api';
 import type { Recipe } from '../../components/editor/RecipeBar';
 vi.mock('../../components/editor/RecipeBar', () => ({ emptyRecipe: () => ({ fromPort: '', toPort: '', stock: '', fromEnd: '', toEnd: '', lengthMm: null }), RecipeBar: ({ value, onChange, active, onPropose, disabled, busy }: { value: Recipe; onChange: (value: Recipe) => void; active: boolean; onPropose: () => void; disabled: boolean; busy: boolean }) => active ? <section>{(['fromPort','toPort','stock','fromEnd','toEnd'] as const).map(field => <input key={field} aria-label={field} disabled={disabled || busy} value={value[field]} onChange={event => onChange({ ...value, [field]: event.target.value })} />)}<button disabled={disabled || busy} onClick={onPropose}>Propose wiring</button></section> : null }));
-vi.mock('../intents/IntentPanel', () => ({ IntentReview: () => <p>Reviewed exact port requirements</p> }));
+vi.mock('../intents/IntentEditor', () => ({ IntentReview: () => <p>Reviewed exact port requirements</p> }));
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });

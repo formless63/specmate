@@ -11,7 +11,7 @@ import { emptyLengths } from '../cables/Lengths';
 import { connectorCommand } from '../interfaces/connector-api';
 import { requestJson, ApiError } from '../workspace/api';
 import { emptyIntent, proposalPath, type CableIntent, type IntentDraft, type Proposal as IntentProposal } from '../intents/api';
-import { IntentReview } from '../intents/IntentPanel';
+import { IntentReview } from '../intents/IntentEditor';
 import { requestProposal, type Proposal } from '../intent-propose/ProposeWiring';
 import { ProposalReview } from './ProposalReview';
 
