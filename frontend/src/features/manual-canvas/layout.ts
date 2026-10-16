@@ -1,6 +1,10 @@
-import type { XYPosition } from '@xyflow/react';
+import type { Viewport, XYPosition } from '@xyflow/react';
 /** Opaque layout keys keep engineering names and identities out of browser storage. */
 export function layoutKey(value: string): string { let a=0x811c9dc5,b=0x9e3779b9;for(let i=0;i<value.length;i+=1){a=Math.imul(a^value.charCodeAt(i),16777619);b=Math.imul(b^value.charCodeAt(i),2246822519);}return (a>>>0).toString(16)+(b>>>0).toString(16); }
 export const storageKey=(scope:string)=>`specmate.canvas-layout:${layoutKey(scope)}`;
 export function readPositions(scope:string):Record<string,XYPosition>{try{const value=JSON.parse(localStorage.getItem(storageKey(scope))??'{}') as Record<string,XYPosition>;return Object.fromEntries(Object.entries(value).slice(0,512).filter(([key,point])=>/^[0-9a-f]{2,16}$/.test(key)&&point&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&Math.abs(point.x)<=1e6&&Math.abs(point.y)<=1e6).map(([key,point])=>[key,{x:point.x,y:point.y}]));}catch{return {};}}
 export function writePositions(scope:string,positions:Record<string,XYPosition>){try{localStorage.setItem(storageKey(scope),JSON.stringify(Object.fromEntries(Object.entries(positions).slice(0,512).map(([key,point])=>[key,{x:point.x,y:point.y}]))));}catch{/* Private storage may be unavailable; session layout remains usable. */}}
+
+/** Pan/zoom is private numeric presentation state, scoped exactly like node positions. */
+export function readViewport(scope:string):Viewport|null{try{const value=JSON.parse(localStorage.getItem(storageKey(scope)+':viewport')??'null');return value&&Object.keys(value).length===3&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Math.abs(value.x)<=1e6&&Math.abs(value.y)<=1e6&&Number.isFinite(value.zoom)&&value.zoom>=0.2&&value.zoom<=2?{x:value.x,y:value.y,zoom:value.zoom}:null;}catch{return null;}}
+export function writeViewport(scope:string,value:Viewport){try{localStorage.setItem(storageKey(scope)+':viewport',JSON.stringify({x:value.x,y:value.y,zoom:value.zoom}));}catch{/* Keep the working viewport in memory when browser storage is unavailable. */}}

@@ -28,3 +28,10 @@ private state. Held reads cannot apply into a newer buffer or another scope.
 The same `EngineeringFlow` view can adapt Harness0.2 sections/segments/endpoints and
 explicit joints/breakouts. A multi-section engineering graph belongs to Harness; this
 view does not silently convert a cable or create another persisted graph model.
+
+`EngineeringFlow` also accepts optional `selectedId` / `onSelectItem` for a
+consumer-owned inspector selection. `initialFocusId` starts at a readable 0.9
+zoom around a node; an explicit `initialViewport` takes precedence, and
+`onViewportChange` lets the consumer retain numeric pan/zoom in its own scope.
+Fit remains an explicit whole-graph overview. None of these presentation fields
+change engineering geometry, terminal identities, or saved connections.
