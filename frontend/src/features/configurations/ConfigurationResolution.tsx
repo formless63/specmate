@@ -34,7 +34,16 @@ export function ConfigurationResolution({context,scopeKey,projectId=null}:{conte
  const query=useQuery({queryKey:['configuration-resolution',scopeKey,draftId,selectedState],enabled:active,retry:false,queryFn:()=>operation<DraftResolution>('configuration.resolve',{draft_id:draftId})});
  const preview=active&&!query.isFetching&&!query.error?query.data:null;
  useEffect(()=>{if(!active||query.isFetching){setBuildInput(null);setAdopting('');}},[active,query.isFetching]);
- useEffect(()=>{if(query.error instanceof ApiError&&[401,403,404].includes(query.error.status))context.refreshAccess();},[query.error]);
+ const reportedDenials=useRef(new Set<string>());
+ useEffect(()=>{
+  if(query.isSuccess&&!query.isFetching){reportedDenials.current.clear();return;}
+  if(active&&query.error instanceof ApiError&&[401,403,404].includes(query.error.status)){
+   const key=`${draftId}:${selectedState}:${query.error.status}`;
+   // Retained capture history can deny independently of the current draft. Recheck the
+   // outer state once, then retain this pane's denial until an explicit successful retry.
+   if(!reportedDenials.current.has(key)){reportedDenials.current.add(key);context.refreshAccess();}
+  }
+ },[active,query.error,query.isSuccess,query.isFetching,draftId,selectedState]);
  const refresh=()=>query.refetch();
  async function refreshDevelopment(){await refresh();}
  async function capture(retry=false){

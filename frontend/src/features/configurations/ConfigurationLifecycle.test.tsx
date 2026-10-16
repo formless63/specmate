@@ -49,3 +49,15 @@ test.each([['contributor',['workspace.read','item.create']],['viewer',['workspac
  render(<MantineProvider env="test"><QueryClientProvider client={new QueryClient()}><PermissionsProvider permissions={permissions}><ConfigurationLibrary active principalKey="member" workspaceId="workspace" projectFilterId={null} projects={[]} onOpenInProject={()=>{}}/></PermissionsProvider></QueryClientProvider></MantineProvider>);
  await screen.findByRole('region',{name:'Options and configurations'});expect(screen.queryByRole('button',{name:'New configuration'})).toBeNull();expect(!!screen.queryByRole('button',{name:'New option set'})).toBe(permissions.includes('item.create'));
 });
+
+
+test('denied retained capture history rechecks current authority once and leaves the resolution explicitly denied',async()=>{
+ let reads=0,resolves=0,historyDenied=false;const configuration={schema_version:'0.1',option_set_revision_id:'options-r1',selections:[]};
+ vi.stubGlobal('fetch',vi.fn(async(path:string,init?:RequestInit)=>{
+  if(path.includes('/record?')){reads++;return reply({definition_id:'own-secondary',workspace_id:'workspace',kind:'configuration',name:'Authorized current configuration',selected:{kind:'draft',draft_id:'own-draft',state:'draft-v5',content:{configuration},base_revision_id:null}});}
+  if(path.includes('revision-labels'))return reply({labels:[{revision_id:'options-r1',readable:true,name:'Synthetic options',number:1}],source_labels:[]});
+  if(path.includes('/snapshot'))return reply({content:{option_set:emptyOptionSet()}});
+  const command=JSON.parse(String(init?.body));expect(command.operation).toBe('configuration.resolve');resolves++;if(!historyDenied)return reply({result:{draft_id:'own-draft',state:'draft-v5',configuration,available:[],resolved:[],resolution:{option_set:{name:'Synthetic options',number:1},target:null,status:'complete',counts:{unresolved:0},decisions:[],invalid_selections:[]}}});return reply({error:{message:'Retained capture history unavailable'}},403);
+ }));
+ mount('configuration');await screen.findByLabelText('Capture basis');const initialReads=reads,initialResolves=resolves;historyDenied=true;fireEvent.click(screen.getByRole('button',{name:'Refresh resolution'}));await screen.findByText('Retained capture history unavailable');await waitFor(()=>expect(reads).toBe(initialReads+1));await act(async()=>{await new Promise(resolve=>setTimeout(resolve,50));});expect(reads).toBe(initialReads+1);expect(resolves).toBe(initialResolves+2);expect(screen.getByRole('heading',{name:'Authorized current configuration'})).toBeTruthy();expect(screen.queryByLabelText('Capture basis')).toBeNull();expect(screen.getByRole('button',{name:'Retry resolution'})).toBeTruthy();
+});
