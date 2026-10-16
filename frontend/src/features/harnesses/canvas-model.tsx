@@ -1,5 +1,6 @@
 import type { Edge } from '@xyflow/react';
 import { sectionLayout, renderSectionSvg, type StockSpecification } from '../../../../packages/section-layout/src';
+import { layoutKey } from '../manual-canvas/layout';
 import type { FlowItem } from '../manual-canvas/EngineeringFlow';
 import { placeLibraryDrop, manualJoin, inlineNodeId, type LibraryDrop, type PartPlacement } from '../manual-canvas/model';
 import { ConnectorFace, geometryForBody } from '../../../../packages/connector-art/src';
@@ -31,7 +32,7 @@ export function harnessGraph(harness: Harness, data: HarnessCanvasData) {
       terminals.set(handle, terminal); nodes.set(handle, id); const look = rowLook(row), color = ['recorded', 'conventional-name'].includes(look.fillSource) ? look.base : undefined; if (color) colors.set(handle, color);
       return { id: handle, label: `${end.toUpperCase()} · ${row.label} · ${row.path}`, row: row.path, rowLabel: row.label, side: end === 'a' ? 'left' as const : 'right' as const, color: colors.get(handle), unknown: !colors.has(handle) };
     }));
-    items.push({ id, title: segment.label ?? segment.local_id, detail: `Section ${segment.section_id} · cut ${section?.planned_cut_length_mm ?? 'unknown'}${section?.planned_cut_length_mm ? ' mm' : ''} · A ← → B`, ports, artwork: stock ? <div className="manual-stock-art" dangerouslySetInnerHTML={{ __html: renderSectionSvg(sectionLayout(stock), `Section ${segment.section_id} exact cross-section`, { idPrefix: id, callouts: false }) }} /> : <div className="sb-hatch">Stock geometry unknown</div>, position: { x: 400, y: segmentY } });
+    items.push({ id, title: segment.label ?? segment.local_id, detail: `Section ${segment.section_id} · cut ${section?.planned_cut_length_mm ?? 'unknown'}${section?.planned_cut_length_mm ? ' mm' : ''} · A ← → B`, ports, artwork: stock ? <div className="manual-stock-art" dangerouslySetInnerHTML={{ __html: renderSectionSvg(sectionLayout(stock), `Section ${segment.section_id} exact cross-section`, { idPrefix: 'harness-' + layoutKey(id), callouts: false }) }} /> : <div className="sb-hatch">Stock geometry unknown</div>, position: { x: 400, y: segmentY } });
     segmentY += nodeHeight(items[items.length - 1]!, stock ? 180 : 110);
   }
   for (const [index, endpoint] of harness.endpoints.entries()) {

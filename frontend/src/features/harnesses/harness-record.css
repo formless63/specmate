@@ -5,3 +5,5 @@
 
 [aria-label="Harness manual canvas"] .manual-port { overflow-wrap:anywhere; }
 .harness-component { border:1px solid var(--sb-border-subtle);padding:10px;overflow-wrap:anywhere; }
+/* Keep the initial desktop drawing above workspace chrome; phone retains its compact canvas. */
+@media(min-width:48.01em){.record-page:has([aria-label="Harness manual canvas"]) .manual-flow { height:clamp(300px,calc(100dvh - 290px),720px); }}
