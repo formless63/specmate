@@ -166,7 +166,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["mechanical-proposals", "scene-drawings", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles", "intents", "cable-test-intent", "preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["occurrence-firmware", "configurations", "mechanical-proposals", "scene-drawings", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles", "intents", "cable-test-intent", "preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -325,7 +325,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   const { workspaceId } = scope;
   const onAccessChanged = scope.refresh;
   switch (toolId) {
-    // Firmware definitions are declared here; per-occurrence firmware choices follow.
     case "mechanical-sources": return <MechanicalSourcesPanel workspaceId={workspaceId} />;
     case "bom": return <BomPanel active={active === toolId} projectId={projectId} workspaceId={workspaceId} />;
     case "material-accounting": return <MaterialAccountingPanel active={active === toolId} projectId={projectId} />;
