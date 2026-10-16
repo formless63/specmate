@@ -18,7 +18,7 @@ export function FirmwareRecordPage(props: FirmwareRecordProps) { return <Firmwar
 function FirmwareSession(props: FirmwareRecordProps) {
   const [current, setCurrent] = useState<FirmwareRead | null>(null), [base, setBase] = useState<FirmwareRead | null>(null), [form, setForm] = useState<Firmware>(blankFirmware), [name, setName] = useState('');
   const [confirmed, setConfirmed] = useState(''), [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [versions, setVersions] = useState(false), [explicitDraft, setExplicitDraft] = useState(''), [draftId, setDraftId] = useState<string | null>(null);
-  const generation = useRef(0), alive = useRef(true), undo = useRef<Firmware[]>([]), intent = useRef<{ signature: string; key: string } | null>(null);
+  const generation = useRef(0), actionSequence = useRef(0), alive = useRef(true), undo = useRef<Firmware[]>([]), intent = useRef<{ signature: string; key: string } | null>(null);
   const editing = !props.definitionId || props.working, dirty = !base || canonical(form) !== canonical(base.content.firmware);
   const selection = JSON.stringify([props.definitionId, props.revisionNumber, props.working, draftId, props.active]), signature = pins(form), key = `${selection}:${signature}`;
   const latest = useRef({ props, form, base, selection, signature }); latest.current = { props, form, base, selection, signature };
@@ -28,7 +28,7 @@ function FirmwareSession(props: FirmwareRecordProps) {
   function commandKey(operation: string, payload: unknown, state?: string | null) { const signature = canonical([operation, payload, state]); if (intent.current?.signature !== signature) intent.current = { signature, key: randomUUID() }; return intent.current.key; }
   async function refresh(discard = false) {
     const token = ++generation.current, snapshot = latest.current, valid = () => alive.current && token === generation.current && latest.current.selection === snapshot.selection;
-    setConfirmed(''); setError(''); setBusy(false);
+    setConfirmed(''); setError('');
     if (!snapshot.props.active) return;
     try {
       let selected: FirmwareRead | null = null;
@@ -51,11 +51,13 @@ function FirmwareSession(props: FirmwareRecordProps) {
       setConfirmed(`${snapshot.selection}:${pins(next)}`);
     } catch (reason) { if (valid()) setError(reason instanceof Error ? reason.message : 'Firmware unavailable.'); }
   }
+  useEffect(() => { actionSequence.current++; setBusy(false); }, [selection]);
   useEffect(() => { void refresh(); const focus = () => { void refresh(); }; if (props.active) window.addEventListener('focus', focus); return () => { generation.current++; window.removeEventListener('focus', focus); }; }, [selection, signature]);
   function change(next: Firmware) { if (!ready || !editing || busy || !edit.allowed) return; undo.current.push(form); setForm(next); }
   async function save() {
     if (!ready || !editing || busy || !edit.allowed) return;
     const token = generation.current, snapshot = latest.current, valid = () => alive.current && generation.current === token && latest.current.selection === snapshot.selection;
+    const action = ++actionSequence.current;
     const operation = base?.draft_id ? 'firmware.update' : 'firmware.create';
     const payload = base?.draft_id ? { draft_id: base.draft_id, firmware: form } : { workspace_id: props.workspaceId, name: name.trim(), firmware: form };
     setBusy(true); setError('');
@@ -67,11 +69,11 @@ function FirmwareSession(props: FirmwareRecordProps) {
       setBase(saved); setCurrent(saved); setForm(structuredClone(saved.content.firmware)); undo.current = []; intent.current = null; setNotice('Firmware draft saved.');
       if (!props.definitionId) props.onCreated(saved.definition_id, latest.current.props.active);
     } catch (reason) { if (valid()) { setError(reason instanceof Error ? reason.message : 'Save failed.'); if (reason instanceof SourceError && [401, 403, 404].includes(reason.status)) void refresh(); } }
-    finally { if (valid()) setBusy(false); }
+    finally { if (alive.current && action === actionSequence.current) setBusy(false); }
   }
   async function freeze() {
     if (!ready || !base?.draft_id || dirty || busy || !freezeGate.allowed || current?.evaluation.readiness === 'blocked') return;
-    const token = generation.current, selected = selection; setBusy(true); setError('');
+    const token = generation.current, selected = selection, action = ++actionSequence.current; setBusy(true); setError('');
     try {
       const payload = { draft_id: base.draft_id }, result = await command<{ revision_id: string }>('firmware.freeze', payload, { expectedState: base.state ?? undefined, idempotencyKey: commandKey('firmware.freeze', payload, base.state) });
       if (!alive.current || generation.current !== token || latest.current.selection !== selected) return;
@@ -79,7 +81,7 @@ function FirmwareSession(props: FirmwareRecordProps) {
       if (!alive.current || generation.current !== token || latest.current.selection !== selected) return;
       setBase(saved); intent.current = null; props.onSelect(frozen.revision_number, false);
     } catch (reason) { if (alive.current && generation.current === token) { setError(reason instanceof Error ? reason.message : 'Freeze failed.'); void refresh(); } }
-    finally { if (alive.current && generation.current === token) setBusy(false); }
+    finally { if (alive.current && action === actionSequence.current) setBusy(false); }
   }
   const state: RecordState = !editing && current?.revision_id ? { kind: 'revision', id: current.revision_id, number: current.revision_number! } : base?.draft_id ? { kind: 'draft', id: base.draft_id, version: Number(base.state?.match(/\d+/)?.[0] ?? 0), dirty } : { kind: 'new' };
   const saveable = !!form.sources.length && !!form.toolchain.name.trim() && !!form.target.component_id && !!form.target.option_id && (!!props.definitionId || !!name.trim());

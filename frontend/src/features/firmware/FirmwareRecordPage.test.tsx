@@ -196,3 +196,17 @@ test('a held source choice cannot populate a hidden and reopened new declaration
   await act(async () => api.release(reply({ revision_id: 'src-rev', manifest_sha256: 'm'.repeat(64), manifest: { files: [{ path: 'src/main.cpp', sha256: 'a'.repeat(64), rights: 'MIT' }] } })));
   await screen.findByRole('textbox', { name: 'Toolchain name' }); expect(screen.queryByText('src/main.cpp · MIT')).toBeNull(); expect(api.writes).toHaveLength(0);
 });
+
+
+test('focus revalidation keeps fields disabled until an outstanding save settles', async () => {
+  const api = server(); mount(); await editName('Reviewed submitted buffer'); api.hold('save');
+  fireEvent.click(screen.getByRole('button', { name: 'Save firmware draft' })); await waitFor(() => expect(api.held()).toBeDefined());
+  await focus(); await screen.findByRole('textbox', { name: 'Toolchain name' });
+  const input = screen.getByRole('textbox', { name: 'Toolchain name' });
+  expect(input.closest('fieldset')).toHaveProperty('disabled', true);
+  fireEvent.change(input, { target: { value: 'Cannot edit during held save' } });
+  expect(input).toHaveProperty('value', 'Reviewed submitted buffer');
+  await act(async () => api.release(reply({ result: { draft_id: 'draft-1' } })));
+  await waitFor(() => expect(input.closest('fieldset')).toHaveProperty('disabled', false));
+  expect(input).toHaveProperty('value', 'Reviewed submitted buffer');
+});
