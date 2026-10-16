@@ -201,12 +201,12 @@ test("exact fact subjects open directly without depending on the first subject p
     if (url === "/api/v0/access/workspace") return new Response(JSON.stringify({ workspace_id: "ws-1" }));
     throw new Error(`Unexpected list lookup ${url}`);
   }));
-  const history = createMemoryHistory({ initialEntries: ["/library/subject-75@2/~/retained?tool=facts"] });
+  const history = createMemoryHistory({ initialEntries: ["/library/subject-75?tool=facts"] });
   function Routed() { const nav = useNavigation()!; return <ProbeProvider probe={nav.location.probe} onProbe={() => {}}><FactRecords active principalKey="owner" workspaceId="ws-1" /></ProbeProvider>; }
   render(wrap(<NavigationProvider history={history}><Routed /></NavigationProvider>));
   await screen.findByRole("heading", { name: "Record assertion" });
   expect(reads.some(url => url.includes("/facts/workspaces/"))).toBe(false);
-  expect(history.location.pathname).toContain("subject-75@2/~/retained");
+  expect(history.location.pathname).toBe("/library/subject-75");
 });
 
 test("focus denial withdraws a ledger and recovery preserves the prepared assertion", async () => {
@@ -283,4 +283,16 @@ test("a held registration cannot navigate after the principal changes", async ()
   await act(async () => complete!(new Response(JSON.stringify({ result: ledger() }))));
   expect(registered).not.toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: "Open registered fact ledger" })).toBeNull();
+});
+
+
+test.each(["@7", "/~/board"])("unsupported fact subject address %s is rejected without showing current evidence", async suffix => {
+  const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+  const history = createMemoryHistory({ initialEntries: [`/library/subject${suffix}?tool=facts`] });
+  function Routed() { const nav = useNavigation()!; return <ProbeProvider probe={nav.location.probe} onProbe={() => {}}><FactRecords active principalKey="owner" workspaceId="ws-1" /></ProbeProvider>; }
+  render(wrap(<NavigationProvider history={history}><Routed /></NavigationProvider>));
+  await screen.findByText(/Fact ledgers do not have numbered frozen revisions/);
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(screen.queryByRole("heading", { name: "Record assertion" })).toBeNull();
+  expect(history.location.pathname).toContain(suffix);
 });

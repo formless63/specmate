@@ -1,4 +1,4 @@
-import { Button, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { usePermission } from '../../lib/permissions';
 import { useNewRequest } from '../library-gallery/newRequest';
@@ -14,14 +14,16 @@ export function FactRecords(props: Props) { return <FactsSession key={`${props.p
 function FactsSession(props: Props) {
   const navigation = useNavigation(), probe = useProbe()?.probe, create = usePermission('item.create');
   const [visited, setVisited] = useState<string[]>([]);
-  const subjectId = props.active ? probe?.object ?? null : null;
-  const registering = props.active && !subjectId && navigation?.location.filters?.status === 'new';
+  const unsupported = props.active && !!probe && (probe.rev !== null || probe.path.length > 0);
+  const subjectId = props.active && !unsupported ? probe?.object ?? null : null;
+  const registering = props.active && !unsupported && !subjectId && navigation?.location.filters?.status === 'new';
   useEffect(() => { if (subjectId) setVisited(current => current.includes(subjectId) ? current : [...current, subjectId]); }, [subjectId]);
   const startNew = () => navigation?.navigate({ area: 'library', lens: 'facts', project: null, probe: null, filters: { status: 'new' } });
   useNewRequest(LIBRARY_VIEWS.facts!, props.active && create.allowed, startNew);
   return <Stack><Group><Button variant="quiet" onClick={() => navigation?.navigate({ area: 'library', lens: 'library-home', project: null, probe: null, filters: {} })}>Back to Library</Button>{!registering && <Button {...create.props} onClick={startNew}>New fact ledger</Button>}</Group>
     <div hidden={!registering}><FactRegistration {...props} active={registering} onRegistered={id => navigation?.navigate({ area: 'library', lens: 'facts', project: null, probe: { object: id, rev: null, path: [] }, filters: {} })} /></div>
-    {props.active && !subjectId && !registering && <Text>Open a fact ledger from the Library, or register an explicit engineering subject.</Text>}
+    {unsupported && <Alert color="red">Fact ledgers do not have numbered frozen revisions or occurrence-path views. Open the original subject link without a revision or path.</Alert>}
+    {props.active && !unsupported && !subjectId && !registering && <Text>Open a fact ledger from the Library, or register an explicit engineering subject.</Text>}
     {visited.map(id => <section key={id} hidden={subjectId !== id} inert={subjectId !== id || undefined} aria-label="Fact ledger record"><Title order={2}>Fact ledger</Title><FactLedger subjectId={id} principalKey={props.principalKey} active={props.active && subjectId === id} /></section>)}
   </Stack>;
 }
