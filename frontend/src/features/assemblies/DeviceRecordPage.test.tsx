@@ -89,3 +89,11 @@ test('retained scene becomes inactive when the host leaves the device', async ()
   server(); const view = setup({ frozen: true }); await screen.findByText('Viewport active true · None'); view.rerender(view.tree(false));
   await act(async () => {}); expect(screen.queryByRole('button', { name: 'Pick second board in scene' })).toBeNull(); expect(screen.getByText('Viewport active false · None')).toBeTruthy();
 });
+
+
+test('phone draft keeps Save and Capture in the header and deliberately discloses revision actions', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width: 48em'), media: query, addEventListener() {}, removeEventListener() {} }));
+  server(); setup(); expect(await screen.findByRole('button', { name: 'Capture saved assembly' })).toBeTruthy(); expect(screen.getByRole('button', { name: 'Save device' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Freeze saved device' })).toBeNull(); fireEvent.click(screen.getByRole('button', { name: 'Device actions' }));
+  expect(await screen.findByRole('menuitem', { name: 'Freeze saved device' })).toBeTruthy(); expect(screen.getByRole('menuitem', { name: 'Reload saved draft (discard local edits)' })).toBeTruthy();
+});
