@@ -28,7 +28,6 @@ import { WorkspaceShell, type LibraryRecord, type ShellChrome, type WorkspaceSco
 const SelectedDefinitionViews = lazy(() => import("./features/cable-views/SelectedDefinitionViews").then(module => ({ default: module.SelectedDefinitionViews })));
 const BuildsPanel = lazy(() => import("./features/builds/BuildsPanel").then((module) => ({ default: module.BuildsPanel })));
 const DeviceLibrary = lazy(() => import("./features/assemblies/DeviceLibrary").then(module => ({ default: module.DeviceLibrary })));
-const AssemblyPanel = lazy(() => import("./features/assemblies/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel })));
 const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/AgentCapabilitiesPanel").then((module) => ({ default: module.AgentCapabilitiesPanel })));
 const AgentRunsPanel = lazy(() => import("./features/agent-runs/AgentRunsPanel").then((module) => ({ default: module.AgentRunsPanel })));
 const RunnerPanel = lazy(() => import("./features/diagnostics/RunnerPanel").then(module => ({ default: module.RunnerPanel })));
@@ -36,24 +35,16 @@ const DiagnosticsPanel = lazy(() => import("./features/diagnostics/DiagnosticsPa
 const ShareRecordsPanel = lazy(() => import("./features/project-access/ShareRecordsPanel").then((module) => ({ default: module.ShareRecordsPanel })));
 const IntegrationsPanel = lazy(() => import("./features/integrations/IntegrationsPanel").then((module) => ({ default: module.IntegrationsPanel })));
 const WorkspaceAccessPanel = lazy(() => import("./features/project-access/WorkspaceAccessPanel").then((module) => ({ default: module.WorkspaceAccessPanel })));
-const IdentityPanel = lazy(() => import("./features/identity/IdentityPanel").then((module) => ({ default: module.IdentityPanel })));
 const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
 const EvidencePanel = lazy(() => import("./features/evidence/EvidencePanel").then((module) => ({ default: module.EvidencePanel })));
-const InterfacePanel = lazy(() => import("./features/interfaces/InterfacePanel").then((module) => ({ default: module.InterfacePanel })));
-const PortPanel = lazy(() => import("./features/interfaces/PortPanel").then((module) => ({ default: module.PortPanel })));
 const ConventionPanel = lazy(() => import("./features/interfaces/ConventionPanel").then((module) => ({ default: module.ConventionPanel })));
 const SignalSetPanel = lazy(() => import("./features/interfaces/SignalSetPanel").then((module) => ({ default: module.SignalSetPanel })));
-const InterfaceAssessmentPanel = lazy(() => import("./features/interfaces/InterfaceAssessmentPanel").then((module) => ({ default: module.InterfaceAssessmentPanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
-const PcbPanel = lazy(() => import("./features/pcb/PcbPanel").then((module) => ({ default: module.PcbPanel })));
 const IntentPanel = lazy(() => import("./features/intents/IntentPanel").then((module) => ({ default: module.IntentPanel })));
-const EndAssemblyPanel = lazy(() => import("./features/end-assemblies/EndAssemblyPanel").then((module) => ({ default: module.EndAssemblyPanel })));
-const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
 const ConnectorLibrary = lazy(() => import("./features/interfaces/ConnectorLibrary").then(module => ({ default: module.ConnectorLibrary })));
 const BoardLibrary = lazy(() => import("./features/boards/BoardLibrary").then(module => ({ default: module.BoardLibrary })));
 const PartsLibrary = lazy(() => import('./features/parts/PartsLibrary').then(module => ({ default: module.PartsLibrary })));
 const StockLibrary = lazy(() => import("./features/wire-stock/StockLibrary").then(module => ({ default: module.StockLibrary })));
-const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
 const SettingsPanel = lazy(() => import("./features/settings/SettingsPanel").then(module => ({ default: module.SettingsPanel })));
 const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPanel").then((module) => ({ default: module.PreferencesPanel })));
@@ -64,7 +55,6 @@ const HistoryPage = lazy(() => import("./features/history/History").then(module 
 const CableRecordHost = lazy(() => import("./features/cables/CableRecordEditor").then(module => ({ default: module.CableRecordHost })));
 const NewCable = lazy(() => import("./features/designs/NewCable").then(module => ({ default: module.NewCable })));
 const NewDesign = lazy(() => import("./features/designs/NewDesign").then(module => ({ default: module.NewDesign })));
-const CablePanel = lazy(() => import("./features/cables/CablePanel").then((module) => ({ default: module.CablePanel })));
 const MatchingWorkspace = lazy(() => import("./features/catalog-matching/MatchingWorkspace").then((module) => ({ default: module.MatchingWorkspace })));
 const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/CatalogPacksWorkspace").then((module) => ({ default: module.CatalogPacksWorkspace })));
 const HarnessPanel = lazy(() => import("./features/harnesses/HarnessPanel").then((module) => ({ default: module.HarnessPanel })));
@@ -340,27 +330,15 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
  */
 function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scope: WorkspaceScope; projectId: string | null; active: string }) {
   const navigation = useNavigation();
-  const { principalKey, workspaceId } = scope;
-  const editorFilters = useNavigation()?.location.filters;
-  const initialInterfaceKind = editorFilters?.kind === "pinout" ? "pinout" : "connector_body";
+  const { workspaceId } = scope;
   const onAccessChanged = scope.refresh;
   switch (toolId) {
-    case "hardware": return <IdentityPanel projectId={projectId} initialKind="hardware" />;
-    case "identity": return <IdentityPanel projectId={projectId} />;
     case "signals": return <SignalSetPanel projectId={projectId} />;
-    case "ports": return <PortPanel projectId={projectId} />;
     case "conventions": return <ConventionPanel projectId={projectId} />;
-    case "end-assemblies": return <EndAssemblyPanel projectId={projectId} />;
     case "intents": return <IntentPanel projectId={projectId} />;
-    case "wire-stock": return <WireStockPanel projectId={projectId} workspaceId={workspaceId} />;
     case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
-    case "assemblies": return <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />;
-    case "interfaces": return <Stack><InterfacePanel projectId={projectId} initialKind={initialInterfaceKind} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>;
-    case "cables": return <CablePanel projectId={null} workspaceId={workspaceId} />;
     case "harnesses": return <HarnessPanel projectId={projectId} />;
     case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
-    // Board pads and paths edit "board" rows; intake and populations follow.
-    case "pcb": return <Stack>{editorFilters?.view === "intake" ? [<PcbPanel key="intake" workspaceId={workspaceId} projectId={projectId} />, <BoardPanel key="board" projectId={projectId} />] : [<BoardPanel key="board" projectId={projectId} />, <PcbPanel key="intake" workspaceId={workspaceId} projectId={projectId} />]}</Stack>;
     case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
     // Firmware definitions are declared here; per-occurrence firmware choices follow.
     case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;
