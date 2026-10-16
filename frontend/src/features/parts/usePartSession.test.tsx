@@ -93,3 +93,13 @@ test('domain references authorize both saved and retained buffers and fence a ch
   expect(authorizeContent.mock.calls.some(([content]) => content.domain_pin === undefined)).toBe(true);
   expect(authorizeContent.mock.calls.some(([content]) => content.domain_pin === 'private')).toBe(true);
 });
+
+test('an explicit domain freeze uses the shared original CAS and returned revision navigation', async () => {
+  const api = server(), { result, props } = mount({ revisionNumber: null, draftRequested: true, freezeOperation: 'interface.freeze' });
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  await act(async () => result.current.freeze());
+  expect(api.commands).toHaveLength(1);
+  expect(api.commands[0]).toMatchObject({ operation: 'interface.freeze', payload: { draft_id: 'draft' }, expected_state: 'draft-v4' });
+  expect(props.onSelect).toHaveBeenCalledWith(3, false);
+  expect(result.current.base?.state).toBe('draft-v6');
+});

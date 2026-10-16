@@ -4,6 +4,7 @@ import { ApiError } from '../workspace/api';
 import { authorizeReferences, canonical, command, PART_KINDS, readRecord, referenceSignature, type Content, type Draft, type PartRecord } from './api';
 
 export type SessionProps = {
+  freezeOperation?: 'draft.freeze' | 'interface.freeze' | 'cable_test_plan.freeze';
   authorizeContent?: (content: Content) => Promise<void>; contentSignature?: (content: Content) => string;
   allowedKinds?: readonly string[]; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
   initial: { kind: string; content: Content; name?: string }; onCreated: (id: string, open: boolean) => void; onSelect: (number: number | null, working: boolean) => void; onAccessLost?: () => void;
@@ -76,10 +77,10 @@ export function usePartSession(props: SessionProps) {
   }
   async function freeze() {
     if (!ready || busy || !base || dirty || !editing) return;
-    const token = epoch.current, selected = signature, payload = { draft_id: base.draft_id };
+    const token = epoch.current, selected = signature, payload = { draft_id: base.draft_id }, operation = props.freezeOperation ?? 'draft.freeze';
     setBusy(true); setError('');
     try {
-      const frozen = await command<{ number: number; draft: Draft }>('draft.freeze', payload, base.state, intentKey('draft.freeze', payload, base.state));
+      const frozen = await command<{ number: number; draft: Draft }>(operation, payload, base.state, intentKey(operation, payload, base.state));
       if (!safe(token)) return; setBase({ ...frozen.draft, kind: 'draft' }); setNotice(`Frozen r${frozen.number}.`);
       if (latest.current.props.active && latest.current.signature === selected) props.onSelect(frozen.number, false);
     } catch (failure) { if (safe(token)) fail(failure, failure instanceof ApiError && [401, 403, 404].includes(failure.status)); }
