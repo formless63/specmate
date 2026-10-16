@@ -52,7 +52,7 @@ export function PortWorkbench({ value, onChange, mode, table }: { value: Port; o
     marks: [...(pinOf(r.contact_id)?.must_not_connect ? ["must not connect"] : []), ...(r.hazards?.includes("may_be_power") ? ["may be power"] : [])],
   }));
 
-  if (!value.pinout_revision_id) return null;
+  if (!value.pinout_revision_id) return <>{table}</>;
   if (end.isError) return <Alert color="red">{end.error.message}</Alert>;
   if (!end.data) return null;
   return <div className="pwb" data-mode={mode}>

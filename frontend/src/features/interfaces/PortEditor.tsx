@@ -1,3 +1,4 @@
+import { ComposedPortEditor } from "./ComposedPortEditor";
 import { DefinitionSelect } from '../../components/library/DefinitionSelect';
 import { Alert, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +19,7 @@ const ROLES: { value: PinoutRole; label: string }[] = [
 export function PortEditor({ value, onChange, definitions, mode = "draft" }: { value: Port; onChange: (v: Port) => void; definitions?: Definition[]; mode?: WorkbenchMode }) {
   const [variantDefinition, setVariantDefinition] = useState<string | null>(null);
   const identity = useQuery({ queryKey: ["port-variant-identity", variantDefinition], queryFn: () => read<Identity>(`catalog/definitions/${variantDefinition}`), enabled: !!variantDefinition });
-  useLatestRevisionDefault(variantDefinition, identity.isError ? undefined : identity.data, (identity.data?.revisions.length ?? 50) < 50, value.pinout_revision_id, (id) => onChange({ ...value, pinout_revision_id: id, selected_conditions: {} }));
+  useLatestRevisionDefault(variantDefinition, identity.isError ? undefined : identity.data, (identity.data?.revisions.length ?? 50) < 50, value.pinout_revision_id ?? "", (id) => onChange({ ...value, pinout_revision_id: id, selected_conditions: {} }));
   const variant = useQuery({ queryKey: ["interface-inspect", value.pinout_revision_id], queryFn: () => read<Inspection>(`interfaces/revisions/${value.pinout_revision_id}`), enabled: !!value.pinout_revision_id });
   const end = useQuery({ queryKey: ["interface-end", value.pinout_revision_id], queryFn: () => read<CableEnd>(`interfaces/revisions/${value.pinout_revision_id}/end`), enabled: !!value.pinout_revision_id });
   const pinout = variant.data?.interface.kind === "pinout" ? variant.data.interface as Pinout : null;
@@ -29,6 +30,7 @@ export function PortEditor({ value, onChange, definitions, mode = "draft" }: { v
     const order = new Map((end.data?.rows ?? []).map((r, i) => [r.contact_id, i]));
     onChange({ ...value, pins: [...value.pins.filter((p) => p.contact_id !== contactId), next].sort((a, b) => (order.get(a.contact_id) ?? 1e9) - (order.get(b.contact_id) ?? 1e9)) });
   };
+  if (value.members?.length) return <ComposedPortEditor value={value} onChange={onChange} />;
   return <Stack gap="xs">
     <Group align="end">
       <TextInput label="Device" description="The device this socket or plug belongs to" value={value.device_label} onChange={(e) => onChange({ ...value, device_label: e.currentTarget.value })} />

@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, TypeAdapter, model_validator
+from pydantic import Field, TypeAdapter, model_serializer, model_validator
 
 from specmate.assemblies.contracts import LocalId, Path, StrictModel, rename_keys
 from specmate.contracts import FiniteNumber
@@ -257,13 +257,33 @@ def upgrade_port_content(value):
     return {**value, "schema_version": "0.2", **({"pins": pins} if pins is not None else {})}
 
 
+class PortMember(StrictModel):
+    """One occurrence of an exact individual Port or Pinout revision."""
+
+    local_id: ConditionKey
+    revision_id: UUID
+
+
+class PortContact(StrictModel):
+    """A logical contact mapped explicitly to one member's real contact."""
+
+    contact_id: ContactId
+    member_id: ConditionKey
+    member_contact_id: ContactId
+    label: Text | None = None
+    basis: Annotated[str, Field(min_length=1, max_length=2000)]
+
+
 class Port(StrictModel):
     """A device socket or plug as the outside world sees it: one port per pinout variant."""
 
     kind: Literal["port"] = "port"
-    schema_version: Literal["0.2"] = "0.2"
+    schema_version: Literal["0.2", "0.3"] = "0.2"
     device_label: Text
-    pinout_revision_id: UUID
+    pinout_revision_id: UUID | None = None
+    members: list[PortMember] = Field(default_factory=list, max_length=64)
+    contacts: list[PortContact] = Field(default_factory=list, max_length=1000)
+    composition_basis: Annotated[str, Field(min_length=1, max_length=2000)] | None = None
     role: Literal["source", "sink", "bidirectional", "unknown"] = "unknown"
     selected_conditions: dict[ConditionKey, ConditionKey] = Field(default_factory=dict)
     pins: list[PortPin] = Field(default_factory=list, max_length=1000)
@@ -278,12 +298,37 @@ class Port(StrictModel):
 
     @model_validator(mode="after")
     def consistent(self):
+        if self.members:
+            if self.schema_version != "0.3" or self.pinout_revision_id is not None:
+                raise ValueError("A composed port requires schema 0.3 and no whole-port pinout.")
+            if not self.contacts or not self.composition_basis or self.selected_conditions:
+                raise ValueError(
+                    "A composed port needs explicit contacts/basis; conditions belong to members."
+                )
+            unique([m.local_id for m in self.members])
+            unique([c.contact_id for c in self.contacts])
+            unique([(c.member_id, c.member_contact_id) for c in self.contacts])
+            members = {m.local_id for m in self.members}
+            if any(c.member_id not in members for c in self.contacts):
+                raise ValueError("A logical contact must identify a declared member occurrence.")
+        elif self.pinout_revision_id is None or self.contacts or self.composition_basis:
+            raise ValueError(
+                "An individual port requires an exact pinout and no composed contacts."
+            )
         unique([p.contact_id for p in self.pins])
         if len(self.selected_conditions) > 20:
             raise ValueError("Too many selected conditions.")
         if self.review == "reviewed" and not self.review_basis:
             raise ValueError("Reviewed ports require a review basis.")
         return self
+
+    @model_serializer(mode="wrap")
+    def omit_unrecorded_composition(self, handler):
+        data = handler(self)
+        if not self.members:
+            for field in ("members", "contacts", "composition_basis"):
+                data.pop(field, None)
+        return data
 
 
 class Terminal(StrictModel):

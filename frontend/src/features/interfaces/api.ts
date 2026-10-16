@@ -33,7 +33,7 @@ export type PortPin = {
   coupling: "ac" | "dc" | "unknown"; termination: "source_terminated" | "load_terminated" | "none" | "unknown";
   needs_in_cable: CableNeed[]; must_not_connect: boolean; must_not_connect_reason: string | null; basis: string | null;
 };
-export type Port = { kind: "port"; schema_version?: "0.2"; device_label: string; pinout_revision_id: string; role: PinoutRole; selected_conditions: Record<string, string>; pins: PortPin[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
+export type Port = { kind: "port"; schema_version?: "0.2" | "0.3"; device_label: string; pinout_revision_id: string | null; members?: { local_id: string; revision_id: string }[]; contacts?: { contact_id: string; member_id: string; member_contact_id: string; label?: string | null; basis: string }[]; composition_basis?: string | null; role: PinoutRole; selected_conditions: Record<string, string>; pins: PortPin[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
 export type ConventionUseKind = "signal" | "signal_type" | "return_of" | "spare" | "do_not_use";
 export type ConventionUse = { kind: ConventionUseKind; signal_key: string | null; signal_type: SignalType | null };
 export type ConductiveKind = "conductor" | "shield" | "drain";
@@ -55,11 +55,12 @@ export type StockConventions = { stock_revision_id: string; effect: "preference"
 export type Interface = Body | Pinout | Mapping | SignalSet | Port | Convention;
 /** One contact of a cable end (a device port or a bare pinout variant). */
 export type EndRow = {
+  member?: { local_id: string; revision_id: string; contact_id: string; pinout_revision_id: string; body_revision_id: string; basis: string };
   contact_id: string; number: string | null; label: string; physical_role: string; status: "declared" | "unknown"; reason?: string;
   role?: string; signal?: ResolvedSignal | null; note?: string | null; condition_key?: string; hazards?: string[];
   alternatives?: { choice: string; role: string; signal: string | null; signal_ref: ResolvedSignal | null }[]; device: PortPin | null;
 };
-export type CableEnd = { kind: "port" | "pinout"; revision_id: string; device_label: string | null; role: PinoutRole; variant_label: string | null; standard: string | null; pinout_revision_id: string; body_revision_id: string; selected_conditions: Record<string, string>; compatibility: "not_evaluated"; rows: EndRow[] };
+export type CableEnd = { kind: "port" | "pinout"; revision_id: string; device_label: string | null; role: PinoutRole; variant_label: string | null; standard: string | null; pinout_revision_id: string | null; body_revision_id: string | null; composition?: { members: { local_id: string; revision_id: string }[]; basis: string }; selected_conditions: Record<string, string>; compatibility: "not_evaluated"; rows: EndRow[] };
 export type MatingRow = MatesWith & { name: string; number: number; mating_role: string; status: "reviewed" | "unknown" };
 export type MatedBy = { body_revision_id: string; name: string; number: number; declares_revision_id: string; correspondence: string; review: string; status: "reviewed" | "unknown" };
 /** A frozen device port built on a revision of a pinout, with the contacts it says must not connect. */

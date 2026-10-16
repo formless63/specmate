@@ -58,7 +58,9 @@ def references(value):
     if isinstance(value, ConnectorBody):
         return [m.body_revision_id for m in value.mates_with]
     if isinstance(value, Port):
-        return [value.pinout_revision_id]
+        return (
+            [m.revision_id for m in value.members] if value.members else [value.pinout_revision_id]
+        )
     if isinstance(value, Board):
         return board_references(value)
     if isinstance(value, EndAssembly):
@@ -269,6 +271,32 @@ class Closure(Lookup):
                         raise ValidationFailed("A mating pair must name contacts on both bodies.")
 
     def validate_port(self, port):
+        if port.members:
+            members = {m.local_id: self.values.get(m.revision_id) for m in port.members}
+            for member in members.values():
+                if not isinstance(member, (Port, Pinout)) or (
+                    isinstance(member, Port) and member.members
+                ):
+                    raise ValidationFailed(
+                        "A composed port member must be an individual port or pinout."
+                    )
+                if (
+                    member.role not in ("unknown", "bidirectional", port.role)
+                    and port.role != "unknown"
+                ):
+                    raise ValidationFailed("A member role contradicts its composed port role.")
+            rows = {
+                m.local_id: end_rows(members[m.local_id], self.revisions[m.revision_id], self)
+                for m in port.members
+            }
+            for contact in port.contacts:
+                if contact.member_contact_id not in {
+                    r["contact_id"] for r in rows[contact.member_id]["rows"]
+                }:
+                    raise ValidationFailed("A logical contact names no real member contact.")
+            if any(p.contact_id not in {c.contact_id for c in port.contacts} for p in port.pins):
+                raise ValidationFailed("A composed port pin must name a declared logical contact.")
+            return
         pinout = self.values.get(port.pinout_revision_id)
         if not isinstance(pinout, Pinout):
             raise ValidationFailed("A port requires an exact pinout variant revision.")
@@ -509,6 +537,56 @@ def end_rows(value, revision, closure):
     device expectation reads unknown; a port adds its declared facts and condition choices.
     """
     port = value if isinstance(value, Port) else None
+    if port and port.members:
+        members = {
+            m.local_id: end_rows(
+                closure.values[m.revision_id], closure.revisions[m.revision_id], closure
+            )
+            for m in port.members
+        }
+        facts = {p.contact_id: p for p in port.pins}
+        rows = []
+        for contact in port.contacts:
+            member = members[contact.member_id]
+            original = next(
+                r for r in member["rows"] if r["contact_id"] == contact.member_contact_id
+            )
+            row = {
+                **original,
+                "contact_id": contact.contact_id,
+                "number": contact.contact_id,
+                "label": contact.label or original["label"],
+                "member": {
+                    "local_id": contact.member_id,
+                    "revision_id": member["revision_id"],
+                    "contact_id": contact.member_contact_id,
+                    "pinout_revision_id": member["pinout_revision_id"],
+                    "body_revision_id": member["body_revision_id"],
+                    "basis": contact.basis,
+                },
+            }
+            if contact.contact_id in facts:
+                row["device"] = facts[contact.contact_id].model_dump(mode="json")
+            elif original.get("device"):
+                row["device"] = {**original["device"], "contact_id": contact.contact_id}
+            rows.append(row)
+        return {
+            "kind": "port",
+            "revision_id": str(revision.id),
+            "device_label": port.device_label,
+            "role": port.role,
+            "variant_label": None,
+            "standard": None,
+            "pinout_revision_id": None,
+            "body_revision_id": None,
+            "selected_conditions": {},
+            "composition": {
+                "members": [m.model_dump(mode="json") for m in port.members],
+                "basis": port.composition_basis,
+            },
+            "compatibility": "not_evaluated",
+            "rows": rows,
+        }
     pinout = closure.values[port.pinout_revision_id] if port else value
     selections = port.selected_conditions if port else {}
     body = closure.body_for(pinout)

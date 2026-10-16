@@ -66,3 +66,24 @@ an explicit continuation/scan-limit flag and no hidden total or hidden IDs in cu
 An optional `kind` filter selects pinouts, ports or end stacks for their own
 record sections; signed cursors cannot transfer between filters. A transitive
 mating dependency alone is not a direct connector association.
+
+### Ports composed from individual members
+
+Port schema `0.3` can describe a logical device port with several real connector
+occurrences, such as separate red, green, blue and sync inputs. `members` pins exact
+individual Port or Pinout revisions under distinct local IDs. `contacts` maps each
+logical contact to one member occurrence/contact, with an explicit declaration basis.
+Repeated member revisions remain separate occurrences. No shared connector body,
+physical mating, signal equivalence or connection between the members is inferred.
+
+A composed port has no whole-port `pinout_revision_id`. Each resolved contact retains
+its member's exact body and pinout identities, signals, selected conditions and device
+facts. Conditions belong to individual member ports. Optional whole-port pin facts
+address logical contacts. Closure validation checks all exact member dependencies and
+current source authority before inspection. Nested compositions are not supported.
+Individual schema `0.2` ports retain their existing serialization.
+
+The Connector record displays member provenance and the logical-to-member contact
+mapping as a table, rather than drawing a fictional multi-connector face. A cable may
+bind those logical contacts to exact connector occurrences through explicit contact
+bindings; that binding is separate from mechanical mating qualification.

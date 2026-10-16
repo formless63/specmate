@@ -43,6 +43,81 @@
       "title": "CableNeed",
       "type": "object"
     },
+    "PortContact": {
+      "additionalProperties": false,
+      "description": "A logical contact mapped explicitly to one member's real contact.",
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "member_contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Member Contact Id",
+          "type": "string"
+        },
+        "member_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Member Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "member_id",
+        "member_contact_id",
+        "basis"
+      ],
+      "title": "PortContact",
+      "type": "object"
+    },
+    "PortMember": {
+      "additionalProperties": false,
+      "description": "One occurrence of an exact individual Port or Pinout revision.",
+      "properties": {
+        "local_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "revision_id"
+      ],
+      "title": "PortMember",
+      "type": "object"
+    },
     "PortPin": {
       "additionalProperties": false,
       "description": "What the device does at one contact. Absent facts stay unknown.",
@@ -295,6 +370,28 @@
   "additionalProperties": false,
   "description": "A device socket or plug as the outside world sees it: one port per pinout variant.",
   "properties": {
+    "composition_basis": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Composition Basis"
+    },
+    "contacts": {
+      "items": {
+        "$ref": "#/$defs/PortContact"
+      },
+      "maxItems": 1000,
+      "title": "Contacts",
+      "type": "array"
+    },
     "device_label": {
       "maxLength": 200,
       "minLength": 1,
@@ -307,10 +404,26 @@
       "title": "Kind",
       "type": "string"
     },
+    "members": {
+      "items": {
+        "$ref": "#/$defs/PortMember"
+      },
+      "maxItems": 64,
+      "title": "Members",
+      "type": "array"
+    },
     "pinout_revision_id": {
-      "format": "uuid",
-      "title": "Pinout Revision Id",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pinout Revision Id"
     },
     "pins": {
       "items": {
@@ -355,8 +468,11 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "0.2",
       "default": "0.2",
+      "enum": [
+        "0.2",
+        "0.3"
+      ],
       "title": "Schema Version",
       "type": "string"
     },
@@ -372,8 +488,7 @@
     }
   },
   "required": [
-    "device_label",
-    "pinout_revision_id"
+    "device_label"
   ],
   "title": "Port",
   "type": "object"

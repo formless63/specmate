@@ -117,3 +117,16 @@ test("without declarations nothing is inferred", () => {
   render(wrap(<MatingList mates={[]} matedBy={[]} />));
   expect(screen.getByText(/Nothing is inferred from the body family/)).toBeTruthy();
 });
+
+test('composed ports show exact member contacts without inventing a connector face', async () => {
+  stub();
+  const value: Port = { ...(initialInterface('port') as Port), schema_version: '0.3', device_label: 'Synthetic monitor', pinout_revision_id: null,
+    members: [{ local_id: 'left', revision_id: 'variant-r1' }, { local_id: 'right', revision_id: 'variant-r1' }],
+    contacts: [{ contact_id: 'left-video', member_id: 'left', member_contact_id: '4', basis: 'Independent left input requirement' }, { contact_id: 'right-video', member_id: 'right', member_contact_id: '4', basis: 'Independent right input requirement' }], composition_basis: 'Two distinct real connector occurrences' };
+  render(wrap(<PortEditor value={value} onChange={vi.fn()} />));
+  expect(await screen.findByText('Composed device port')).toBeTruthy();
+  expect(await screen.findAllByText('Red video')).toHaveLength(2);
+  expect(screen.getByText('left-video')).toBeTruthy(); expect(screen.getByText('right-video')).toBeTruthy();
+  expect(screen.queryByRole('combobox', { name: 'Pinout variant' })).toBeNull();
+  expect(screen.queryByRole('group', { name: /face/ })).toBeNull();
+});
