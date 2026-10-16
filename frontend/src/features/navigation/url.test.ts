@@ -41,7 +41,7 @@ test.each(redirects)("/%s?lens=%s redirects to %s", (area, lens, expected) => {
 test("every existing tool has a stable reachable canonical home", () => {
   for (const tool of ROUTE_TOOLS) {
     const location = { ...HOME, area: tool.area, lens: tool.id };
-    const expected = tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
+    const expected = tool.id === "facts" ? "library-home" : tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
       : ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) ? "designs" : tool.id;
     const [path, query] = formatLocation(location).split("?");
     expect(parseLocation(path!, query ? `?${query}` : "").lens, tool.id).toBe(expected);
@@ -173,4 +173,13 @@ test('explicit New secondary records retain internal creation routes while ordin
   expect(parseLocation('/project', '?lens=cable-test-intent').lens).toBe('designs');
   const recipe = parseLocation('/designs/recipes', '?status=new'); expect(recipe.lens).toBe('intents'); expect(recipe.probe).toBeNull();
   expect(parseLocation('/library', '?lens=intents').lens).toBe('new-cable');
+});
+
+
+test("legacy Facts collection becomes Library while explicit registration and own exact subjects survive", () => {
+  expect(formatLocation(parseLocation("/evidence", "?lens=facts"))).toBe("/library");
+  const exact = parseLocation("/evidence/subject@2/~/left/board", "?lens=facts");
+  expect(exact.lens).toBe("facts");
+  expect(exact.probe).toEqual({ object: "subject", rev: 2, path: ["left", "board"] });
+  expect(parseLocation("/library", "?tool=facts&status=new").lens).toBe("facts");
 });

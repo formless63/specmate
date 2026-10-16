@@ -35,7 +35,7 @@ const DiagnosticsPanel = lazy(() => import("./features/diagnostics/DiagnosticsPa
 const ShareRecordsPanel = lazy(() => import("./features/project-access/ShareRecordsPanel").then((module) => ({ default: module.ShareRecordsPanel })));
 const IntegrationsPanel = lazy(() => import("./features/integrations/IntegrationsPanel").then((module) => ({ default: module.IntegrationsPanel })));
 const WorkspaceAccessPanel = lazy(() => import("./features/project-access/WorkspaceAccessPanel").then((module) => ({ default: module.WorkspaceAccessPanel })));
-const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
+const FactRecords = lazy(() => import("./features/facts/FactRecords").then(module => ({ default: module.FactRecords })));
 const EvidencePanel = lazy(() => import("./features/evidence/EvidencePanel").then((module) => ({ default: module.EvidencePanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
 const EngineeringSecondaryLibrary = lazy(() => import("./features/records/EngineeringSecondaryLibrary").then(module => ({ default: module.EngineeringSecondaryLibrary })));
@@ -254,6 +254,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (BOARD_RECORD_SECTIONS[toolId] && (!record || ["board", "pcb_population"].includes(record.kind ?? ""))) return <Text role="status">Opening the exact board section…</Text>;
   if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
+  if (toolId === "facts") return <FactRecords principalKey={scope.principalKey} workspaceId={scope.workspaceId} active={lens.active === toolId} projects={scope.projects} />;
   if (["intents", "cable-test-intent"].includes(toolId)) return <CableSecondaryRecord kind={toolId === "intents" ? "cable_intent" : "cable_test_plan"} projects={scope.projects} onOpenInProject={(id, record) => onOpenInProject(id, toolId, record)} record={record} workspaceId={scope.workspaceId} principalKey={scope.principalKey} active={lens.active === toolId} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
   // Make panels own their lists and purpose-specific exact selections.
@@ -335,7 +336,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     // Inventory includes workspace-scoped Sourcing (plans, stock and offers all live in the workspace).
     case "inventory": return <InventoryPanel active={active === toolId} workspaceId={workspaceId} projectId={projectId ?? undefined} initialWorkId={navigation?.location.filters?.work_batch ?? null} />;
     case "physical-units": return <PhysicalUnitsPanel active={active === toolId} workspaceId={workspaceId} projectId={projectId ?? undefined} />;
-    case "facts": return <FactsPanel workspaceId={workspaceId} projectId={projectId ?? undefined} />;
     default: return null;
   }
 }

@@ -1,8 +1,13 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { FactLedger, FactsPanel } from "./FactsPanel";
+import { FactLedger } from "./FactLedger";
+import { createMemoryHistory } from "@tanstack/react-router";
+import { NavigationProvider, useNavigation } from "../navigation";
+import { ProbeProvider } from "../probe";
+import { FactRecords } from "./FactRecords";
+import { FactRegistration } from "./FactRegistration";
 import { valueLabel, type Fact, type Facts } from "./api";
 import { PermissionsProvider } from "../../lib/permissions";
 
@@ -19,7 +24,7 @@ function ledger(): Facts {
 }
 
 async function select(label: string, text: string) {
-  const input = screen.getByRole("combobox", { name: label });
+  const input = await screen.findByRole("combobox", { name: label });
   fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" });
   const options = screen.getByRole("listbox", { name: label, hidden: true });
   fireEvent.click(await within(options).findByText(text, { exact: true }));
@@ -74,19 +79,21 @@ test("known boolean requires explicit choice and preserves an intentionally chos
   expect(calls[0]!.payload.fact).toMatchObject({ status: "known", role: "actual", value: { kind: "boolean", value: false } });
 });
 
-test("panel registers the real project identity before opening its ledger", async () => {
+test("registration opens the exact real project identity", async () => {
+  const onRegistered = vi.fn();
   const calls: { operation: string; payload: unknown }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
     if (options?.method === "POST") { calls.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: ledger() }), { status: 200 }); }
     return new Response(JSON.stringify(url.includes("/workspaces/") ? [ledger()] : ledger()), { status: 200 });
   }));
-  render(wrap(<FactsPanel workspaceId="ws-1" projectId="project-1" />));
-  fireEvent.click(screen.getByText("Open fact ledger"));
-  await screen.findByText("cut_allowance: unknown");
+  render(wrap(<FactRegistration active principalKey="owner" workspaceId="ws-1" projectId="project-1" onRegistered={onRegistered} />));
+  fireEvent.click(await screen.findByRole("button", { name: "Open fact ledger" }));
+  await waitFor(() => expect(onRegistered).toHaveBeenCalledWith("subject"));
   expect(calls[0]).toEqual(expect.objectContaining({ operation: "facts.register_subject", payload: { target: { kind: "project", project_id: "project-1" } } }));
 });
 
-test("panel selects a serialized unit and labels its independent fact ledger", async () => {
+test("registration selects the actual serialized unit before opening its independent fact ledger", async () => {
+  const onRegistered = vi.fn();
   const calls: { operation: string; payload: unknown }[] = [];
   const unitLedger: Facts = { ...ledger(), target: { kind: "physical_unit", unit_id: "unit-1" }, physical_unit_serial: "SERIAL-1" };
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
@@ -99,16 +106,18 @@ test("panel selects a serialized unit and labels its independent fact ledger", a
       : url.includes("facts/workspaces/") ? [unitLedger] : unitLedger;
     return new Response(JSON.stringify(body), { status: 200 });
   }));
-  render(wrap(<FactsPanel workspaceId="ws-1" projectId="project-1" />));
+  render(wrap(<FactRegistration active principalKey="owner" workspaceId="ws-1" projectId="project-1" onRegistered={onRegistered} />));
   await select("Fact subject kind", "Physical unit");
   await select("Actual physical unit", "SERIAL-1 · revision rev-1");
-  fireEvent.click(screen.getByText("Open fact ledger"));
+  fireEvent.click(await screen.findByRole("button", { name: "Open fact ledger" }));
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]).toEqual(expect.objectContaining({ operation: "facts.register_subject", payload: {
     target: { kind: "physical_unit", unit_id: "unit-1" },
   } }));
-  expect(await screen.findByText(/Subject: Physical unit SERIAL-1/)).toBeTruthy();
+  expect(onRegistered).toHaveBeenCalledWith("subject");
   expect(screen.getByText(/they do not qualify a lot or release/)).toBeTruthy();
+  cleanup(); render(wrap(<FactLedger subjectId="subject" />));
+  expect(await screen.findByText(/Subject: Physical unit SERIAL-1/)).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "Value role" })).toHaveProperty("value", "actual");
 });
 
@@ -130,9 +139,9 @@ test("a rejected append refreshes authority and hides previously cached assertio
   fireEvent.change(screen.getByLabelText("Assertion basis"), { target: { value: "Unknown allowance." } });
   fireEvent.change(screen.getByLabelText("Evidence citation"), { target: { value: "Synthetic source." } });
   fireEvent.click(screen.getByText("Record immutable assertion"));
-  await waitFor(() => expect(screen.queryByText("Record assertion")).toBeNull());
-  expect(await screen.findByText("Evidence unavailable.")).toBeTruthy();
-  expect(screen.queryByText("cut_allowance: unknown")).toBeNull();
+  await waitFor(() => expect(screen.queryByRole("heading", { name: "Record assertion" })).toBeNull());
+  expect(await screen.findAllByText("Evidence unavailable.")).toHaveLength(2);
+  expect(screen.getByText("cut_allowance: unknown").closest("[hidden]")).toBeTruthy();
 });
 
 test("display keeps explicit false, unknown, bounds and tolerance distinct", () => {
@@ -160,14 +169,15 @@ test.each([
   expect(record.title).toBe(off ? `Read-only access: requires ${kind === "project" ? "Contributor access" : "Inventory management"}` : "");
 });
 
-test("read-only permissions disable opening a new fact ledger but not reading existing subjects", async () => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
-  render(wrap(<PermissionsProvider permissions={["workspace.read"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
+test("read-only permissions disable registration while contributors can open a declared project ledger", async () => {
+  const onRegistered = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ workspace_id: "ws-1" }), { status: 200 })));
+  render(wrap(<PermissionsProvider permissions={["workspace.read"]}><FactRegistration active principalKey="owner" workspaceId="ws-1" projectId="project-1" onRegistered={onRegistered} /></PermissionsProvider>));
   const open = await screen.findByRole("button", { name: "Open fact ledger" }) as HTMLButtonElement;
   expect(open.disabled).toBe(true);
   expect(open.title).toBe("Read-only access: requires Contributor access");
   cleanup();
-  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create"]}><FactRegistration active principalKey="owner" workspaceId="ws-1" projectId="project-1" onRegistered={onRegistered} /></PermissionsProvider>));
   expect(((await screen.findByRole("button", { name: "Open fact ledger" })) as HTMLButtonElement).disabled).toBe(false);
 });
 
@@ -180,4 +190,97 @@ test("a design-scope ledger cannot choose the physical measurement method", asyn
   const options = screen.getByRole("listbox", { name: "Assertion method", hidden: true });
   expect(within(options).queryByText("measurement", { exact: true })).toBeNull();
   expect(within(options).getByText("calculation", { exact: true })).toBeTruthy();
+});
+
+
+test("exact fact subjects open directly without depending on the first subject page", async () => {
+  const reads: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    reads.push(url);
+    if (url.includes("/facts/subjects/subject-75?")) return new Response(JSON.stringify({ ...ledger(), subject_id: "subject-75" }));
+    if (url === "/api/v0/access/workspace") return new Response(JSON.stringify({ workspace_id: "ws-1" }));
+    throw new Error(`Unexpected list lookup ${url}`);
+  }));
+  const history = createMemoryHistory({ initialEntries: ["/library/subject-75@2/~/retained?tool=facts"] });
+  function Routed() { const nav = useNavigation()!; return <ProbeProvider probe={nav.location.probe} onProbe={() => {}}><FactRecords active principalKey="owner" workspaceId="ws-1" /></ProbeProvider>; }
+  render(wrap(<NavigationProvider history={history}><Routed /></NavigationProvider>));
+  await screen.findByRole("heading", { name: "Record assertion" });
+  expect(reads.some(url => url.includes("/facts/workspaces/"))).toBe(false);
+  expect(history.location.pathname).toContain("subject-75@2/~/retained");
+});
+
+test("focus denial withdraws a ledger and recovery preserves the prepared assertion", async () => {
+  let denied = false;
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(denied ? { error: { message: "Current subject denied" } } : ledger()), { status: denied ? 403 : 200 })));
+  // Keep the query client stable while changing activation.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const stable = (active: boolean) => <MantineProvider><QueryClientProvider client={client}><FactLedger active={active} subjectId="subject" /></QueryClientProvider></MantineProvider>;
+  const view = render(stable(true));
+  await screen.findByRole("heading", { name: "Record assertion" });
+  fireEvent.change(screen.getByLabelText("Assertion basis"), { target: { value: "Retained manual basis" } });
+  view.rerender(stable(false)); denied = true; view.rerender(stable(true));
+  act(() => window.dispatchEvent(new Event("focus")));
+  await screen.findByText("Current subject denied");
+  expect(screen.queryByRole("heading", { name: "Record assertion" })).toBeNull();
+  denied = false; fireEvent.click(screen.getByRole("button", { name: "Refresh fact access" }));
+  await screen.findByRole("heading", { name: "Record assertion" });
+  expect(screen.getByLabelText("Assertion basis")).toHaveProperty("value", "Retained manual basis");
+});
+
+test("occurrence registration retains the exact root, repeated path and stable feature", async () => {
+  const writes: { payload: unknown }[] = [], registered = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, options?: RequestInit) => {
+    if (options?.method === "POST") { writes.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: ledger() })); }
+    return new Response(JSON.stringify({ workspace_id: "ws-1" }));
+  }));
+  render(wrap(<FactRegistration active principalKey="owner" workspaceId="ws-1" onRegistered={registered} />));
+  await select("Fact subject kind", "occurrence");
+  fireEvent.change(screen.getByLabelText("Fact root assembly snapshot ID"), { target: { value: "exact-root" } });
+  fireEvent.change(screen.getByLabelText("Fact contextual occurrence path"), { target: { value: "left/repeated-board" } });
+  fireEvent.change(screen.getByLabelText("Fact stable feature ID"), { target: { value: "mount" } });
+  fireEvent.click(screen.getByRole("button", { name: "Open fact ledger" }));
+  await waitFor(() => expect(registered).toHaveBeenCalledWith("subject"));
+  expect(writes[0]!.payload).toEqual({ target: { kind: "occurrence", snapshot_id: "exact-root", path: ["left", "repeated-board"], feature_id: "mount" } });
+});
+
+
+test("registration searches bounded metadata and explicitly chooses an older revision beyond the first page", async () => {
+  const reads: string[] = [], writes: { payload: unknown }[] = [], registered = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    reads.push(url);
+    if (options?.method === "POST") { writes.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: ledger() })); }
+    if (url === "/api/v0/access/workspace") return new Response(JSON.stringify({ workspace_id: "ws-1" }));
+    if (url.includes("/workspace/library-table?")) return new Response(JSON.stringify({ results: [{ family: "definition", record_id: "def", label: "Synthetic board", kind: "board" }], next_after: null }));
+    if (url.includes("/catalog/definitions/def?offset=")) return new Response(JSON.stringify({ name: "Synthetic board", revisions: url.endsWith("offset=50") ? [{ revision_id: "r75", number: 75 }] : Array.from({ length: 50 }, (_, index) => ({ revision_id: `r${index+1}`, number: index+1 })) }));
+    throw new Error(`Unexpected unbounded read ${url}`);
+  }));
+  render(wrap(<FactRegistration active principalKey="owner" workspaceId="ws-1" onRegistered={registered} />));
+  await select("Fact subject kind", "revision");
+  await select("Fact definition", "Synthetic board (board)");
+  const next = screen.getByRole("button", { name: "Next subject revisions" });
+  await waitFor(() => expect((next as HTMLButtonElement).disabled).toBe(false)); fireEvent.click(next);
+  await select("Fact exact revision", "Synthetic board · r75");
+  fireEvent.click(screen.getByRole("button", { name: "Open fact ledger" }));
+  await waitFor(() => expect(registered).toHaveBeenCalledWith("subject"));
+  expect(writes[0]!.payload).toEqual({ target: { kind: "revision", revision_id: "r75", feature_id: null } });
+  expect(reads.some(url => url.includes("library-table?limit=50"))).toBe(true);
+  expect(reads.some(url => url.includes("/workspace/definitions"))).toBe(false);
+});
+
+test("a held registration cannot navigate after the principal changes", async () => {
+  let complete: ((response: Response) => void) | undefined;
+  const registered = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, options?: RequestInit) => {
+    if (options?.method === "POST") return new Promise<Response>(resolve => { complete = resolve; });
+    return new Response(JSON.stringify({ workspace_id: "ws-1" }));
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const tree = (principalKey: string) => <MantineProvider><QueryClientProvider client={client}><FactRegistration active principalKey={principalKey} workspaceId="ws-1" projectId="project-1" onRegistered={registered} /></QueryClientProvider></MantineProvider>;
+  const view = render(tree("first"));
+  fireEvent.click(await screen.findByRole("button", { name: "Open fact ledger" }));
+  await waitFor(() => expect(complete).toBeDefined());
+  view.rerender(tree("second"));
+  await act(async () => complete!(new Response(JSON.stringify({ result: ledger() }))));
+  expect(registered).not.toHaveBeenCalled();
+  expect(screen.queryByRole("button", { name: "Open registered fact ledger" })).toBeNull();
 });

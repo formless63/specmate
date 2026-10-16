@@ -52,7 +52,7 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   sources: { family: "source_bundle", kinds: [], title: "Source bundles", noun: "source bundle", create: "source.register" },
   inventory: { family: "stock_account", kinds: [], title: "Stock accounts", noun: "stock account", create: "inventory.manage" },
   "physical-units": { family: "physical_unit", kinds: [], title: "Physical units", noun: "physical unit", create: "inventory.manage" },
-  facts: { family: "fact_subject", kinds: [], title: "Fact ledgers", noun: "fact ledger", create: "design.edit" },
+  facts: { family: "fact_subject", kinds: [], title: "Fact ledgers", noun: "fact ledger", create: "item.create" },
 };
 
 /** The library view for a lens, or null when the lens has none. */

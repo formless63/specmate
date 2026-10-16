@@ -4,7 +4,7 @@ import { lazy, Suspense, useRef, useState } from 'react';
 import { usePermission } from '../../lib/permissions';
 import { randomUUID } from '../../lib/random-id';
 import { runOperation } from '../workspace/api';
-const FactLedger = lazy(() => import('../facts/FactsPanel').then(module => ({ default: module.FactLedger })));
+const FactLedger = lazy(() => import('../facts/FactLedger').then(module => ({ default: module.FactLedger })));
 export function PartFacts({ principalKey, workspaceId, active, definitionId, revisionId }: { principalKey: string; workspaceId: string; active: boolean; definitionId: string; revisionId: string | null }) {
   const target = revisionId ? { kind: 'revision', revision_id: revisionId } : { kind: 'definition', definition_id: definitionId };
   const permission = usePermission('item.create'), [busy, setBusy] = useState(false), [error, setError] = useState(''), keys = useRef(new Map<string, string>());

@@ -395,6 +395,18 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       expect(await screen.findByLabelText("Stock name")).toBeTruthy();
       continue;
     }
+    if (toolId === "facts") {
+      // The retired global workspace returns to Library; registration is an explicit New action.
+      expect(window.location.pathname).toBe("/library");
+      expect(screen.queryByRole("combobox", { name: "Registered fact subject" })).toBeNull();
+      fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Fact ledger" }));
+      await waitFor(() => expect(window.location.search).toContain("tool=facts"));
+      expect(await screen.findByRole("heading", { name: "Register a fact ledger" })).toBeTruthy();
+      expect(screen.getByRole("combobox", { name: "Fact subject kind" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Open fact ledger" })).toBeTruthy();
+      continue;
+    }
     if (["identity", "mechanical-sources"].includes(toolId)) {
       const current = toolId === "mechanical-sources" ? TYPED_LIBRARY_VIEWS.hardware! : typed!;
       const list = await screen.findByRole("region", { name: current.title });

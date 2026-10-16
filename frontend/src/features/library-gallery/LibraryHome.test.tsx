@@ -187,6 +187,7 @@ test("New… still reveals the New form in a collection editor", async () => {
 test.each([
   ['Cable intent', '/designs/recipes?status=new'],
   ['Cable test plan', '/designs?tool=cable-test-intent&status=new'],
+  ['Fact ledger', '/library?tool=facts&status=new'],
 ])('New %s marks deliberate secondary creation before the old no-probe redirect can apply', async (label, expected) => {
   serve('editor'); const history = show('editor');
   fireEvent.click(await screen.findByRole('button', { name: 'New…' }));

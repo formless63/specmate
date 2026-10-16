@@ -19,7 +19,7 @@ import { command } from '../identity/api';
 import type { Subject } from '../facts/api';
 const RevisionCatalog = lazy(() => import('../identity/RevisionCatalog').then(module => ({ default: module.RevisionCatalog })));
 const StockPreparationEditor = lazy(() => import('./StockPreparationEditor').then(module => ({ default: module.StockPreparationEditor })));
-const FactLedger = lazy(() => import('../facts/FactsPanel').then(module => ({ default: module.FactLedger })));
+const FactLedger = lazy(() => import('../facts/FactLedger').then(module => ({ default: module.FactLedger })));
 
 /** Numbers are the section renderer's existing stable material tags. Use remains a cited preference. */
 export function StockLegend({ section, revisionId, active, principalKey }: { section: Section; revisionId: string | null; active: boolean; principalKey: string }) {
