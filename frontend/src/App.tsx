@@ -83,7 +83,7 @@ const KnowledgePanel = lazy(() => import("./features/knowledge/KnowledgePanel").
 const PreparationDocumentsPanel = lazy(() => import("./features/preparation-documents/PreparationDocumentsPanel").then((module) => ({ default: module.PreparationDocumentsPanel })));
 const MechanicalProposalsPanel = lazy(() => import("./features/mechanical-proposals/MechanicalProposalsPanel").then((module) => ({ default: module.MechanicalProposalsPanel })));
 const LibraryHome = lazy(() => import("./features/library-gallery/LibraryHome").then((module) => ({ default: module.LibraryHome })));
-const SceneDrawingsPanel = lazy(() => import("./features/scene-drawings/SceneDrawingsPanel").then((module) => ({ default: module.SceneDrawingsPanel })));
+const SceneDrawingFields = lazy(() => import("./features/scene-drawings/SceneDrawingFields").then((module) => ({ default: module.SceneDrawingFields })));
 
 export function App() {
   return <NavigationProvider><WorkspaceShell>{(scope) => <ScopedWorkspace scope={scope} />}</WorkspaceShell></NavigationProvider>;
@@ -168,7 +168,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles", "intents", "cable-test-intent", "preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && !["cables", "assemblies", "harnesses"].includes(recordTool ?? "") && active !== "wire-stock" && active !== "pcb" && !["scene-drawings", "interfaces", "ports", "end-assemblies", "identity", "hardware", "kits", "mechanical-sources", "families", "signals", "conventions", "workshop-profiles", "intents", "cable-test-intent", "preparation", "end-preparation", "pcb-disagreement", "passive-passages"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -305,7 +305,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "evidence-kinds": return <EvidencePanel workspaceId={workspaceId} projectId={optional} />;
     case "shared-scene": return <SharedScenePanel projectId={projectId} />;
     case "context-selection": return <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />;
-    case "scene-drawings": return <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />;
+    case "scene-drawings": return <SceneDrawingFields workspaceId={workspaceId} projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />;
     case "preparation-documents": return <PreparationDocumentsPanel workspaceId={workspaceId} projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} onAccessLost={onAccessChanged} />;
     case "selected-packages": return <SelectedPackagesPanel projectId={projectId} />;
     case "export-packages": return <ExportPackagesPanel projectId={projectId} />;

@@ -5,14 +5,17 @@ import { request, selectionKey, type Address, type SharedScene } from '../shared
 import { DisplayControls, openingInput } from '../shared-scene/DisplayControls';
 import { closedDisplay, type CameraView } from '../shared-scene/display';
 import { assertDetail, createDrawing, drawingBytes, readDrawing, type Detail, type Options } from './api';
+import { useProbe } from '../probe';
+import { usePermission } from '../../lib/permissions';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 /** Root keys by current principal/project; this optional key also fences retained host mounts. */
-export function SceneDrawingsPanel({ projectId = null, principalKey = '', active = true }: { projectId?: string | null; principalKey?: string; active?: boolean }) {
-  if (!active) return <Text>Open drawings to begin a fresh inspection.</Text>;
-  return <Workspace key={JSON.stringify([principalKey, projectId ?? 'library'])} projectId={projectId} />;
+export function SceneDrawingFields({ projectId = null, principalKey = '', workspaceId, active = true }: { projectId?: string | null; principalKey?: string; workspaceId?: string; active?: boolean }) {
+  const probe=useProbe()?.probe;
+  return <div hidden={!active} inert={!active}><Workspace key={JSON.stringify([principalKey,workspaceId??projectId??'library'])} projectId={projectId} workspaceId={workspaceId} visible={active} drawingId={probe?.object??null} revisionNumber={probe?.rev??null} path={probe?.path??[]}/></div>;
 }
-function Workspace({ projectId }: { projectId: string | null }) {
+function Workspace({ projectId, workspaceId, visible, drawingId, revisionNumber, path }: { projectId: string | null; workspaceId?:string; visible:boolean; drawingId:string|null;revisionNumber:number|null;path:string[] }) {
+  const edit=usePermission('design.edit'),shown=useRef(visible),basis=useRef<string|null>(null);shown.current=visible;
   const [snapshot, setSnapshot] = useState(''), [retained, setRetained] = useState('');
   const [scene, setScene] = useState<SharedScene | null>(null), [selected, setSelected] = useState<Address | null>(null);
   const [display, setDisplay] = useState(closedDisplay), [input, setInput] = useState(openingInput);
@@ -25,7 +28,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
   function clearOutput() { if (url.current) URL.revokeObjectURL(url.current); url.current = null; setPreview(null); setDetail(null); }
   function invalidate() { active.current?.abort(); active.current = null; clearOutput(); setBusy(false); }
   function begin() { invalidate(); const controller = new AbortController(); active.current = controller; setBusy(true); setError(''); return controller; }
-  const current = (controller: AbortController) => mounted.current && !controller.signal.aborted && active.current === controller;
+  const current = (controller: AbortController) => mounted.current && shown.current && !controller.signal.aborted && active.current === controller;
   function fail(controller: AbortController, reason: unknown) { if (!current(controller)) return; clearOutput(); setScene(null); setSelected(null); setError(reason instanceof Error ? reason.message : 'Drawing request failed.'); }
   useEffect(() => {
     mounted.current = true;
@@ -34,18 +37,27 @@ function Workspace({ projectId }: { projectId: string | null }) {
     window.addEventListener('focus', fence); window.addEventListener('blur', fence); document.addEventListener('visibilitychange', fence);
     return () => { mounted.current = false; active.current?.abort(); if (url.current) URL.revokeObjectURL(url.current); window.removeEventListener('focus', fence); window.removeEventListener('blur', fence); document.removeEventListener('visibilitychange', fence); };
   }, []);
+  useEffect(()=>{
+    invalidate();setScene(null);setSelected(null);
+    if(!visible)return;
+    if(drawingId){setRetained(drawingId);if(revisionNumber!==null){setError('A drawing has one immutable drawing ID; an additional revision number is not a drawing identity.');return;}void inspectRetained(drawingId);}
+    else if(retained.trim())void inspectRetained(retained.trim());
+    else if(snapshot.trim())void inspectScene();
+  },[visible,drawingId,revisionNumber]);
   const options: Options = { ...display, view, opening: display.opening ? { path: display.opening.address.path, axis: display.opening.axis, angle_deg: display.opening.angle_deg, pivot_local_mm: display.opening.pivot_local_mm } : null };
   function changeOptions(change: () => void) { invalidate(); change(); intent.current = null; attempted.current = null; setRetryAvailable(false); }
   async function inspectScene() {
+    if(!shown.current)return;
     const controller = begin(); setScene(null); setSelected(null); intent.current = null;
     try {
       const next = await request<SharedScene>(`shared-scenes/drawing-scenes/${encodeURIComponent(snapshot.trim())}`, { signal: controller.signal, cache: 'no-store' });
       if (!current(controller)) return;
       if (next.snapshot_id !== snapshot.trim()) throw new Error('Scene response does not match the requested snapshot.');
-      setScene(next); setDisplay(closedDisplay()); setInput(openingInput()); setView('top');
+      setScene(next);if(basis.current!==next.snapshot_id){setDisplay(closedDisplay());setInput(openingInput());setView('top');basis.current=next.snapshot_id;}
     } catch (reason) { fail(controller, reason); } finally { if (current(controller)) setBusy(false); }
   }
   async function generate(retry = false) {
+    if(!visible||!edit.allowed)return;
     if (!retry && !scene) return;
     if (retry && !attempted.current) return;
     const controller = begin();
@@ -66,14 +78,16 @@ function Workspace({ projectId }: { projectId: string | null }) {
     } catch (reason) { if (current(controller)) setRetryAvailable(true); fail(controller, reason); }
     finally { if (current(controller)) setBusy(false); }
   }
-  async function inspectRetained() {
+  async function inspectRetained(id=retained.trim()) {
+    if(!shown.current)return;
     const controller = begin(); setScene(null); setSelected(null);
     try {
-      const next = await readDrawing(retained.trim(), controller.signal);
-      if (!current(controller)) return; assertDetail(next, retained.trim()); setDetail(next);
+      const next = await readDrawing(id, controller.signal);
+      if (!current(controller)) return; assertDetail(next, id);if(workspaceId&&next.workspace_id!==workspaceId)throw new Error('Drawing does not belong to the current workspace.');setDetail(next);
     } catch (reason) { fail(controller, reason); } finally { if (current(controller)) setBusy(false); }
   }
   async function output(part: 'preview' | 'svg' | 'manifest' | 'package') {
+    if(!shown.current)return;
     if (!detail) return;
     const captured = detail, controller = begin();
     try {
@@ -91,22 +105,22 @@ function Workspace({ projectId }: { projectId: string | null }) {
       }
     } catch (reason) { fail(controller, reason); } finally { if (current(controller)) setBusy(false); }
   }
-  return <Stack><Title order={2}>Scene inspection drawings</Title>
+  return <Stack><Text fw={600}>Scene inspection drawings</Text>
     <Text>Generate a retained internal inspection SVG and provenance manifest from an exact frozen scene. This writes only a derived inspection record; engineering state is unchanged. Source rights do not grant distribution or release authority.</Text>
     <Text>Accepted PCB outlines and declared stock axes are supported. Full cable sections, installed routes and native mechanical shapes are unavailable. Missing models never establish validated fit. PNG and native drawing formats are not provided.</Text>
     <Group align="end"><TextInput label="Drawing frozen scene snapshot ID" value={snapshot} onChange={event => { invalidate(); setScene(null); setSelected(null); setSnapshot(event.currentTarget.value); intent.current = null; attempted.current = null; setRetryAvailable(false); }} /><Button disabled={busy || !snapshot.trim()} onClick={() => void inspectScene()}>Inspect drawing scene</Button></Group>
     <Group align="end"><TextInput label="Retained drawing ID" value={retained} onChange={event => { invalidate(); setRetained(event.currentTarget.value); }} /><Button disabled={busy || !retained.trim()} onClick={() => void inspectRetained()}>Inspect retained drawing</Button></Group>
     {error && <Alert color="red" role="alert">{error}</Alert>}
-    {retryAvailable && <Button disabled={busy} onClick={() => void generate(true)}>Retry exact inspection request</Button>}{busy && <Text>Checking current authority and drawing integrity…</Text>}
+    {retryAvailable && <Button disabled={busy || !edit.allowed} onClick={() => void generate(true)}>Retry exact inspection request</Button>}{busy && <Text>Checking current authority and drawing integrity…</Text>}
     {scene && !busy && <Card withBorder><Stack><Text size="xs"><RevisionLabel id={scene.root.revision_id} role="Root" snapshotId={scene.snapshot_id} sha256={scene.sha256} /></Text>
       <Select label="Drawing orthographic view" allowDeselect={false} data={['top', 'front', 'end', 'isometric']} value={view} onChange={value => changeOptions(() => setView(value as CameraView))} />
       <Text>Choose an exact occurrence to open its displayed branch. Unknown world placements stay unknown and cannot supply a pivot.</Text>
       {scene.nodes.map(node => <Button key={node.node_id} variant="light" aria-pressed={selected !== null && selectionKey(selected) === selectionKey(node.address)} onClick={() => setSelected(node.address)}>{node.address.path.join('/')} · {node.world_status}</Button>)}
       <DisplayControls scene={scene} arrangement="canonical" selected={selected} display={display} setDisplay={next => changeOptions(() => setDisplay(next))} input={input} setInput={next => changeOptions(() => setInput(next))} restore={() => changeOptions(() => { setDisplay(closedDisplay()); setInput(openingInput()); setView('top'); })} />
-      <Button disabled={busy || !Number.isFinite(display.explosion.spacing_mm) || !Number.isFinite(display.section.offset_mm)} onClick={() => void generate()}>Generate inspection SVG and manifest</Button>
+      <Button disabled={busy || !edit.allowed || !Number.isFinite(display.explosion.spacing_mm) || !Number.isFinite(display.section.offset_mm)} onClick={() => void generate()}>Generate inspection SVG and manifest</Button>
     </Stack></Card>}
     {detail && <Card withBorder><Stack><Title order={3}>Retained inspection output</Title><Text size="xs">Drawing {detail.drawing_id} · exact scene {detail.snapshot_id} · SHA-256 {detail.manifest.scene_snapshot_sha256}</Text>
-      <Text size="xs">SVG {detail.svg_sha256} · manifest {detail.manifest_sha256} · renderer {detail.renderer_version}</Text><Text>Fit, clearance, manufacturing and physical qualification: not evaluated. Print scale: unknown, screen fit only.</Text>
+      {path.length>0&&<Text size="xs">Requested exact context: {path.join(' / ')}</Text>}<Text size="xs">SVG {detail.svg_sha256} · manifest {detail.manifest_sha256} · renderer {detail.renderer_version}</Text><Text>Fit, clearance, manufacturing and physical qualification: not evaluated. Print scale: unknown, screen fit only.</Text>
       <Text>{detail.manifest.source_rights}</Text>{detail.limitations.map((text, index) => <Text size="sm" key={index}>{text}</Text>)}
       <Text size="xs">Retained display options: {JSON.stringify(detail.options)}</Text>
       <Group>{(['preview', 'svg', 'manifest', 'package'] as const).map(part => <Button disabled={busy} key={part} onClick={() => void output(part)}>{part === 'preview' ? 'Preview authorized SVG' : `Download authorized ${part === 'package' ? 'SVG and manifest package' : part.toUpperCase()}`}</Button>)}</Group>

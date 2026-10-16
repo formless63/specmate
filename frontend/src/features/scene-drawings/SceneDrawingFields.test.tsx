@@ -1,7 +1,9 @@
 import { MantineProvider } from '@mantine/core';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { SceneDrawingsPanel } from './SceneDrawingsPanel';
+import { ProbeProvider } from '../probe';
+import { PermissionsProvider } from '../../lib/permissions';
+import { SceneDrawingFields } from './SceneDrawingFields';
 import { closedDisplay } from '../shared-scene/display';
 import { syntheticScene } from '../shared-scene/test-fixtures';
 import { createDrawing, drawingBytes, readDrawing, type Detail, type Options } from './api';
@@ -22,7 +24,7 @@ beforeEach(() => {
   vi.mocked(readDrawing).mockResolvedValue(output()); vi.mocked(drawingBytes).mockResolvedValue(new Blob(['<svg/>'], { type: 'image/svg+xml' }));
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
-const panel = (projectId = 'project-one', principalKey = 'actor-one', active = true) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}><SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active} /></MantineProvider>;
+const panel = (projectId = 'project-one', principalKey = 'actor-one', active = true) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}><SceneDrawingFields projectId={projectId} principalKey={principalKey} active={active} /></MantineProvider>;
 async function inspect() {
   fireEvent.change(screen.getByLabelText('Drawing frozen scene snapshot ID'), { target: { value: 'root-snapshot' } });
   fireEvent.click(screen.getByRole('button', { name: 'Inspect drawing scene' })); await screen.findByRole('button', { name: 'right/board · known' });
@@ -117,12 +119,12 @@ test('an unknown occurrence frame disables opening and never becomes known throu
 });
 
 
-test('retained host tab deactivation revokes preview and returning starts a fresh empty inspection', async () => {
+test('retained host tab deactivation revokes preview and returning keeps the selected ID but rechecks before showing output', async () => {
   const shown = render(panel()); await inspect(); await generate(); await preview();
   shown.rerender(panel('project-one', 'actor-one', false));
   expect(revoke).toHaveBeenCalledWith('blob:owned-svg'); expect(screen.queryByRole('img')).toBeNull();
   shown.rerender(panel());
-  expect((screen.getByLabelText('Retained drawing ID') as HTMLInputElement).value).toBe('');
+  expect((screen.getByLabelText('Retained drawing ID') as HTMLInputElement).value).toBe('drawing-one');
   expect(screen.queryByText('Retained inspection output')).toBeNull(); expect(screen.queryByRole('img')).toBeNull();
 });
 
@@ -157,4 +159,17 @@ test('held generation denial clears source controls and retains only the exact d
   await screen.findByRole('alert'); expect(screen.queryByText(/Root revision root-r1/)).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Retry exact inspection request' })); await screen.findByText('Retained inspection output');
   expect(vi.mocked(createDrawing).mock.calls[1]).toEqual(captured);
+});
+
+test('old drawing address reads its immutable own ID and preserves exact context without loading the parent or generating',async()=>{
+ render(<MantineProvider env="test"><ProbeProvider probe={{object:'drawing-one',rev:null,path:['right','board']}} onProbe={vi.fn()}><SceneDrawingFields workspaceId="workspace-one" principalKey="owner"/></ProbeProvider></MantineProvider>);await screen.findByText('Retained inspection output');expect(readDrawing).toHaveBeenCalledWith('drawing-one',expect.any(AbortSignal));expect(screen.getByText('Requested exact context: right / board')).toBeTruthy();expect(fetch).not.toHaveBeenCalled();expect(createDrawing).not.toHaveBeenCalled();
+});
+test('a revision on an immutable drawing address is rejected without falling forward or changing the target',async()=>{
+ render(<MantineProvider env="test"><ProbeProvider probe={{object:'drawing-one',rev:3,path:[]}} onProbe={vi.fn()}><SceneDrawingFields workspaceId="workspace-one"/></ProbeProvider></MantineProvider>);await screen.findByText(/additional revision number is not a drawing identity/);expect(readDrawing).not.toHaveBeenCalled();expect(createDrawing).not.toHaveBeenCalled();expect((screen.getByLabelText('Retained drawing ID') as HTMLInputElement).value).toBe('drawing-one');
+});
+test('viewer may read an exact scene and retained drawing but generation is disabled',async()=>{
+ render(<PermissionsProvider permissions={['workspace.read']}>{panel()}</PermissionsProvider>);await inspect();expect((screen.getByRole('button',{name:'Generate inspection SVG and manifest'}) as HTMLButtonElement).disabled).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Generate inspection SVG and manifest'}));expect(createDrawing).not.toHaveBeenCalled();
+});
+test('inactive source concealment retains chosen drawing orientation and rechecks its exact scene on return',async()=>{
+ const shown=render(panel());await inspect();fireEvent.click(screen.getByRole('combobox',{name:'Drawing orthographic view'}));fireEvent.click(screen.getByRole('option',{name:'isometric'}));shown.rerender(panel('project-one','actor-one',false));expect(screen.queryByRole('combobox',{name:'Drawing orthographic view'})).toBeNull();shown.rerender(panel());await screen.findByRole('button',{name:'right/board · known'});expect((screen.getByRole('combobox',{name:'Drawing orthographic view'}) as HTMLInputElement).value).toBe('isometric');expect(vi.mocked(fetch).mock.calls.filter(([path])=>String(path).includes('/shared-scenes/drawing-scenes/root-snapshot'))).toHaveLength(2);
 });
