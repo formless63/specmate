@@ -61,7 +61,9 @@ export function harnessGraph(harness: Harness, data: HarnessCanvasData) {
     if (!nodes.has(a) || !nodes.has(b)) { unresolved += 1; return; }
     edges.push({ id: encodeURIComponent(id), source: nodes.get(a)!, target: nodes.get(b)!, sourceHandle: a, targetHandle: b, label, style: { stroke: colors.get(a) ?? colors.get(b) ?? 'var(--sb-text-tertiary)', strokeWidth: 2, strokeDasharray: dashed || !colors.has(a) && !colors.has(b) ? '6 4' : undefined } });
   }
-  for (const endpoint of harness.endpoints) for (const join of data.ends[endpoint.local_id]?.joins ?? []) edge(JSON.stringify(['end-join', endpoint.local_id, join.local_id]), { kind: 'endpoint', endpoint_id: endpoint.local_id, ...join.a }, { kind: 'endpoint', endpoint_id: endpoint.local_id, ...join.b }, `${join.kind} · ${join.basis}`, join.status === 'unknown');
+  for (const endpoint of harness.endpoints) for (const join of data.ends[endpoint.local_id]?.joins ?? []) {
+    for (const [index, target] of [join.b, ...(join.through ? [join.through] : [])].entries()) edge(JSON.stringify(['end-join', endpoint.local_id, join.local_id, index]), { kind: 'endpoint', endpoint_id: endpoint.local_id, ...join.a }, { kind: 'endpoint', endpoint_id: endpoint.local_id, ...target }, `${join.kind}${index ? ' · same carrier solder point' : ''} · ${join.basis}`, join.status === 'unknown');
+  }
   for (const joint of harness.joints) for (const member of joint.members.slice(1)) edge(JSON.stringify(['joint', joint.local_id, terminalKey(member)]), joint.members[0]!, member, `${joint.kind} · ${joint.basis}`);
   for (const breakout of harness.breakouts) for (const fate of breakout.fates) if (fate.kind === 'through') edge(JSON.stringify(['through', breakout.local_id, fate.local_id]), fate.trunk, fate.leg, `Declared uncut passage · ${fate.basis}`, true);
   // Endpoint colors are projected only from explicit joint membership with one known stock hue.

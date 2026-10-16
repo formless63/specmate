@@ -22,6 +22,7 @@ export function placeLibraryDrop(cable: Cable, drop: LibraryDrop, endpointId: st
   let stack = structuredClone(savedStack ?? endpoint.stack ?? { layers: [], joins: [] });
   if(drop.kind==='part'&&(!partUse||partUse.use==='inline'&&!partUse.declaredTwoLead))throw new Error('Choose shell/hardware or explicitly declare a two-lead inline use.');
   const kind = drop.kind === 'connector_body' || drop.kind === 'pinout' ? 'connector' : drop.kind === 'board' ? 'board' : drop.kind === 'part' && partUse?.use!=='inline' ? 'shell' : 'inline';
+  if (stack.layers.filter(layer => layer.kind === kind).length > 1) throw new Error('Choose the exact layer occurrence in the end editor before replacing this item.');
   if (!stack.layers.some(layer => layer.kind === kind)) stack = addLayer(stack, kind);
   stack.layers = stack.layers.map((layer): StackLayer => {
     if (layer.kind !== kind) return layer;

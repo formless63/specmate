@@ -47,8 +47,8 @@ class ResolvedStack:
         self.lookup = lookup
         self.terminals = {}
         self.layers = []
-        self.connector = None
-        self.board = None
+        self.connectors = {}
+        self.boards = {}
         self.edges = []
         for layer in stack.layers:
             view = {"layer_id": layer.layer_id, "kind": layer.kind}
@@ -63,7 +63,7 @@ class ResolvedStack:
                     raise ValidationFailed(
                         "A connector layer's pinout must pin its exact body revision."
                     )
-                self.connector = (layer, body, pinout)
+                self.connectors[layer.layer_id] = (layer, body, pinout)
                 signals = pin_signals(pinout, lookup)
                 notes = {a.contact_id: a.electrical for a in pinout.assignments}
                 terminals = []
@@ -100,7 +100,7 @@ class ResolvedStack:
                     raise ValidationFailed(
                         "A board layer requires an exact board revision with declared pads."
                     )
-                self.board = (layer, board)
+                self.boards[layer.layer_id] = (layer, board)
                 terminals = [
                     {
                         "terminal_id": t.terminal_id,
@@ -127,6 +127,7 @@ class ResolvedStack:
                         "board_revision_id": str(layer.board_revision_id),
                         "name": self._name(layer.board_revision_id),
                         "carried_connector_id": layer.carried_connector_id,
+                        "carried_connector_layer_id": layer.carried_connector_layer_id,
                         "carried_status": None
                         if carried is None
                         else "reviewed"
@@ -203,9 +204,12 @@ class ResolvedStack:
                 self.terminals[layer.layer_id, terminal["terminal_id"]] = terminal
             view["terminals"] = terminals
             self.layers.append(view)
-        if self.board and self.board[0].carried_connector_id:
-            layer, board = self.board
-            connector_layer, body, _ = self.connector
+        self.connector = next(iter(self.connectors.values())) if len(self.connectors) == 1 else None
+        self.board = next(iter(self.boards.values())) if len(self.boards) == 1 else None
+        for layer, board in self.boards.values():
+            if not layer.carried_connector_id:
+                continue
+            connector_layer, _, _ = self.carried_target(layer)
             carried = next(
                 c for c in board.carried_connectors if c.local_id == layer.carried_connector_id
             )
@@ -215,6 +219,12 @@ class ResolvedStack:
                 )
         self.joins = self._joins()
         self._edges()
+
+    def carried_target(self, layer):
+        if layer.carried_connector_layer_id:
+            return self.connectors[layer.carried_connector_layer_id]
+        # Contract validation permits implicit selection only for a singleton.
+        return next(iter(self.connectors.values()))
 
     def _name(self, revision_id):
         revision = self.lookup.revisions.get(revision_id)
@@ -235,22 +245,33 @@ class ResolvedStack:
     def _joins(self):
         rows = []
         for join in self.stack.joins:
-            for end in (join.a, join.b):
+            for end in (join.a, join.b, *([join.through] if join.through else [])):
                 self.require(end.layer_id, end.terminal_id)
             rows.append(
                 {
                     "local_id": join.local_id,
                     "a": {**join.a.model_dump(mode="json"), "label": self.label(**dict(join.a))},
                     "b": {**join.b.model_dump(mode="json"), "label": self.label(**dict(join.b))},
+                    **(
+                        {
+                            "through": {
+                                **join.through.model_dump(mode="json"),
+                                "label": self.label(**dict(join.through)),
+                            }
+                        }
+                        if join.through
+                        else {}
+                    ),
                     "kind": join.kind,
                     "basis": join.basis,
                     "origin": "declared",
                     "status": "declared",
                 }
             )
-        if self.board and self.board[0].carried_connector_id:
-            layer, board = self.board
-            connector_layer = self.connector[0]
+        for layer, board in self.boards.values():
+            if not layer.carried_connector_id:
+                continue
+            connector_layer = self.carried_target(layer)[0]
             carried = next(
                 c for c in board.carried_connectors if c.local_id == layer.carried_connector_id
             )
@@ -258,7 +279,11 @@ class ResolvedStack:
             for pair in carried.correspondence:
                 rows.append(
                     {
-                        "local_id": f"carried:{pair.terminal_id}",
+                        "local_id": (
+                            f"{layer.layer_id}:carried:{pair.terminal_id}"
+                            if self.stack.graph_version == "0.2"
+                            else f"carried:{pair.terminal_id}"
+                        ),
                         "a": {
                             "layer_id": layer.layer_id,
                             "terminal_id": pair.terminal_id,
@@ -295,8 +320,19 @@ class ResolvedStack:
                     {"kind": "landing" if join["kind"] == "carried" else "join", "join": join},
                 )
             )
-        if self.board:
-            layer, board = self.board
+        for join in self.joins:
+            if join.get("through"):
+                ends = join["a"], join["through"]
+                edges.append(
+                    (
+                        (ends[0]["layer_id"], ends[0]["terminal_id"]),
+                        (ends[1]["layer_id"], ends[1]["terminal_id"]),
+                        "declared",
+                        "solder",
+                        {"kind": "join", "join": join},
+                    )
+                )
+        for layer, board in self.boards.values():
             for path in board.paths:
                 edges.append(
                     (
@@ -333,9 +369,9 @@ class ResolvedStack:
 
     def reaches(self, layer_id, terminal_id):
         """Connector contacts this terminal is declared to lead to, with each step named."""
-        if self.connector is None:
+        if not self.connectors:
             return []
-        target = self.connector[0].layer_id
+        targets = set(self.connectors)
         adjacency = {}
         for a, b, status, text, _ in self.edges:
             adjacency.setdefault(a, []).append((b, status, text))
@@ -345,7 +381,7 @@ class ResolvedStack:
         stack = [(start, [], "declared", {start})]
         while stack and len(found) < MAX_REACHES:
             node, steps, status, seen = stack.pop()
-            if node[0] == target and node != start:
+            if node[0] in targets and node != start:
                 found.append((node, steps, status))
                 continue
             if len(steps) >= MAX_REACH_STEPS:
@@ -364,6 +400,7 @@ class ResolvedStack:
         found.sort(key=lambda row: (len(row[1]), row[0][1]))
         return [
             {
+                **({"layer_id": node[0]} if self.stack.graph_version == "0.2" else {}),
                 "contact_id": node[1],
                 "label": self.terminals[node]["label"],
                 "signal": self.terminals[node].get("signal"),
@@ -425,6 +462,11 @@ class ResolvedStack:
             )
         connector = self.connector
         return {
+            **(
+                {"graph_version": "0.2", "connector_layer_ids": list(self.connectors)}
+                if self.stack.graph_version == "0.2"
+                else {}
+            ),
             "layers": layers,
             "joins": self.joins,
             "connector_layer_id": connector[0].layer_id if connector else None,

@@ -921,3 +921,26 @@ cuts, preview length, camera, explode and x-ray remain illustration choices. The
 numbered section legend uses existing material tags; unknown conductor use is
 never inferred from color. HTML stock sheets and SVG exports identify the selected
 saved or unsaved state and do not establish physical qualification.
+
+
+### End occurrence graphs
+
+An end stack without `graph_version` retains the original wire-outward singleton
+contract. Opting into `graph_version: "0.2"` makes `layer_id` the stable local occurrence
+identity: multiple boards, connectors, inline groups and shells can coexist. List order
+is presentation, never an inferred attachment or electrical bond. All pins remain exact
+revision IDs; repeated uses of the same revision remain separate occurrences.
+
+A board's `carried_connector_id` selects its declared carried connector;
+`carried_connector_layer_id` selects the exact connector occurrence in the end. The latter
+is required when more than one connector is present. Resolution never selects the first
+matching body. Declared reach rows include the connector `layer_id` in graph version 0.2.
+Legacy singleton body/pinout aliases become null when the connector is ambiguous.
+
+A solder join can name `through: {layer_id, terminal_id}` for a third board terminal at
+the **same solder point**. It creates one three-member copper joint, not a component,
+extra wire or second material demand. Shells still require explicit electrical bonds.
+The editor, declared copper projection and cable/harness canvas retain this terminal.
+The two-port intent checker reports an unresolved connector occurrence rather than
+assuming a connector when an end contains several; occurrence selection for intent
+mapping is a separate extension. End preparation likewise does not infer a single body.

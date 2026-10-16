@@ -274,7 +274,7 @@ function planEnd(cable: Cable, index: number, stack: ResolvedStack | undefined, 
     : [unresolvedLayer(cable, endpoint.local_id)];
   // The left end reads outward from the stock: shell outermost on the left.
   const ordered = index === 0 ? [...layers].reverse() : layers;
-  const face = geometry && !geometry.outlineOnly && stack?.layers.some((l) => l.kind === "connector") ? faceFrame(geometry) : null;
+  const face = geometry && !geometry.outlineOnly && stack?.layers.filter((l) => l.kind === "connector").length === 1 ? faceFrame(geometry) : null;
   const width = ordered.reduce((sum, l) => sum + columnWidth(l.kind, face), 0) + GAP * Math.max(0, ordered.length - 1);
   const rowCount = Math.max(1, ...ordered.map((l) => l.kind === "unknown" ? l.layer.terminals.length
     : l.kind === "connector" && face ? Math.ceil((face.height + 2 * PITCH) / PITCH) : columnRows(l.layer, stack)));
@@ -391,8 +391,12 @@ function layoutEnd(plan: EndPlan, x0: number, center: number, index: CheckIndex)
     const b = at.get(termKey(ep, join.b.layer_id, join.b.terminal_id));
     if (!a || !b) continue;
     joins.push({ key: `j:${ep}/${join.local_id}`, endpointId: ep, a: a.key, b: b.key, kind: join.kind, status: join.status, basis: join.basis, d: link(a, b) });
+    if (join.through) {
+      const carrier = at.get(termKey(ep, join.through.layer_id, join.through.terminal_id));
+      if (carrier) joins.push({ key: `j:${ep}/${join.local_id}/carrier`, endpointId: ep, a: a.key, b: carrier.key, kind: join.kind, status: join.status, basis: `Same solder point through carrier · ${join.basis}`, d: link(a, carrier) });
+    }
   }
-  return { endpointId: ep, index: plan.index, label: plan.label, side, x0, x1: x0 + plan.width, resolved: !!plan.stack, columns, terminals, parts, traces, joins, connector };
+  return { endpointId: ep, index: plan.index, label: plan.label, side, x0, x1: x0 + plan.width, resolved: !!plan.stack, columns, terminals, parts, traces, joins, connector: plan.layers.filter((l) => l.kind === "connector").length === 1 ? connector : null };
 }
 
 /** The whole drawing: End A stack, the stock with every conductive element, End B stack. */

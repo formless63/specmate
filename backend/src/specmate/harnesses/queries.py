@@ -182,7 +182,6 @@ class Closure(Lookup):
                 stack = assembly.stack
             resolved = ResolvedStack(stack, self)
             self.endpoints[endpoint.local_id] = (endpoint, resolved)
-            connector = resolved.connector
             for (layer_id, terminal_id), row in resolved.terminals.items():
                 layer = resolved.layer(layer_id)
                 terminal = EndpointTerminal(
@@ -195,6 +194,7 @@ class Closure(Lookup):
                     "label": row["label"],
                 }
                 if layer.kind == "connector":
+                    connector = resolved.connectors[layer_id]
                     record.update(
                         {
                             "contact_id": terminal_id,

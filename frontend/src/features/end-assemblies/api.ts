@@ -5,7 +5,7 @@ export { command, read, type Definition, type Identity } from "../identity/api";
 
 /** Layers of one cable end, ordered from the wire outward (see docs/modules/WIRING.md). */
 export type ConnectorLayer = { kind: "connector"; layer_id: string; body_revision_id: string; pinout_revision_id: string };
-export type BoardLayer = { kind: "board"; layer_id: string; board_revision_id: string; carried_connector_id: string | null };
+export type BoardLayer = { kind: "board"; layer_id: string; board_revision_id: string; carried_connector_id: string | null; carried_connector_layer_id?: string | null };
 /** Exact catalog provenance for an authored two-lead use; package pinout stays unassessed. */
 export type InlinePart = { local_id: string; label: string | null; component: InlineComponent; part_revision_id?: string | null };
 export type InlinePartIdentity = { revision_id: string; definition_id: string; name: string; number: number; package_pinout: "not_evaluated"; declared_use: "two_lead_inline"; behavior_source: "separate_authored_component" };
@@ -15,13 +15,13 @@ export type StackLayer = ConnectorLayer | BoardLayer | InlineLayer | ShellLayer;
 export type LayerKind = StackLayer["kind"];
 export type StackTerminal = { layer_id: string; terminal_id: string };
 export type JoinKind = "solder" | "crimp" | "mated" | "integrated" | "bond";
-export type Join = { local_id: string; a: StackTerminal; b: StackTerminal; kind: JoinKind; basis: string };
-export type EndStack = { layers: StackLayer[]; joins: Join[] };
+export type Join = { local_id: string; a: StackTerminal; b: StackTerminal; through?: StackTerminal | null; kind: JoinKind; basis: string };
+export type EndStack = { graph_version?: "0.1" | "0.2"; layers: StackLayer[]; joins: Join[] };
 export type EndAssembly = { kind: "end_assembly"; schema_version?: "0.1"; description: string | null; stack: EndStack; review: "unreviewed" | "reviewed"; review_basis: string | null };
 export type EndAssemblyDraft = { definition_id: string; kind: string; draft_id: string; state: string; content: { interface?: EndAssembly } };
 
 export type SignalRef = { key: string; name: string; type: SignalType; set_name: string; set_revision_number: number };
-export type Reach = { contact_id: string; label: string; signal: SignalRef | null; status: "declared" | "unknown"; via: string[] };
+export type Reach = { layer_id?: string; contact_id: string; label: string; signal: SignalRef | null; status: "declared" | "unknown"; via: string[] };
 export type ResolvedTerminal = {
   terminal_id: string; label: string; kind: string; group?: string | null; part?: string;
   signal?: SignalRef | null; signal_status?: "declared" | "conditional" | "unknown"; signal_note?: string | null; role?: string;
@@ -35,7 +35,7 @@ export type ResolvedLayer = {
 };
 export type ResolvedJoin = {
   local_id: string; kind: JoinKind | "carried"; basis: string; origin: "declared" | "board_carried_connector"; status: "declared" | "reviewed" | "unknown";
-  a: StackTerminal & { label: string }; b: StackTerminal & { label: string };
+  a: StackTerminal & { label: string }; b: StackTerminal & { label: string }; through?: StackTerminal & { label: string };
 };
 export type ResolvedStack = {
   end_assembly_revision_id?: string | null; name?: string | null;
@@ -57,12 +57,15 @@ export function newLayer(kind: LayerKind): StackLayer {
 }
 /** Adds a layer at its place in the wire-outward order: board, inline parts, connector, shell. */
 export function addLayer(stack: EndStack, kind: LayerKind): EndStack {
-  const layers = [...stack.layers, newLayer(kind)];
+  const layer = newLayer(kind);
+  let n = 2;
+  while (stack.layers.some((l) => l.layer_id === layer.layer_id)) layer.layer_id = `${kind}-${n++}`;
+  const layers = [...stack.layers, layer];
   layers.sort((a, b) => LAYER_ORDER.indexOf(a.kind) - LAYER_ORDER.indexOf(b.kind));
-  return { ...stack, layers };
+  return { ...stack, ...(stack.layers.some((l) => l.kind === kind) ? { graph_version: "0.2" as const } : {}), layers };
 }
 export function removeLayer(stack: EndStack, layerId: string): EndStack {
-  return { layers: stack.layers.filter((l) => l.layer_id !== layerId), joins: stack.joins.filter((j) => j.a.layer_id !== layerId && j.b.layer_id !== layerId) };
+  return { ...stack, layers: stack.layers.filter((l) => l.layer_id !== layerId).map((l) => l.kind === "board" && l.carried_connector_layer_id === layerId ? { ...l, carried_connector_id: null, carried_connector_layer_id: null } : l), joins: stack.joins.filter((j) => j.a.layer_id !== layerId && j.b.layer_id !== layerId && j.through?.layer_id !== layerId) };
 }
 export const connectorStack = (): EndStack => ({ layers: [newLayer("connector")], joins: [] });
 export const emptyEndAssembly = (): EndAssembly => ({ kind: "end_assembly", description: null, stack: connectorStack(), review: "unreviewed", review_basis: null });
@@ -102,6 +105,6 @@ export async function resolveEnd(body: { stack: EndStack } | { end_assembly_revi
 export function terminalText(t: ResolvedTerminal): string {
   if (t.signal) return `${t.label} · ${t.signal.name}`;
   const reach = t.reaches[0];
-  if (reach) return `${t.label} → ${reach.label}${reach.signal ? ` · ${reach.signal.name}` : ""}${reach.status === "unknown" ? " (unknown)" : ""}`;
+  if (reach) return `${t.label} → ${reach.layer_id ? `${reach.layer_id} / ` : ""}${reach.label}${reach.signal ? ` · ${reach.signal.name}` : ""}${reach.status === "unknown" ? " (unknown)" : ""}`;
   return t.label;
 }

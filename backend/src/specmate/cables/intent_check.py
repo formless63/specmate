@@ -106,7 +106,9 @@ class Graph:
         self.adjacent = {}
         self.labels = {}
         self.connector = {}
+        self.connector_occurrences = {}
         for endpoint_id, (_, resolved) in closure.endpoints.items():
+            self.connector_occurrences[endpoint_id] = set(resolved.connectors)
             if resolved.connector:
                 self.connector[endpoint_id] = resolved.connector[0].layer_id
             for (layer_id, terminal_id), terminal in resolved.terminals.items():
@@ -143,7 +145,7 @@ class Graph:
         self.adjacent.setdefault(b, []).append((a, status, text, detail))
 
     def is_contact(self, node):
-        return node[0] == "t" and self.connector.get(node[1]) == node[2]
+        return node[0] == "t" and node[2] in self.connector_occurrences.get(node[1], ())
 
     def paths(self, start):
         """Simple paths from ``start`` to every other connector contact, bounded."""
@@ -225,7 +227,14 @@ class Check:
                 raise ValidationFailed("An intent end is a device port or a pinout variant.")
             for endpoint_id, (_, resolved) in self.closure.endpoints.items():
                 if resolved.connector is None:
-                    options[side, endpoint_id] = (None, "fail", "This end has no connector layer.")
+                    options[side, endpoint_id] = (
+                        None,
+                        "unknown" if resolved.connectors else "fail",
+                        "Choose an exact connector occurrence for this intent; this end has "
+                        "multiple connector layers."
+                        if resolved.connectors
+                        else "This end has no connector layer.",
+                    )
                     continue
                 layer, body, _ = resolved.connector
                 options[side, endpoint_id] = mating_map(layer, body, pinout, self.closure)

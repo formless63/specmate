@@ -113,9 +113,24 @@ def termination_rows(inspected):
         elif layer.get("kind") == "inline":
             part_id = t["terminal_id"].split(".", 1)[0]
             notes = [p["summary"] for p in layer.get("parts", []) if p["local_id"] == part_id]
+        for join in endpoint["resolved_stack"]["joins"]:
+            if join.get("through") and any(
+                member["layer_id"] == t["layer_id"] and member["terminal_id"] == t["terminal_id"]
+                for member in (join["a"], join["b"], join["through"])
+            ):
+                carrier = join["through"]
+                notes.append(
+                    f"Same solder point {join['local_id']} through "
+                    f"{carrier['layer_id']} / {carrier['label']}: {join['basis']}"
+                )
         if t["contact_id"] is not None:
             targets = [
                 {
+                    **(
+                        {"layer_id": t["layer_id"]}
+                        if endpoint["resolved_stack"].get("graph_version") == "0.2"
+                        else {}
+                    ),
                     "contact_id": t["contact_id"],
                     "label": t["terminal_label"],
                     "signal": _signal_text(t["signal"]),
@@ -125,6 +140,7 @@ def termination_rows(inspected):
         else:
             targets = [
                 {
+                    **({"layer_id": r["layer_id"]} if "layer_id" in r else {}),
                     "contact_id": r["contact_id"],
                     "label": r["label"],
                     "signal": _signal_text(r["signal"]),

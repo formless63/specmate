@@ -47,6 +47,15 @@ class BoardLayer(StrictModel):
     board_revision_id: UUID
     # The board's carried connector that is this stack's connector layer, when it is.
     carried_connector_id: Key | None = None
+    # Required when an end graph contains more than one connector occurrence.
+    carried_connector_layer_id: LocalId | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_unrecorded_target(self, handler):
+        data = handler(self)
+        if data.get("carried_connector_layer_id") is None:
+            data.pop("carried_connector_layer_id", None)
+        return data
 
 
 class InlinePart(StrictModel):
@@ -99,19 +108,34 @@ class Join(StrictModel):
     local_id: Key
     a: StackTerminal
     b: StackTerminal
+    # A third terminal at the SAME solder point, e.g. a carrier-board hole.
+    # This is not an electrical component or a separate material segment.
+    through: StackTerminal | None = None
     kind: Literal["solder", "crimp", "mated", "integrated", "bond"]
     basis: Basis
 
     @model_validator(mode="after")
     def distinct_terminals(self):
-        if self.a == self.b:
-            raise ValueError("A join requires two different terminals.")
+        members = [self.a, self.b, *([self.through] if self.through else [])]
+        if len({(m.layer_id, m.terminal_id) for m in members}) != len(members):
+            raise ValueError("A join requires different terminals.")
+        if self.through is not None and self.kind != "solder":
+            raise ValueError("A third carrier terminal requires a solder join.")
         return self
+
+    @model_serializer(mode="wrap")
+    def omit_unrecorded_carrier(self, handler):
+        data = handler(self)
+        if data.get("through") is None:
+            data.pop("through", None)
+        return data
 
 
 class EndStack(StrictModel):
-    # Ordered from the wire outward; a shell, when present, is the outermost layer.
-    layers: list[Layer] = Field(min_length=1, max_length=8)
+    # Legacy stacks are ordered wire-outward. Version 0.2 is an occurrence graph;
+    # ordering is presentation only and never implies electrical/mechanical attachment.
+    graph_version: Literal["0.1", "0.2"] = "0.1"
+    layers: list[Layer] = Field(min_length=1, max_length=64)
     joins: list[Join] = Field(default_factory=list, max_length=500)
 
     @model_validator(mode="after")
@@ -120,23 +144,40 @@ class EndStack(StrictModel):
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate layer ID.")
         kinds = [layer.kind for layer in self.layers]
-        for kind in ("connector", "board", "inline", "shell"):
-            if kinds.count(kind) > 1:
-                raise ValueError(f"A stack has at most one {kind} layer.")
-        if "shell" in kinds and kinds[-1] != "shell":
+        if self.graph_version == "0.1":
+            if len(self.layers) > 8:
+                raise ValueError("A legacy stack has at most eight layers.")
+            for kind in ("connector", "board", "inline", "shell"):
+                if kinds.count(kind) > 1:
+                    raise ValueError(f"A stack has at most one {kind} layer.")
+        if self.graph_version == "0.1" and "shell" in kinds and kinds[-1] != "shell":
             raise ValueError("The shell is the outermost layer of a stack.")
         layers = {layer.layer_id: layer for layer in self.layers}
-        board = next((layer for layer in self.layers if layer.kind == "board"), None)
-        if board and board.carried_connector_id and "connector" not in kinds:
-            raise ValueError("A carried connector needs the stack's connector layer.")
+        connectors = [layer for layer in self.layers if layer.kind == "connector"]
+        for board in (layer for layer in self.layers if layer.kind == "board"):
+            if board.carried_connector_layer_id and not board.carried_connector_id:
+                raise ValueError("A connector occurrence target requires a carried connector.")
+            if board.carried_connector_id:
+                if not connectors:
+                    raise ValueError("A carried connector needs the stack's connector layer.")
+                if len(connectors) > 1 and not board.carried_connector_layer_id:
+                    raise ValueError("Choose the exact carried connector layer occurrence.")
+                if board.carried_connector_layer_id and not any(
+                    c.layer_id == board.carried_connector_layer_id for c in connectors
+                ):
+                    raise ValueError("The carried connector layer is not a connector occurrence.")
         joins = [j.local_id for j in self.joins]
         if len(joins) != len(set(joins)):
             raise ValueError("Duplicate join ID.")
         for join in self.joins:
-            ends = (join.a, join.b)
+            ends = (join.a, join.b, *([join.through] if join.through else []))
+            if join.through and self.graph_version != "0.2":
+                raise ValueError("A third solder terminal requires end graph version 0.2.")
             for end in ends:
                 if end.layer_id not in layers:
                     raise ValueError("A join names an undeclared layer.")
+            if join.through and layers[join.through.layer_id].kind != "board":
+                raise ValueError("A carrier solder terminal belongs to a board occurrence.")
             if join.a.layer_id == join.b.layer_id:
                 layer = layers[join.a.layer_id]
                 if layer.kind != "inline":
@@ -155,6 +196,13 @@ class EndStack(StrictModel):
             if shell and join.kind != "bond":
                 raise ValueError("A shell is joined electrically only by a declared bond.")
         return self
+
+    @model_serializer(mode="wrap")
+    def omit_legacy_version(self, handler):
+        data = handler(self)
+        if self.graph_version == "0.1":
+            data.pop("graph_version", None)
+        return data
 
 
 class EndAssembly(StrictModel):

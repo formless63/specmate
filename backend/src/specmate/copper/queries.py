@@ -176,15 +176,22 @@ class Builder:
         switch board paths never merge copper; they are not-evaluated boundaries. A shell is
         joined only by a declared bond or termination.
         """
-        connector = resolved.connector
         for layer in resolved.layers:
             for terminal in layer["terminals"]:
                 if layer["kind"] == "connector":
+                    connector = resolved.connectors[layer["layer_id"]]
                     shape = {
                         "kind": "endpoint",
                         "endpoint_id": endpoint.local_id,
                         "contact_id": terminal["terminal_id"],
                     }
+                    if resolved.stack.graph_version == "0.2":
+                        shape = {
+                            "kind": "stack_terminal",
+                            "endpoint_id": endpoint.local_id,
+                            "layer_id": layer["layer_id"],
+                            "terminal_id": terminal["terminal_id"],
+                        }
                     extra = {
                         "body_revision_id": str(connector[0].body_revision_id),
                         "pinout_revision_id": str(connector[0].pinout_revision_id),
@@ -217,6 +224,8 @@ class Builder:
 
         for join in resolved.joins:
             members = [key(join["a"]), key(join["b"])]
+            if join.get("through"):
+                members.append(key(join["through"]))
             local = [endpoint.local_id, "join", join["local_id"]]
             if join["status"] == "unknown":
                 self.record(
@@ -239,8 +248,7 @@ class Builder:
                     join["basis"],
                     declaration=join,
                 )
-        if resolved.board:
-            layer, board = resolved.board
+        for layer, board in resolved.boards.values():
             for board_path in board.paths:
                 members = [
                     terminals[endpoint.local_id, layer.layer_id, board_path.from_terminal],

@@ -21,6 +21,19 @@
           "default": null,
           "title": "Carried Connector Id"
         },
+        "carried_connector_layer_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carried Connector Layer Id"
+        },
         "kind": {
           "const": "board",
           "default": "board",
@@ -76,6 +89,15 @@
     "EndStack": {
       "additionalProperties": false,
       "properties": {
+        "graph_version": {
+          "default": "0.1",
+          "enum": [
+            "0.1",
+            "0.2"
+          ],
+          "title": "Graph Version",
+          "type": "string"
+        },
         "joins": {
           "items": {
             "$ref": "#/$defs/Join"
@@ -110,7 +132,7 @@
               }
             ]
           },
-          "maxItems": 8,
+          "maxItems": 64,
           "minItems": 1,
           "title": "Layers",
           "type": "array"
@@ -321,6 +343,17 @@
           "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
           "title": "Local Id",
           "type": "string"
+        },
+        "through": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StackTerminal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

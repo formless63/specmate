@@ -58,20 +58,20 @@ export function StackEditor({ value, onChange, definitions, resolved, label = "E
   return <Stack gap="xs">
     <Group gap="xs" aria-label={`${label} layers`}>
       <Text size="xs" c="dimmed">From the wire outward:</Text>
-      {LAYER_ORDER.filter((k) => !present.has(k)).map((kind) => <Button key={kind} size="compact-xs" variant="default" onClick={() => onChange(addLayer(value, kind))}>Add {LAYER_LABELS[kind].toLowerCase()}</Button>)}
+      {LAYER_ORDER.map((kind) => <Button key={kind} size="compact-xs" variant="default" onClick={() => onChange(addLayer(value, kind))}>Add {LAYER_LABELS[kind].toLowerCase()}</Button>)}
     </Group>
     {value.layers.map((layer) => <Card key={layer.layer_id} withBorder padding="xs" className="sb-layer-card" data-kind={layer.kind}>
-      <Group justify="space-between" mb={4}><Text fw={600} size="sm">{LAYER_LABELS[layer.kind]}</Text>
+      <Group justify="space-between" mb={4}><Text fw={600} size="sm">{LAYER_LABELS[layer.kind]} · {layer.layer_id}</Text>
         <ActionIcon variant="subtle" aria-label={`Remove ${LAYER_LABELS[layer.kind].toLowerCase()} layer from ${label}`} disabled={value.layers.length === 1} onClick={() => onChange(removeLayer(value, layer.layer_id))}>×</ActionIcon></Group>
-      <LayerFields layer={layer} label={label} nameFilter={nameFilter} definitions={definitions} onChange={(next) => setLayer(layer.layer_id, next)} hasConnector={present.has("connector")} />
+      <LayerFields layer={layer} label={label} nameFilter={nameFilter} definitions={definitions} onChange={(next) => setLayer(layer.layer_id, next)} hasConnector={present.has("connector")} connectors={value.layers.filter((l) => l.kind === "connector")} />
     </Card>)}
     <JoinEditor value={value} onChange={onChange} resolved={resolved} label={label} />
   </Stack>;
 }
 
-function LayerFields({ layer, label, definitions, onChange, hasConnector, nameFilter }: { layer: StackLayer; label: string; definitions?: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean; nameFilter: string | null }) {
+function LayerFields({ layer, label, definitions, onChange, hasConnector, nameFilter, connectors }: { connectors: StackLayer[]; layer: StackLayer; label: string; definitions?: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean; nameFilter: string | null }) {
   if (layer.kind === "connector") return <ConnectorFields layer={layer} label={label} definitions={definitions} onChange={onChange} nameFilter={nameFilter} />;
-  if (layer.kind === "board") return <BoardFields layer={layer} label={label} definitions={definitions} onChange={onChange} hasConnector={hasConnector} />;
+  if (layer.kind === "board") return <BoardFields layer={layer} label={label} definitions={definitions} onChange={onChange} hasConnector={hasConnector} connectors={connectors} />;
   if (layer.kind === "inline") return <InlineFields layer={layer} label={label} onChange={onChange} />;
   return <Stack gap={4}>
     <RevisionPicker label={`${label} shell`} title="Shell or hood part" kind="part" value={layer.part_revision_id ?? ""} onChange={(id) => onChange({ ...layer, part_revision_id: id || null })} definitions={definitions} />
@@ -93,7 +93,7 @@ function ConnectorFields({ layer, label, definitions, onChange, nameFilter }: { 
   </Stack>;
 }
 
-function BoardFields({ layer, label, definitions, onChange, hasConnector }: { layer: Extract<StackLayer, { kind: "board" }>; label: string; definitions?: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean }) {
+function BoardFields({ layer, label, definitions, onChange, hasConnector, connectors }: { connectors: StackLayer[]; layer: Extract<StackLayer, { kind: "board" }>; label: string; definitions?: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean }) {
   const board = useQuery({ queryKey: ["cable-board", layer.board_revision_id], queryFn: () => readBoard<BoardInspection>(`interfaces/revisions/${layer.board_revision_id}`), enabled: !!layer.board_revision_id });
   const carried = board.data?.board?.connectors ?? [];
   return <Stack gap={4}>
@@ -102,6 +102,7 @@ function BoardFields({ layer, label, definitions, onChange, hasConnector }: { la
       disabled={!hasConnector} placeholder="Not carried" value={layer.carried_connector_id}
       data={carried.map((c) => ({ value: c.local_id, label: `${c.body_name} r${c.body_revision_number} · ${c.status === "reviewed" ? "reviewed landings" : "landings unknown"}` }))}
       onChange={(id) => onChange({ ...layer, carried_connector_id: id })} />}
+    {layer.carried_connector_id && connectors.length > 1 && <Select size="xs" label="Carried connector occurrence" aria-label={`${label} carried connector occurrence`} data={connectors.map((c) => ({ value: c.layer_id, label: c.layer_id }))} value={layer.carried_connector_layer_id ?? null} onChange={(id) => onChange({ ...layer, carried_connector_layer_id: id })} />}
     {board.isError && <Alert color="red">{board.error.message}</Alert>}
   </Stack>;
 }
@@ -132,7 +133,7 @@ function InlineFields({ layer, label, onChange }: { layer: InlineLayer; label: s
 
 /** Explicit joins between terminals of two layers; board landings appear read-only. */
 function JoinEditor({ value, onChange, resolved, label }: { value: EndStack; onChange: (v: EndStack) => void; resolved?: ResolvedStack; label: string }) {
-  const options = (resolved?.layers ?? []).flatMap((l) => l.terminals.map((t) => ({ value: terminalKey({ layer_id: l.layer_id, terminal_id: t.terminal_id }), label: `${LAYER_LABELS[l.kind]} · ${t.label}` })));
+  const options = (resolved?.layers ?? []).flatMap((l) => l.terminals.map((t) => ({ value: terminalKey({ layer_id: l.layer_id, terminal_id: t.terminal_id }), label: `${l.layer_id} · ${t.label}` })));
   const derived = (resolved?.joins ?? []).filter((j) => j.origin !== "declared");
   const setJoin = (index: number, patch: Partial<EndStack["joins"][number]>) => onChange({ ...value, joins: value.joins.map((j, i) => (i === index ? { ...j, ...patch } : j)) });
   const addJoin = () => {
@@ -147,11 +148,12 @@ function JoinEditor({ value, onChange, resolved, label }: { value: EndStack; onC
     {derived.length > 0 && <Text size="xs" data-testid={`${label}-landings`}>{derived.length} board landings from the board's carried connector: {derived[0]!.status === "reviewed" ? "reviewed" : <SbUnknown what="landing review" />}</Text>}
     {value.joins.length === 0 && <Text size="xs" c="dimmed">No declared joins.</Text>}
     {value.joins.length > 0 && <Table.ScrollContainer minWidth={720}><Table verticalSpacing={2} className="sb-stack-table">
-      <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>How</Table.Th><Table.Th>Basis</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+      <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>Carrier hole (same solder point)</Table.Th><Table.Th>How</Table.Th><Table.Th>Basis</Table.Th><Table.Th /></Table.Tr></Table.Thead>
       <Table.Tbody>{value.joins.map((join, index) => <Table.Tr key={join.local_id}>
         <Table.Td><Select size="xs" searchable aria-label={`${label} join ${join.local_id} from`} data={options} value={options.some((o) => o.value === terminalKey(join.a)) ? terminalKey(join.a) : null} placeholder={terminalKey(join.a)} onChange={(v) => v && setJoin(index, { a: splitKey(v) })} /></Table.Td>
         <Table.Td><Select size="xs" searchable aria-label={`${label} join ${join.local_id} to`} data={options} value={options.some((o) => o.value === terminalKey(join.b)) ? terminalKey(join.b) : null} placeholder={terminalKey(join.b)} onChange={(v) => v && setJoin(index, { b: splitKey(v) })} /></Table.Td>
-        <Table.Td><Select size="xs" aria-label={`${label} join ${join.local_id} kind`} data={JOIN_KINDS} value={join.kind} onChange={(v) => setJoin(index, { kind: (v ?? "solder") as typeof join.kind })} /></Table.Td>
+        <Table.Td><Select size="xs" searchable clearable disabled={join.kind !== "solder"} aria-label={`${label} join ${join.local_id} carrier`} data={options.filter((o) => value.layers.find((l) => l.layer_id === splitKey(o.value).layer_id)?.kind === "board")} value={join.through ? terminalKey(join.through) : null} onChange={(v) => onChange({ ...value, graph_version: "0.2", joins: value.joins.map((j, i) => i === index ? { ...j, through: v ? splitKey(v) : null } : j) })} /></Table.Td>
+        <Table.Td><Select size="xs" aria-label={`${label} join ${join.local_id} kind`} data={JOIN_KINDS} value={join.kind} onChange={(v) => setJoin(index, { kind: (v ?? "solder") as typeof join.kind, ...(v !== "solder" ? { through: null } : {}) })} /></Table.Td>
         <Table.Td><TextInput size="xs" aria-label={`${label} join ${join.local_id} basis`} placeholder="Required" value={join.basis} onChange={(e) => setJoin(index, { basis: e.currentTarget.value })} /></Table.Td>
         <Table.Td><ActionIcon variant="subtle" aria-label={`Remove join ${join.local_id}`} onClick={() => onChange({ ...value, joins: value.joins.filter((_, i) => i !== index) })}>×</ActionIcon></Table.Td>
       </Table.Tr>)}</Table.Tbody>
@@ -164,8 +166,8 @@ function JoinEditor({ value, onChange, resolved, label }: { value: EndStack; onC
 export function SignalCell({ terminal }: { terminal: ResolvedTerminal }) {
   if (terminal.signal) return <Group gap={4} wrap="nowrap"><span>{terminal.signal.name}</span><SignalTypeChip type={terminal.signal.type} /></Group>;
   if (terminal.signal_status === "conditional") return <SbUnknown what="Signal (conditional)" />;
-  if (terminal.reaches.length) return <Stack gap={0}>{terminal.reaches.map((r) => <Text key={r.contact_id} size="xs" data-unknown={r.status === "unknown" || undefined}>
-    → {r.label}{r.signal ? ` · ${r.signal.name}` : ""} <span className="sb-stack-via">via {r.via.join(", ")}</span>{r.status === "unknown" && <> <SbUnknown what="step" /></>}</Text>)}</Stack>;
+  if (terminal.reaches.length) return <Stack gap={0}>{terminal.reaches.map((r) => <Text key={`${r.layer_id ?? ""}/${r.contact_id}`} size="xs" data-unknown={r.status === "unknown" || undefined}>
+    → {r.layer_id ? `${r.layer_id} / ` : ""}{r.label}{r.signal ? ` · ${r.signal.name}` : ""} <span className="sb-stack-via">via {r.via.join(", ")}</span>{r.status === "unknown" && <> <SbUnknown what="step" /></>}</Text>)}</Stack>;
   return <SbUnknown what="Signal" />;
 }
 
@@ -181,7 +183,7 @@ export function StackView({ resolved, label = "End" }: { resolved: ResolvedStack
   return <Stack gap="xs">
     <StackDiagram layers={resolvedChips(resolved)} label={`${label} stack`} />
     {resolved.layers.map((layer) => <Card key={layer.layer_id} withBorder padding="xs" className="sb-layer-card" data-kind={layer.kind}>
-      <Group gap="xs" mb={4}><Text fw={600} size="sm">{LAYER_LABELS[layer.kind]}</Text><Text size="sm">{layer.name ?? <SbUnknown what="part" />}</Text>
+      <Group gap="xs" mb={4}><Text fw={600} size="sm">{LAYER_LABELS[layer.kind]} · {layer.layer_id}</Text><Text size="sm">{layer.name ?? <SbUnknown what="part" />}</Text>
         {layer.kind === "connector" && layer.variant_label && <Text size="xs" c="dimmed">variant {layer.variant_label}</Text>}
         {layer.kind === "board" && layer.carried_connector_id && <SbStatus led={layer.carried_status === "reviewed" ? "info" : "review"} dimension="landings" value={layer.carried_status === "reviewed" ? "reviewed" : "unknown"} />}
         {layer.kind === "inline" && layer.parts?.map((p) => <Text key={p.local_id} size="xs" className="sb-mono">{p.name}: {p.summary}</Text>)}
@@ -190,8 +192,8 @@ export function StackView({ resolved, label = "End" }: { resolved: ResolvedStack
       <LayerTerminals layer={layer} />
     </Card>)}
     {resolved.joins.filter((j) => j.origin === "declared").length > 0 && <Table.ScrollContainer minWidth={420}><Table verticalSpacing={2} className="sb-stack-table" aria-label={`${label} joins`}>
-      <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>How</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
-      <Table.Tbody>{resolved.joins.filter((j) => j.origin === "declared").map((j) => <Table.Tr key={j.local_id}><Table.Td>{j.a.label}</Table.Td><Table.Td>{j.b.label}</Table.Td><Table.Td>{j.kind}</Table.Td><Table.Td>{j.basis}</Table.Td></Table.Tr>)}</Table.Tbody>
+      <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>Carrier hole (same solder point)</Table.Th><Table.Th>How</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
+      <Table.Tbody>{resolved.joins.filter((j) => j.origin === "declared").map((j) => <Table.Tr key={j.local_id}><Table.Td>{j.a.label}</Table.Td><Table.Td>{j.b.label}</Table.Td><Table.Td>{j.through ? `${j.through.layer_id} / ${j.through.label}` : "—"}</Table.Td><Table.Td>{j.kind}</Table.Td><Table.Td>{j.basis}</Table.Td></Table.Tr>)}</Table.Tbody>
     </Table></Table.ScrollContainer>}
     {resolved.evaluation.map((e) => <Text key={e.layer_id} size="xs" c="dimmed"><SbStatus led="not-evaluated" dimension={e.layer_id} value="not evaluated" /> {e.reason}</Text>)}
   </Stack>;
@@ -200,7 +202,7 @@ export function StackView({ resolved, label = "End" }: { resolved: ResolvedStack
 /** All terminals of a resolved stack as termination targets, grouped by layer. */
 export function targetOptions(resolved: ResolvedStack | undefined) {
   return (resolved?.layers ?? []).map((layer) => ({
-    group: `${LAYER_LABELS[layer.kind]}${layer.name ? ` · ${layer.name}` : ""}`,
+    group: `${LAYER_LABELS[layer.kind]} · ${layer.layer_id}${layer.name ? ` · ${layer.name}` : ""}`,
     items: layer.terminals.map((t) => ({ value: terminalKey({ layer_id: layer.layer_id, terminal_id: t.terminal_id }), label: terminalText(t) })),
   }));
 }
