@@ -38,8 +38,19 @@ export function placeLibraryDrop(cable: Cable, drop: LibraryDrop, endpointId: st
   return { ...cable, endpoints: cable.endpoints.map(end => end === endpoint ? { ...end, end_assembly_revision_id: null, stack } : end), review: 'unreviewed', review_basis: null };
 }
 export type HandleAddress = { type: 'wire'; endpointId: string; path: string } | { type: 'terminal'; endpointId: string; layerId: string; terminalId: string };
-export const handleId = (value: HandleAddress) => JSON.stringify(value);
-export function parseHandle(raw: string | null | undefined): HandleAddress | null { try { const value = JSON.parse(raw ?? '') as HandleAddress; return value && typeof value.endpointId === 'string' && (value.type === 'wire' && typeof value.path === 'string' || value.type === 'terminal' && typeof value.layerId === 'string' && typeof value.terminalId === 'string') ? value : null; } catch { return null; } }
+export const handleId = (value: HandleAddress) => encodeURIComponent(JSON.stringify(value));
+export function parseHandle(raw: string | null | undefined): HandleAddress | null {
+ try {
+  if (!raw || raw.length > 16384) return null;
+  const value: unknown = JSON.parse(decodeURIComponent(raw));
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row=value as Record<string,unknown>, text=(key:string)=>typeof row[key]==='string'&&(row[key] as string).length>0&&(row[key] as string).length<=4096;
+  if(!text('endpointId'))return null;
+  if(row.type==='wire'&&Object.keys(row).length===3&&text('path'))return row as HandleAddress;
+  if(row.type==='terminal'&&Object.keys(row).length===4&&text('layerId')&&text('terminalId'))return row as HandleAddress;
+  return null;
+ } catch { return null; }
+}
 export function manualLanding(cable: Cable, left: HandleAddress, right: HandleAddress, reason: string): Cable {
   const wire = left.type === 'wire' ? left : right.type === 'wire' ? right : null, terminal = left.type === 'terminal' ? left : right.type === 'terminal' ? right : null;
   if (!wire || !terminal || wire.endpointId !== terminal.endpointId) throw new Error('Connect a stock conductor to a terminal of the same cable end.');

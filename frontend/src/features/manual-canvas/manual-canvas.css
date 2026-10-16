@@ -4,7 +4,7 @@
 .manual-palette { min-width:0; max-height:620px; overflow:auto; border:1px solid var(--sb-border-subtle); padding:10px; }
 .manual-palette-card { padding:8px 0; border-bottom:1px solid var(--sb-border-subtle); cursor:grab; }
 .manual-fit { position:absolute;right:10px;top:10px;z-index:4; }
-.manual-flow { position:relative; height:560px; min-width:0; width:100%; background:var(--sb-surface-canvas); border:1px solid var(--sb-border-subtle); }
+.manual-flow { position:relative; height:720px; min-width:0; width:100%; background:var(--sb-surface-canvas); border:1px solid var(--sb-border-subtle); }
 .manual-flow .react-flow { --xy-background-color:var(--sb-surface-canvas); --xy-node-background-color:var(--sb-surface-panel); --xy-node-color:var(--sb-text-primary); --xy-edge-stroke:var(--sb-accent); --xy-controls-button-background-color:var(--sb-surface-panel); --xy-controls-button-color:var(--sb-text-primary); }
 .manual-node { width:210px; color:var(--sb-text-primary); background:var(--sb-surface-panel); border:1px solid var(--sb-border-subtle); padding:12px 0; }
 .manual-node header,.manual-node small { padding:0 12px; overflow-wrap:anywhere; }
