@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Button, Group, SegmentedControl, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { sectionLayout, type StockSpecification } from "../../../../packages/section-layout/src";
 import { SbUnknown } from "../../components/sb";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
@@ -24,9 +24,12 @@ import { ProbeDetails } from "./WorkbenchInspector";
 import { landingWords } from "./chips";
 import "./cable-workbench.css";
 
+const ManualCanvas = lazy(() => import("../manual-canvas/ManualCanvas").then(module => ({default:module.ManualCanvas})));
+
 export type WorkbenchMode = "new" | "draft" | "frozen";
 export type WorkbenchProps = {
   mode: WorkbenchMode;
+  libraryScope?: {workspaceId:string;principalKey:string;layoutId:string};
   name: string;
   cable: Cable;
   /** Present while the cable is editable in this view (new cable or open draft). */
@@ -84,6 +87,9 @@ function endChoice(cable: Cable, index: number) {
 export function CableWorkbench(props: WorkbenchProps) {
   const { mode, name, cable, onChange, stacks, bodies, stock, conductors, draftId = null, revisionId = null } = props;
   const editable = !!onChange;
+  const [presentation,setPresentation]=useState<"canvas"|"drawing">(props.mode === "new" && props.libraryScope ? "canvas" : "drawing");
+  const [canvasVisited,setCanvasVisited]=useState(presentation === "canvas");
+  if(presentation === "canvas" && !canvasVisited)setCanvasVisited(true);
   const edit = usePermission("design.edit");
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("issues");
   const [localSelection, setLocalSelection] = useState<string | null>(null);
@@ -163,7 +169,7 @@ export function CableWorkbench(props: WorkbenchProps) {
   const tabs = [{ value: "probe", label: "Probe" }, { value: "cable", label: "Cable" },
     ...cable.endpoints.map((e, i) => ({ value: `end:${e.local_id}`, label: `End ${String.fromCharCode(65 + i)}` }))];
 
-  const stage = <>
+  const drawingStage = <>
       <div className="cwb-stage">
         <div className="cwb-viewport">
           <CableDrawing drawing={drawing} lit={lit} selection={selection} onSelect={select} armedEnd={armed?.endpointId ?? null} onLand={land}
@@ -194,6 +200,11 @@ export function CableWorkbench(props: WorkbenchProps) {
         </div>
         </div>
       </div>
+  </>;
+  const stage = <>
+    {props.libraryScope && <Group gap="xs" aria-label="Cable presentation"><Button size="xs" variant={presentation === "canvas" ? "commit" : "quiet"} onClick={()=>setPresentation("canvas")}>Manual canvas</Button><Button size="xs" variant={presentation === "drawing" ? "commit" : "quiet"} onClick={()=>setPresentation("drawing")}>Cable drawing</Button></Group>}
+    <div hidden={presentation !== "drawing"}>{drawingStage}</div>
+    {props.libraryScope && canvasVisited && <div hidden={presentation !== "canvas"}><Suspense fallback={<Text>Loading manual canvas…</Text>}><ManualCanvas active={props.editor?.active !== false && presentation === "canvas"} disabled={!editable || mode === "frozen"} scope={props.libraryScope} layoutId={props.libraryScope.layoutId} cable={cable} drawing={drawing} onChange={onChange} creating={mode === "new"}/></Suspense></div>}
   </>;
   const proposalView = <>
       {proposal.isError && <Alert color="red">{proposal.error.message}</Alert>}

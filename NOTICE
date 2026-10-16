@@ -120,3 +120,12 @@ packages/model/src/part-numbers.ts and pn-declarative.ts, under AGPL-3.0-only.
 Specmate accepts its own definition kind names and leaves numbering off by default.
 No predecessor assignments, catalog records or deployment settings are included.
 The Module Exception additional permission is not applied.
+
+The optional manual engineering canvas uses @xyflow/react 12.11.3 and
+@xyflow/system 0.0.80 (MIT), with their locked runtime dependencies.
+Full distribution copyright/license notices are retained in
+frontend/public/third-party-licenses/react-flow.txt, served as
+/third-party-licenses/react-flow.txt. React Flow attribution remains visible.
+The canvas domain adapter is newly written for Specmate's exact revision and
+explicit Save semantics; no predecessor catalog records or private fixtures
+are included.

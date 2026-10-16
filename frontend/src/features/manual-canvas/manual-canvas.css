@@ -1,0 +1,18 @@
+.manual-canvas { min-width:0; width:100%; }
+.manual-canvas-body { display:grid; grid-template-columns:240px minmax(0,1fr); gap:12px; min-width:0; }
+.manual-canvas-body[data-palette=false] { grid-template-columns:minmax(0,1fr); }
+.manual-palette { min-width:0; max-height:620px; overflow:auto; border:1px solid var(--sb-border-subtle); padding:10px; }
+.manual-palette-card { padding:8px 0; border-bottom:1px solid var(--sb-border-subtle); cursor:grab; }
+.manual-fit { position:absolute;right:10px;top:10px;z-index:4; }
+.manual-flow { position:relative; height:560px; min-width:0; width:100%; background:var(--sb-surface-canvas); border:1px solid var(--sb-border-subtle); }
+.manual-flow .react-flow { --xy-background-color:var(--sb-surface-canvas); --xy-node-background-color:var(--sb-surface-panel); --xy-node-color:var(--sb-text-primary); --xy-edge-stroke:var(--sb-accent); --xy-controls-button-background-color:var(--sb-surface-panel); --xy-controls-button-color:var(--sb-text-primary); }
+.manual-node { width:210px; color:var(--sb-text-primary); background:var(--sb-surface-panel); border:1px solid var(--sb-border-subtle); padding:12px 0; }
+.manual-node header,.manual-node small { padding:0 12px; overflow-wrap:anywhere; }
+.manual-node header { font-weight:600; }
+.manual-node small { display:block; }
+.manual-port { position:relative; min-height:28px; padding:4px 12px; font-size:11px; border-top:1px solid var(--sb-border-subtle); }
+.manual-flow .react-flow__handle { width:10px; height:10px; background:var(--sb-accent); }
+@media(max-width:700px) { .manual-canvas-body { grid-template-columns:minmax(0,1fr); } .manual-palette { max-height:300px; } .manual-fit { position:absolute;right:10px;top:10px;z-index:4; }
+.manual-flow { position:relative; height:460px; } }
+.manual-flow .react-flow { --xy-edge-label-background-color:var(--sb-surface-panel); --xy-edge-label-color:var(--sb-text-primary); --xy-controls-button-background-color-hover:var(--sb-surface-raised); --xy-controls-button-color-hover:var(--sb-text-primary); --xy-controls-button-border-color:var(--sb-border-subtle); --xy-background-pattern-color:var(--sb-border-subtle); --xy-attribution-background-color:var(--sb-surface-panel); }
+.manual-flow .react-flow__attribution a { color:var(--sb-text-secondary); }
