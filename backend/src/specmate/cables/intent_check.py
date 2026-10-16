@@ -170,6 +170,8 @@ class Graph:
             )
 
     def edge(self, a, b, status, text, detail):
+        if status == "open":
+            return
         self.adjacent.setdefault(a, []).append((b, status, text, detail))
         self.adjacent.setdefault(b, []).append((a, status, text, detail))
 

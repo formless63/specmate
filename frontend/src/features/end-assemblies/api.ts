@@ -5,7 +5,7 @@ export { command, read, type Definition, type Identity } from "../identity/api";
 
 /** Layers of one cable end, ordered from the wire outward (see docs/modules/WIRING.md). */
 export type ConnectorLayer = { kind: "connector"; layer_id: string; body_revision_id: string; pinout_revision_id: string };
-export type BoardLayer = { kind: "board"; layer_id: string; board_revision_id: string; carried_connector_id: string | null; carried_connector_layer_id?: string | null };
+export type BoardLayer = { kind: "board"; layer_id: string; board_revision_id: string; carried_connector_id: string | null; carried_connector_layer_id?: string | null; condition_states?: Record<string,string> };
 /** Exact catalog provenance for an authored two-lead use; package pinout stays unassessed. */
 export type InlinePart = { local_id: string; label: string | null; component: InlineComponent; part_revision_id?: string | null };
 export type InlinePartIdentity = { revision_id: string; definition_id: string; name: string; number: number; package_pinout: "not_evaluated"; declared_use: "two_lead_inline"; behavior_source: "separate_authored_component" };
@@ -33,7 +33,8 @@ export type ResolvedLayer = {
   variant_label?: string | null; pinout_name?: string | null; carried_connector_id?: string | null; carried_status?: "reviewed" | "unknown" | null;
   parts?: { local_id: string; name: string; summary: string; part_identity?: InlinePartIdentity }[]; electrical?: string;
   internal_nodes?: { node_id: string; label: string; basis: string }[];
-  paths?: { local_id: string; from_terminal: string; to_terminal: string; via: string; summary: string }[];
+  conditions?: { key: string; name: string; choices: { key: string; name: string }[] }[]; condition_states?: Record<string,string>;
+  paths?: { contact_state?: "declared" | "open" | "unknown"; local_id: string; from_terminal: string; to_terminal: string; via: string; summary: string }[];
 };
 export type ResolvedJoin = {
   local_id: string; kind: JoinKind | "carried"; basis: string; origin: "declared" | "board_carried_connector"; status: "declared" | "reviewed" | "unknown";

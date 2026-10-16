@@ -1027,3 +1027,12 @@ The stock record's Constituent recipe tab exposes exact pins/formulas and prepar
 replacement revision proposals before deliberate compilation. Part properties expose
 the reusable constituent facts through the ordinary draft Save/Freeze operations.
 Preview, compile and stock geometry checks supply no physical qualification.
+
+A board layer's optional `condition_states` maps exact pinned board condition keys to
+choice keys for that occurrence. Missing selections stay unknown. A selected switch
+path is an ideal declared closed contact only in its `closed_when` state, and open in
+other declared states. Open paths are excluded from end reaches and intent paths;
+unknown paths remain possible with an unknown result. The copper projection retains
+switches as conditional boundaries with the selection provenance. These declarations
+are not measured switch positions, and fixed build bridges remain separate copper
+paths on the frozen board revision.

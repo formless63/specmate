@@ -288,6 +288,13 @@ class Builder:
                 ]
                 local = [endpoint.local_id, layer.layer_id, board_path.local_id]
                 declaration = board_path.model_dump(mode="json")
+                if board_path.switch:
+                    from specmate.interfaces.end_stacks import switch_contact_state
+
+                    declaration["selected_state"] = layer.condition_states.get(
+                        board_path.switch.condition_key
+                    )
+                    declaration["contact_state"] = switch_contact_state(layer, board_path)
                 if board_path.via == "copper":
                     self.record(
                         revision,

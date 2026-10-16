@@ -17,6 +17,18 @@ MAX_REACH_STEPS = 6
 MAX_REACHES = 8
 
 
+def switch_contact_state(layer, path):
+    """Ideal declared switch contact for this occurrence, never a measured state."""
+    selected = layer.condition_states.get(path.switch.condition_key)
+    return (
+        "unknown"
+        if selected is None
+        else "declared"
+        if selected == path.switch.closed_when
+        else "open"
+    )
+
+
 def stack_references(stack: EndStack):
     refs = []
     for layer in stack.layers:
@@ -100,6 +112,14 @@ class ResolvedStack:
                     raise ValidationFailed(
                         "A board layer requires an exact board revision with declared pads."
                     )
+                conditions = {c.key: {choice.key for choice in c.choices} for c in board.conditions}
+                if any(
+                    key not in conditions or state not in conditions[key]
+                    for key, state in layer.condition_states.items()
+                ):
+                    raise ValidationFailed(
+                        "Board condition selection requires an exact declared condition and choice."
+                    )
                 self.boards[layer.layer_id] = (layer, board)
                 terminals = [
                     {
@@ -125,6 +145,8 @@ class ResolvedStack:
                 view.update(
                     {
                         "board_revision_id": str(layer.board_revision_id),
+                        "conditions": [c.model_dump(mode="json") for c in board.conditions],
+                        "condition_states": layer.condition_states,
                         "name": self._name(layer.board_revision_id),
                         "carried_connector_id": layer.carried_connector_id,
                         "carried_connector_layer_id": layer.carried_connector_layer_id,
@@ -141,6 +163,11 @@ class ResolvedStack:
                                 "to_terminal": p.to_terminal,
                                 "via": p.via,
                                 "summary": path_summary(p, board),
+                                **(
+                                    {"contact_state": switch_contact_state(layer, p)}
+                                    if p.switch
+                                    else {}
+                                ),
                             }
                             for p in board.paths
                         ],
@@ -339,13 +366,28 @@ class ResolvedStack:
                     (
                         (layer.layer_id, path.from_terminal),
                         (layer.layer_id, path.to_terminal),
-                        "declared" if path.via in ("copper", "component") else "unknown",
+                        switch_contact_state(layer, path)
+                        if path.switch
+                        else "declared"
+                        if path.via in ("copper", "component")
+                        else "unknown",
                         path_summary(path, board),
                         {
                             "kind": "board_path",
                             "local_id": path.local_id,
                             "via": path.via,
                             "component": path.component,
+                            **(
+                                {
+                                    "condition_key": path.switch.condition_key,
+                                    "selected_state": layer.condition_states.get(
+                                        path.switch.condition_key
+                                    ),
+                                    "closed_when": path.switch.closed_when,
+                                }
+                                if path.switch
+                                else {}
+                            ),
                         },
                     )
                 )
@@ -375,6 +417,8 @@ class ResolvedStack:
         targets = set(self.connectors)
         adjacency = {}
         for a, b, status, text, _ in self.edges:
+            if status == "open":
+                continue
             adjacency.setdefault(a, []).append((b, status, text))
             adjacency.setdefault(b, []).append((a, status, text))
         start = (layer_id, terminal_id)

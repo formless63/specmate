@@ -50,9 +50,14 @@ class BoardLayer(StrictModel):
     # Required when an end graph contains more than one connector occurrence.
     carried_connector_layer_id: LocalId | None = None
 
+    # Runtime/configuration declaration for this exact board occurrence; absent is unknown.
+    condition_states: dict[Key, Key] = Field(default_factory=dict, max_length=20)
+
     @model_serializer(mode="wrap")
     def omit_unrecorded_target(self, handler):
         data = handler(self)
+        if not data.get("condition_states"):
+            data.pop("condition_states", None)
         if data.get("carried_connector_layer_id") is None:
             data.pop("carried_connector_layer_id", None)
         return data
