@@ -10,7 +10,7 @@ export interface StockRecord {
   draft_id: string;
   name: string;
   state: string;
-  content: { stock?: StockSpecification };
+  content: { stock?: StockSpecification; stock_recipe?: unknown };
   /** Server fit findings for the saved construction; null for a draft without stock. */
   geometry?: FitReport | null;
 }

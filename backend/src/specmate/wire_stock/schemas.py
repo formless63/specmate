@@ -223,4 +223,8 @@ def validate_stock_content(content: dict) -> dict:
         errors = [{"loc": list(e["loc"]), "type": e["type"], "msg": e["msg"]} for e in exc.errors()]
         raise ValidationFailed("Invalid stock construction.", details={"errors": errors}) from None
     result = {**content, "stock": stock.model_dump(mode="json")}
+    if "stock_recipe" in content:
+        from specmate.wire_stock.recipes import parse_recipe
+
+        result["stock_recipe"] = parse_recipe(content["stock_recipe"]).model_dump(mode="json")
     return result

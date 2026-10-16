@@ -1,3 +1,4 @@
+import { StockConstituentFields } from '../wire-stock/StockConstituentFields';
 import { Button, Group, Select, Stack, Table, Text, Textarea, TextInput } from '@mantine/core';
 import { useState } from 'react';
 import { RevisionPicker } from '../cables/RevisionPicker';
@@ -8,10 +9,10 @@ const nullable = (text: string) => text.trim() || null;
 export function PartFields({ content, editable, change }: { content: Content; editable: boolean; change: (content: Content) => void }) {
   const value = partValue(content), [target, setTarget] = useState(''), [basis, setBasis] = useState(''), [targetKind, setTargetKind] = useState('connector_body');
   const update = (changes: Partial<Part>) => value && change({ ...content, part: { ...value, ...changes } });
-  if (!value) return <Stack><Text>Legacy authored contents are retained unchanged.</Text>{['value', 'package', 'category', 'description'].map(key => typeof content[key] === 'string' ? <Text key={key}>{key}: {String(content[key])}</Text> : null)}
+  if (!value) return <Stack><StockConstituentFields content={content} editable={editable} change={change} /><Text>Legacy authored contents are retained unchanged.</Text>{['value', 'package', 'category', 'description'].map(key => typeof content[key] === 'string' ? <Text key={key}>{key}: {String(content[key])}</Text> : null)}
     {!content.part && editable && <Button onClick={() => change({ ...content, part: { schema_version: '1', category: null, value: null, package: null, fits: [] } })}>Add typed part details</Button>}
     {!!content.part && <Text>Legacy structured part details are preserved. Typed details have not been declared for this record.</Text>}</Stack>;
-  return <Stack gap="sm">
+  return <Stack gap="sm"><StockConstituentFields content={content} editable={editable} change={change} />
     <TextInput label="Category" maxLength={100} value={value.category ?? ''} readOnly={!editable} onChange={event => update({ category: nullable(event.currentTarget.value) })} />
     <TextInput label="Value" description="Authored description; no electrical model is inferred." maxLength={500} value={value.value ?? ''} readOnly={!editable} onChange={event => update({ value: nullable(event.currentTarget.value) })} />
     <TextInput label="Package" maxLength={200} value={value.package ?? ''} readOnly={!editable} onChange={event => update({ package: nullable(event.currentTarget.value) })} />

@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "ConstituentPin": {
+      "additionalProperties": false,
+      "properties": {
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "revision_id",
+        "snapshot_sha256"
+      ],
+      "title": "ConstituentPin",
+      "type": "object"
+    },
+    "Fact": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "measured",
+            "inferred"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Fact",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "components": {
+      "items": {
+        "$ref": "#/$defs/ConstituentPin"
+      },
+      "maxItems": 8,
+      "title": "Components",
+      "type": "array"
+    },
+    "kind": {
+      "enum": [
+        "conductor",
+        "insulation",
+        "shield",
+        "jacket",
+        "core"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "values": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Fact"
+      },
+      "maxProperties": 30,
+      "title": "Values",
+      "type": "object"
+    }
+  },
+  "required": [
+    "kind",
+    "source"
+  ],
+  "title": "Constituent",
+  "type": "object"
+}

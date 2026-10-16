@@ -1,0 +1,980 @@
+{
+  "$defs": {
+    "Binding": {
+      "additionalProperties": false,
+      "properties": {
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Element Path",
+          "type": "string"
+        },
+        "formula": {
+          "default": "identity",
+          "enum": [
+            "identity",
+            "conductor_area",
+            "stranded_diameter",
+            "over_layer_diameter",
+            "adjacent_boundary",
+            "insulation_diameter",
+            "shield_diameter",
+            "insulation_material"
+          ],
+          "title": "Formula",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/Input"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Inputs",
+          "type": "array"
+        },
+        "round_digits": {
+          "anyOf": [
+            {
+              "maximum": 6,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Round Digits"
+        },
+        "target_field": {
+          "title": "Target Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "element_path",
+        "target_field",
+        "inputs"
+      ],
+      "title": "Binding",
+      "type": "object"
+    },
+    "ConstituentPin": {
+      "additionalProperties": false,
+      "properties": {
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "revision_id",
+        "snapshot_sha256"
+      ],
+      "title": "ConstituentPin",
+      "type": "object"
+    },
+    "Fact": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "measured",
+            "inferred"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Fact",
+      "type": "object"
+    },
+    "GroupElement": {
+      "additionalProperties": false,
+      "properties": {
+        "arrangement": {
+          "default": "concentric",
+          "enum": [
+            "concentric",
+            "ring",
+            "linear",
+            "figure-eight"
+          ],
+          "title": "Arrangement",
+          "type": "string"
+        },
+        "children": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "conductor": "#/$defs/RoundElement",
+                "dielectric": "#/$defs/RoundElement",
+                "drain": "#/$defs/RoundElement",
+                "filler": "#/$defs/RoundElement",
+                "group": "#/$defs/GroupElement",
+                "insulation": "#/$defs/RoundElement",
+                "jacket": "#/$defs/RoundElement",
+                "shield": "#/$defs/RoundElement",
+                "web": "#/$defs/WebElement"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoundElement"
+              },
+              {
+                "$ref": "#/$defs/WebElement"
+              },
+              {
+                "$ref": "#/$defs/GroupElement"
+              }
+            ]
+          },
+          "maxItems": 128,
+          "title": "Children",
+          "type": "array"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "color_label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color Label"
+        },
+        "direction": {
+          "default": "ccw",
+          "enum": [
+            "cw",
+            "ccw"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "facts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Fact"
+          },
+          "maxProperties": 40,
+          "title": "Facts",
+          "type": "object"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "group",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material"
+        },
+        "pitch_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pitch Mm"
+        },
+        "role": {
+          "enum": [
+            "stock",
+            "coax",
+            "pair",
+            "ribbon",
+            "figure-eight",
+            "bundle"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "stripe_colors": {
+          "items": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Stripe Colors",
+          "type": "array"
+        },
+        "x_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0,
+          "title": "X Mm"
+        },
+        "y_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0,
+          "title": "Y Mm"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "role"
+      ],
+      "title": "GroupElement",
+      "type": "object"
+    },
+    "Input": {
+      "additionalProperties": false,
+      "properties": {
+        "constituent_local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Constituent Local Id",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "constituent_local_id",
+        "field"
+      ],
+      "title": "Input",
+      "type": "object"
+    },
+    "RoundElement": {
+      "additionalProperties": false,
+      "properties": {
+        "area_mm2": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Area Mm2"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "color_label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color Label"
+        },
+        "construction": {
+          "anyOf": [
+            {
+              "enum": [
+                "solid",
+                "stranded",
+                "braid",
+                "spiral",
+                "foil",
+                "tape"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Construction"
+        },
+        "facts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Fact"
+          },
+          "maxProperties": 40,
+          "title": "Facts",
+          "type": "object"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "inner_diameter_mm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inner Diameter Mm"
+        },
+        "insulated_diameter_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Insulated Diameter Mm"
+        },
+        "insulation_material": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Insulation Material"
+        },
+        "kind": {
+          "enum": [
+            "conductor",
+            "dielectric",
+            "insulation",
+            "shield",
+            "drain",
+            "filler",
+            "jacket"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material"
+        },
+        "outer_diameter_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outer Diameter Mm"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "stripe_colors": {
+          "items": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Stripe Colors",
+          "type": "array"
+        },
+        "x_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0,
+          "title": "X Mm"
+        },
+        "y_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0,
+          "title": "Y Mm"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "title": "RoundElement",
+      "type": "object"
+    },
+    "StockBondedSet": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "element_paths": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 2,
+          "title": "Element Paths",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "element_paths",
+        "basis"
+      ],
+      "title": "StockBondedSet",
+      "type": "object"
+    },
+    "StockLay": {
+      "additionalProperties": false,
+      "properties": {
+        "arrangement": {
+          "enum": [
+            "pair",
+            "6-around-1",
+            "6-around-2",
+            "7-around-1",
+            "figure-8"
+          ],
+          "title": "Arrangement",
+          "type": "string"
+        },
+        "center": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Center"
+        },
+        "direction": {
+          "enum": [
+            "cw",
+            "ccw"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "inner": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Inner",
+          "type": "array"
+        },
+        "ring": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 2,
+          "title": "Ring",
+          "type": "array"
+        },
+        "source": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "documented",
+            "measured",
+            "inferred"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "viewed_from": {
+          "default": "unknown",
+          "enum": [
+            "a",
+            "b",
+            "unknown"
+          ],
+          "title": "Viewed From",
+          "type": "string"
+        }
+      },
+      "required": [
+        "arrangement",
+        "direction",
+        "ring",
+        "source",
+        "status"
+      ],
+      "title": "StockLay",
+      "type": "object"
+    },
+    "StockSpecification": {
+      "additionalProperties": false,
+      "properties": {
+        "bonded_sets": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/StockBondedSet"
+              },
+              "maxItems": 128,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bonded Sets"
+        },
+        "construction": {
+          "enum": [
+            "coax",
+            "pair",
+            "ribbon",
+            "figure-eight",
+            "bundle"
+          ],
+          "title": "Construction",
+          "type": "string"
+        },
+        "facts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Fact"
+          },
+          "maxProperties": 50,
+          "title": "Facts",
+          "type": "object"
+        },
+        "lay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StockLay"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "structure": {
+          "$ref": "#/$defs/GroupElement"
+        },
+        "viewed_from": {
+          "default": "unknown",
+          "enum": [
+            "a",
+            "b",
+            "unknown"
+          ],
+          "title": "Viewed From",
+          "type": "string"
+        }
+      },
+      "required": [
+        "construction",
+        "structure"
+      ],
+      "title": "StockSpecification",
+      "type": "object"
+    },
+    "WebElement": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "color_label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color Label"
+        },
+        "facts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Fact"
+          },
+          "maxProperties": 40,
+          "title": "Facts",
+          "type": "object"
+        },
+        "height_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height Mm"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "web",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "stripe_colors": {
+          "items": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Stripe Colors",
+          "type": "array"
+        },
+        "width_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width Mm"
+        },
+        "x_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0,
+          "title": "X Mm"
+        },
+        "y_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0,
+          "title": "Y Mm"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "title": "WebElement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bindings": {
+      "items": {
+        "$ref": "#/$defs/Binding"
+      },
+      "maxItems": 1024,
+      "title": "Bindings",
+      "type": "array"
+    },
+    "constituents": {
+      "items": {
+        "$ref": "#/$defs/ConstituentPin"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "title": "Constituents",
+      "type": "array"
+    },
+    "recompute_boundaries": {
+      "default": false,
+      "title": "Recompute Boundaries",
+      "type": "boolean"
+    },
+    "recompute_layout": {
+      "default": "preserve",
+      "enum": [
+        "preserve",
+        "touching_ring"
+      ],
+      "title": "Recompute Layout",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "template": {
+      "$ref": "#/$defs/StockSpecification"
+    }
+  },
+  "required": [
+    "template",
+    "constituents",
+    "source"
+  ],
+  "title": "StockRecipe",
+  "type": "object"
+}

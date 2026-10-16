@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from django.db.models import Max
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from specmate.access.permissions import Perm, authorize, authorize_item
 from specmate.design.models import Definition, Draft, Revision, Snapshot, SnapshotDependency
@@ -198,6 +198,10 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
         )
 
         derived = test_plan_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "wire_stock" and "stock_recipe" in draft.content:
+        from specmate.wire_stock.recipes import dependency_revisions as stock_dependencies
+
+        derived = stock_dependencies(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "cable":
         from specmate.cables.queries import dependency_revisions as cable_dependencies
 
@@ -230,6 +234,14 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
         from specmate.printing.queries import dependency_revisions as print_dependencies
 
         derived = print_dependencies(ctx.user, draft.definition, draft.content)
+    if "stock_constituent" in draft.content:
+        from specmate.wire_stock.recipes import constituent_dependencies
+
+        derived = sorted(
+            set(derived or [])
+            | set(constituent_dependencies(ctx.user, draft.definition, draft.content)),
+            key=str,
+        )
     if derived is not None:
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
@@ -331,6 +343,20 @@ def validate_content(kind, content):
     from specmate.design.source_origins import validate_content as validate_origins
 
     content = validate_origins(content)
+    if "stock_constituent" in content:
+        if kind != "part":
+            raise ValidationFailed("Stock constituents require reusable part definitions.")
+        from specmate.wire_stock.recipes import Constituent
+
+        try:
+            content = {
+                **content,
+                "stock_constituent": Constituent.model_validate(
+                    content["stock_constituent"]
+                ).model_dump(mode="json"),
+            }
+        except ValidationError:
+            raise ValidationFailed("Invalid stock constituent.") from None
     if kind == "product_family" or "product_family" in content:
         from specmate.products.queries import validate_content as validate_product
 
@@ -438,6 +464,14 @@ def validate_content(kind, content):
 
 
 def authorize_design_content(user, definition, content):
+    if definition.kind == "wire_stock" and "stock_recipe" in content:
+        from specmate.wire_stock.recipes import dependency_revisions as stock_dependencies
+
+        stock_dependencies(user, definition, content)
+    if "stock_constituent" in content:
+        from specmate.wire_stock.recipes import constituent_dependencies
+
+        constituent_dependencies(user, definition, content)
     # Every typed pin named in this content must stay in the definition's workspace.
     with pin_workspace(definition.workspace_id):
         _authorize_design_content(user, definition, content)

@@ -71,6 +71,10 @@ def update_stock(ctx: Context, p: UpdateStock) -> dict:
     if draft.definition.kind != "wire_stock":
         raise NotFound("Stock draft not found.")
     check_state(ctx, draft)
+    if "stock_recipe" in draft.content:
+        from specmate.operations import ValidationFailed
+
+        raise ValidationFailed("Recipe-derived stock is changed through wire_stock.compile_recipe.")
     draft.content = {**draft.content, "stock": p.stock.model_dump(mode="json")}
     draft.version += 1
     draft.updated_by = ctx.user
@@ -117,6 +121,10 @@ def freeze_stock(ctx: Context, p: FreezeStock) -> dict:
         if draft.base_revision_id
         else []
     )
+    if "stock_recipe" in draft.content:
+        from specmate.wire_stock.recipes import dependency_revisions
+
+        dependencies = dependency_revisions(ctx.user, draft.definition, draft.content)
     frozen = freeze_draft(ctx, CaptureDraft(draft_id=p.draft_id, dependencies=dependencies))
     return {**frozen, "geometry": geometry}
 
@@ -131,4 +139,45 @@ def stock_scope(ctx, payload):
     draft = scoped_draft(ctx, payload.draft_id, permission)
     if draft.definition.kind != "wire_stock":
         raise NotFound("Stock draft not found.")
+    if isinstance(payload, CompileRecipe):
+        from specmate.wire_stock.recipes import resolve_constituents
+
+        resolve_constituents(ctx.user, draft.definition, payload.recipe)
     return workspace_scope(ctx, draft.definition.workspace_id, permission)
+
+
+from specmate.wire_stock.recipes import StockRecipe  # noqa: E402
+
+
+class CompileRecipe(StrictModel):
+    draft_id: UUID
+    recipe: StockRecipe
+
+
+@operation(
+    "wire_stock.compile_recipe",
+    CompileRecipe,
+    summary="Compile a stock draft from exact constituent revisions.",
+    requires_expected_state=True,
+    idempotency_scope=lambda ctx, p: stock_scope(ctx, p),
+    authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
+    access=Perm.DESIGN_EDIT,
+)
+def compile_recipe(ctx: Context, p: CompileRecipe) -> dict:
+    from specmate.wire_stock.recipes import compile_stock, resolve_constituents
+
+    draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
+    if draft.definition.kind != "wire_stock":
+        raise NotFound("Stock draft not found.")
+    check_state(ctx, draft)
+    constituents = resolve_constituents(ctx.user, draft.definition, p.recipe)
+    stock = compile_stock(p.recipe, constituents)
+    draft.content = {
+        **draft.content,
+        "stock_recipe": p.recipe.model_dump(mode="json"),
+        "stock": stock,
+    }
+    draft.version += 1
+    draft.updated_by = ctx.user
+    draft.save(update_fields=["content", "version", "updated_by", "updated_at"])
+    return stock_record(draft)

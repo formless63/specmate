@@ -978,3 +978,37 @@ Authored expectations remain independent of performed tests. A `solder` joint ex
 records multiple stock feature ends and endpoint terminals at one physical solder point;
 it is separate from inherent stock construction bonds. Neither a successful projection
 nor an authored relationship proves physical continuity.
+
+### Reusable stock constituent recipes
+
+Wire stock can retain separate bare conductor and over-insulation diameters without
+changing its conductive element path. Named colors, tracer colors and per-element
+source facts accompany the geometry; unknown copper or insulation bores remain
+unknown. Explicit `lay` metadata records exact member paths, ring/inner/center order,
+viewing end, chirality, source and confidence. Display offsets do not declare bonds.
+`bonded_sets` instead declares construction-wide electrical equivalence between exact
+conductive leaves: omitted/null means unknown, while an empty list declares no bonds.
+It describes neither a physical solder joint nor an end preparation operation.
+
+Reusable Parts may carry typed `stock_constituent` facts in canonical units and exact
+component pins for composite cores. A stock's `stock_recipe` pins those immutable
+constituent revisions and snapshot hashes, a specification template and bounded
+bindings. The shared `wire_stock.compile_recipe` operation deliberately recompiles a
+saved stock draft with its compare-and-set token. Generic edits and capture reject a
+compiled construction that differs from the recipe. Frozen consumers keep their
+original stock and constituent revisions; adopting a constituent is a reviewed new
+compile and freeze, never a floating update.
+
+Bindings use only identity, explicit adjacent/insulation/shield boundaries, conductor area
+`n*pi*d²/4`, strand packing (`d` for one, `3*d` for seven, otherwise
+`1.15*sqrt(n)*d`) and over-layer diameter `inner+2*wall`. Optional decimal rounding is
+explicit and recorded with the working. Packing assumptions are marked inferred.
+There is no expression evaluator or imported executable recipe. Explicit opt-ins can
+recompute known adjacent concentric boundaries and a touching ring layout after a
+constituent changes; a missing dimension propagates unknown instead of inventing a
+bore or a fit pass. Source-specific overrides remain explicit template facts.
+
+The stock record's Constituent recipe tab exposes exact pins/formulas and prepares
+replacement revision proposals before deliberate compilation. Part properties expose
+the reusable constituent facts through the ordinary draft Save/Freeze operations.
+Preview, compile and stock geometry checks supply no physical qualification.
