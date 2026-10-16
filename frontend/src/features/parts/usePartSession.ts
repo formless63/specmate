@@ -4,7 +4,7 @@ import { ApiError } from '../workspace/api';
 import { authorizeReferences, canonical, command, PART_KINDS, readRecord, referenceSignature, type Content, type Draft, type PartRecord } from './api';
 
 export type SessionProps = {
-  freezeOperation?: 'draft.freeze' | 'interface.freeze' | 'cable_test_plan.freeze';
+  freezeOperation?: string;
   authorizeContent?: (content: Content) => Promise<void>; contentSignature?: (content: Content) => string;
   allowedKinds?: readonly string[]; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
   initial: { kind: string; content: Content; name?: string }; onCreated: (id: string, open: boolean) => void; onSelect: (number: number | null, working: boolean) => void; onAccessLost?: () => void;
