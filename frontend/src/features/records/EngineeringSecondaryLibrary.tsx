@@ -1,4 +1,5 @@
 import type { PartRecord } from '../parts/api';
+import { usePermission } from '../../lib/permissions';
 import { Button, Group } from '@mantine/core';
 import { useNavigation } from '../navigation';
 import { emptyProfile as blankPreparation, type Profile as Preparation } from '../preparation/api';
@@ -13,9 +14,9 @@ import { SecondaryLibrary, type SecondaryConfig, type SecondaryLibraryProps } fr
 import { authorizeSecondaryContent, secondaryContentSignature } from './secondary-authority';
 export type EngineeringSecondaryProps=Omit<SecondaryLibraryProps,'config'>;
 export function EngineeringSecondaryLibrary(props:EngineeringSecondaryProps){
- const nav=useNavigation(), {toolId,principalKey,workspaceId}=props;
+ const create=usePermission('item.create'),nav=useNavigation(), {toolId,principalKey,workspaceId}=props;
  const config=engineeringSecondaryConfig(toolId,principalKey,workspaceId,nav?.location.filters?.kind);
- return <>{props.active&&toolId==='pcb-disagreement'&&!nav?.location.probe&&<Group><Button variant="quiet" onClick={()=>nav?.navigate({filters:{status:'new',kind:'pcb_assertion'}})}>New human assertion</Button><Button variant="quiet" onClick={()=>nav?.navigate({filters:{status:'new',kind:'pcb_comparison'}})}>New independent comparison</Button></Group>}<SecondaryLibrary {...props} config={config}/></>;
+ return <>{props.active&&toolId==='pcb-disagreement'&&!nav?.location.probe&&<Group><Button {...create.props} variant="quiet" onClick={()=>create.allowed&&nav?.navigate({filters:{status:'new',kind:'pcb_assertion'}})}>New human assertion</Button><Button {...create.props} variant="quiet" onClick={()=>create.allowed&&nav?.navigate({filters:{status:'new',kind:'pcb_comparison'}})}>New independent comparison</Button></Group>}<SecondaryLibrary {...props} config={config}/></>;
 }
 
 export function engineeringSecondaryConfig(toolId:string,principalKey:string,workspaceId:string,newKind?:string):SecondaryConfig {

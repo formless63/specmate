@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
 import { SecondaryRecordPage, type SecondaryRecordProps } from './SecondaryRecordPage';
-import { engineeringSecondaryConfig } from './EngineeringSecondaryLibrary';
+import { EngineeringSecondaryLibrary, engineeringSecondaryConfig } from './EngineeringSecondaryLibrary';
 import { secondaryPins, secondaryContentSignature, authorizeSecondaryContent } from './secondary-authority';
 import type { Content } from '../parts/api';
 import { emptyFormula } from '../preparation/api';
@@ -71,4 +71,9 @@ test('current passive review authority gates the whole frozen record before any 
 test('profile application starts from its own exact revision and remains a read with unknown quantity',async()=>{
  const [tool,kind,content]=cases[0]!,api=serve(kind,content);mount(tool,kind);await screen.findByRole('heading',{name:'Synthetic secondary'});fireEvent.change(await screen.findByLabelText('Preparation subject exact revision ID'),{target:{value:root}});fireEvent.change(screen.getByLabelText('Requested units'),{target:{value:''}});fireEvent.click(screen.getByRole('button',{name:'Compute preparation cuts'}));await waitFor(()=>expect(api.readRequests).toEqual([{revision_id:root,applications:[{section_id:null,profile_revision_id:'own-r7'}],quantity:null}]));expect(api.commands).toHaveLength(0);
  fireEvent.click(screen.getByRole('tab',{name:'Exact identity'}));fireEvent(window,new Event('focus'));await screen.findByRole('heading',{name:'Synthetic secondary'});expect(api.readRequests).toHaveLength(1);
+});
+
+test('viewer collection gates both explicit assertion/comparison create controls and the common New action',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>reply({results:[],next_after:null})));render(<MantineProvider env="test"><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><PermissionsProvider permissions={['workspace.read']}><EngineeringSecondaryLibrary active principalKey="viewer" workspaceId="workspace" toolId="pcb-disagreement" projects={[]} projectFilterId={null} onOpenInProject={vi.fn()}/></PermissionsProvider></QueryClientProvider></MantineProvider>);
+ for(const name of ['New human assertion','New independent comparison'])expect((await screen.findByRole('button',{name})).matches(':disabled')).toBe(true);expect(screen.queryByRole('button',{name:'New PCB review'})).toBeNull();
 });
