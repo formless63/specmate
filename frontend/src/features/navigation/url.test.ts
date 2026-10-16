@@ -41,7 +41,7 @@ test.each(redirects)("/%s?lens=%s redirects to %s", (area, lens, expected) => {
 test("every existing tool has a stable reachable canonical home", () => {
   for (const tool of ROUTE_TOOLS) {
     const location = { ...HOME, area: tool.area, lens: tool.id };
-    const expected = tool.id === "facts" ? "library-home" : tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
+    const expected = ["preparation", "end-preparation"].includes(tool.id) ? "wire-stock" : tool.id === "facts" ? "library-home" : tool.id === "mechanical-sources" ? "hardware" : ["copper", "passive-passages", "pcb-disagreement"].includes(tool.id) ? "pcb"
       : ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) ? "designs" : tool.id;
     const [path, query] = formatLocation(location).split("?");
     expect(parseLocation(path!, query ? `?${query}` : "").lens, tool.id).toBe(expected);
@@ -182,4 +182,17 @@ test("legacy Facts collection becomes Library while explicit registration and ow
   expect(exact.lens).toBe("facts");
   expect(exact.probe).toEqual({ object: "subject", rev: 2, path: ["left", "board"] });
   expect(parseLocation("/library", "?tool=facts&status=new").lens).toBe("facts");
+});
+
+test.each(['preparation','end-preparation'])('retired %s collection opens Stock Practices while New and exact profiles retain their own address',tool=>{
+ expect(formatLocation(parseLocation('/make',`?lens=${tool}`))).toBe('/library/wire-stocks?section=practices');
+ expect(formatLocation(parseLocation('/library/wire-stocks',`?tool=${tool}`))).toBe('/library/wire-stocks?section=practices');
+ const creating=parseLocation('/make',`?lens=${tool}&status=new`);expect(creating).toMatchObject({lens:tool,probe:null,filters:{status:'new'}});
+ const newUrl=new URL(formatLocation(creating),'http://example.invalid');expect(parseLocation(newUrl.pathname,newUrl.search)).toEqual(creating);
+ const exact=parseLocation('/make/profile-own@7/~/opaque/feature',`?lens=${tool}`);expect(exact).toMatchObject({lens:tool,probe:{object:'profile-own',rev:7,path:['opaque','feature']}});
+ const exactUrl=new URL(formatLocation(exact),'http://example.invalid');expect(parseLocation(exactUrl.pathname,exactUrl.search)).toEqual(exact);
+});
+test.each(['pcb-disagreement','passive-passages'])('deliberate New %s is an own secondary form rather than a Board collection',tool=>{
+ const creating=parseLocation('/design',`?lens=${tool}&status=new`);expect(creating).toMatchObject({lens:tool,probe:null,filters:{status:'new'}});
+ const url=new URL(formatLocation(creating),'http://example.invalid');expect(parseLocation(url.pathname,url.search)).toEqual(creating);
 });

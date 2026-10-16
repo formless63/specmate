@@ -97,8 +97,9 @@ export function parseLocation(pathname: string, search: string): WorkspaceLocati
   if (legacy && !probe && ["cables", "harnesses", "assemblies"].includes(lens)) lens = "designs";
   if (!probe && ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(lens) && !(lens === "cable-test-intent" && filters.status === "new")) lens = "designs";
   if (legacy && lens === "intents" && !probe && filters.status !== "new") { lens = "new-cable"; filters.kind = "cable"; filters.start = "ports"; }
-  if (!probe && BOARD_RECORD_SECTIONS[lens]) { filters.section = BOARD_RECORD_SECTIONS[lens]!; lens = "pcb"; }
+  if (!probe && BOARD_RECORD_SECTIONS[lens] && !(filters.status === "new" && ["pcb-disagreement", "passive-passages"].includes(lens))) { filters.section = BOARD_RECORD_SECTIONS[lens]!; lens = "pcb"; }
   if (!probe && lens === "facts" && filters.status !== "new") lens = "library-home";
+  if (!probe && ["preparation", "end-preparation"].includes(lens) && filters.status !== "new") { lens = "wire-stock"; filters.section = "practices"; }
   if (lens === "discovery") filters.palette = "open";
   if (lens === 'mechanical-sources') lens = 'hardware';
   return { area: areaOfTool(lens).id, lens, project, probe, malformed, ...(Object.keys(filters).length ? { filters } : {}) };
