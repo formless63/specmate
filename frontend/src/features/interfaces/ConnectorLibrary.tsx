@@ -1,4 +1,5 @@
-import { Button, Group } from '@mantine/core';
+import { Alert, Button, Group } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { LibraryList } from '../../components/library/LibraryList';
 import { usePermission } from '../../lib/permissions';
@@ -6,15 +7,25 @@ import { useNavigation } from '../navigation';
 import { useProbe } from '../probe';
 import { useNewRequest } from '../library-gallery/newRequest';
 import { LIBRARY_VIEWS } from '../shell/scope';
-import type { LibraryRecord, Project } from '../workspace/api';
+import { requestJson, type LibraryRecord, type Project } from '../workspace/api';
+import { SecondaryLibrary } from '../records/SecondaryLibrary';
+import { interfaceConfig, type SecondaryInterfaceKind } from './InterfaceRecords';
 import { ConnectorRecordPage } from './ConnectorRecordPage';
 import type { ConnectorKind, ConnectorValue, Relation } from './connector-api';
 
 type Visit = { key: string; definitionId: string | null; kind: ConnectorKind; initial?: { kind: ConnectorKind; value: ConnectorValue; name?: string } };
-type Props = { active: boolean; principalKey: string; workspaceId: string; toolId: string; projectFilterId: string | null; projects: Project[]; onOpenInProject: (project: string, record: LibraryRecord) => void };
+type Props = { recordKind?: string | null; active: boolean; principalKey: string; workspaceId: string; toolId: string; projectFilterId: string | null; projects: Project[]; onOpenInProject: (project: string, record: LibraryRecord) => void };
 const toolFor = (kind: ConnectorKind) => kind === 'port' ? 'ports' : kind === 'end_assembly' ? 'end-assemblies' : 'interfaces';
 /** Retention is workspace-library local; project chips only filter the collection. */
-export function ConnectorLibrary(props: Props) { return <ConnectorLibrarySession key={`${props.principalKey}:${props.workspaceId}`} {...props} />; }
+export function ConnectorLibrary(props: Props) { return <ConnectorRoute key={`${props.principalKey}:${props.workspaceId}`} {...props} />; }
+function ConnectorRoute(props: Props) {
+ const nav=useNavigation(),probe=useProbe(),object=props.active?probe?.probe?.object:null,filters=nav?.location.filters??{};
+ const kind=useQuery({queryKey:['interface-route-kind',props.principalKey,props.workspaceId,object,probe?.probe?.rev,filters.status],enabled:props.active&&!!object&&!props.recordKind,retry:false,queryFn:()=>{const query=new URLSearchParams({include_content:'false'});if(probe?.probe?.rev!==null&&probe?.probe?.rev!==undefined)query.set('revision_number',String(probe.probe.rev));else if(filters.status==='draft')query.set('working','true');return requestJson<{kind:string}>(`/api/v0/catalog/definitions/${encodeURIComponent(object!)}/record?${query}`,{cache:'no-store'});}});
+ const selected=object?props.recordKind??kind.data?.kind:filters.status==='new'?filters.kind:null,secondary=['interface_map','interface_assessment'].includes(selected??''),ready=!object||!!props.recordKind||kind.isSuccess&&!kind.isFetching;
+ return <>{props.active&&object&&!ready&&<Alert color={kind.error?'red':'blue'}>{kind.error?.message??'Checking exact interface record…'}{kind.error&&<Button onClick={()=>void kind.refetch()}>Refresh exact interface</Button>}</Alert>}
+ <div hidden={secondary||!ready}><ConnectorLibrarySession {...props} active={props.active&&ready&&!secondary}/></div>
+ {(['interface_map','interface_assessment'] as SecondaryInterfaceKind[]).map(value=><div key={value} hidden={!ready||selected!==value}><SecondaryLibrary {...props} toolId="interfaces" active={props.active&&ready&&selected===value} config={interfaceConfig(value)}/></div>)}</>;
+}
 function ConnectorLibrarySession({ active, principalKey, workspaceId, toolId, projectFilterId, projects, onOpenInProject }: Props) {
   const nav = useNavigation(), probe = useProbe();
   const filters = nav?.location.filters ?? {};

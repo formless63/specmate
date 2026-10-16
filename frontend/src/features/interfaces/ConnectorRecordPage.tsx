@@ -7,7 +7,7 @@ import { newestFirst, revisionOptionLabel } from '../../lib/revision-labels';
 import type { LibraryRecord, Project } from '../workspace/api';
 import { PinoutWorkbench } from '../pinout-editor/PinoutWorkbench';
 import { BodyFace } from './BodyFace';
-import { BodyEditor, PinoutEditor } from './InterfacePanel';
+import { BodyEditor, PinoutEditor } from './InterfaceFields';
 import { PortEditor } from './PortEditor';
 import { AssemblyEditor } from '../end-assemblies/EndAssemblyEditor';
 import { StackDiagram, StackView } from '../end-assemblies/StackEditor';

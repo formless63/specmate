@@ -3,9 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { AssessmentEditor, AssessmentResults } from "./InterfaceAssessmentPanel";
+import { AssessmentEditor, AssessmentResults } from "./AssessmentFields";
 import { ContactPositionEditor, ElectricalConditionsEditor } from "./InterfaceConditions";
-import { InterfaceInspector } from "./InterfacePanel";
+import { InterfaceInspector } from "./InterfaceInspector";
 import { unknownElectrical, type ContactView, type Electrical } from "./api";
 import { initialAssessment, operating, type Assessment, type Result } from "./assessment-api";
 
