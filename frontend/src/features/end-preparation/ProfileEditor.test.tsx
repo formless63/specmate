@@ -26,7 +26,7 @@ function baseRead(url: string) {
   return [{ definition_id: 'profile', name: 'Synthetic profile', kind: 'end_preparation_profile' }, { definition_id: 'other', name: 'Other history', kind: 'end_preparation_profile' }];
 }
 async function prepareApplication() {
-  fireEvent.change(screen.getByLabelText('End preparation cable exact revision ID'), { target: { value: 'cable-rev' } }); fireEvent.change(screen.getByLabelText('Applied end preparation profile exact revision ID'), { target: { value: 'profile-rev' } });
+  fireEvent.click(screen.getByRole('button',{name:'Advanced: paste exact revision ID for End preparation cable'}));fireEvent.change(screen.getByLabelText('End preparation cable exact revision ID'), { target: { value: 'cable-rev' } }); fireEvent.click(screen.getByRole('button',{name:'Advanced: paste exact revision ID for Applied end preparation profile'}));fireEvent.change(screen.getByLabelText('Applied end preparation profile exact revision ID'), { target: { value: 'profile-rev' } });
   await select('Profile A exact cable endpoint', 'right · unknown label · body body-right · pinout pinout-right'); await select('Profile B exact cable endpoint', 'left · unknown label · body body-left · pinout pinout-left'); fireEvent.change(screen.getByLabelText('Endpoint mapping basis'), { target: { value: 'Synthetic deliberate reverse mapping' } }); await select('Endpoint mapping review', 'reviewed');
 }
 

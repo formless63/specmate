@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Alert, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { read, type Definition, type Frozen } from '../end-preparation/api';
-import { RevisionPicker } from '../end-preparation/RevisionPicker';
+import { RevisionPicker } from '../cables/RevisionPicker';
 import type { SidePreparation } from './SideView';
 
 /**
@@ -18,7 +18,7 @@ export function PreparationSource({ stockRevisionId, revisionId, onRevision, onC
   return <Stack gap="xs" aria-label="Side view end preparation">
     <Text size="sm">Prepared ends come from a frozen end preparation profile pinned to this stock revision.</Text>
     {definitions.error && <Alert color="red">{definitions.error.message}</Alert>}
-    <RevisionPicker label="Side view end preparation" kinds={['end_preparation_profile']} definitions={definitions.data ?? []} value={revisionId} onChange={onRevision} />
+    <RevisionPicker label="Side view end preparation" kind="end_preparation_profile" definitions={definitions.data ?? []} value={revisionId} onChange={onRevision} />
     {frozen.error && <Alert color="red">{frozen.error.message}</Alert>}
     {mismatch && <Alert color="yellow">This profile is pinned to a different stock revision and is not drawn.</Alert>}
   </Stack>;

@@ -69,7 +69,7 @@ test('current passive review authority gates the whole frozen record before any 
 });
 
 test('profile application starts from its own exact revision and remains a read with unknown quantity',async()=>{
- const [tool,kind,content]=cases[0]!,api=serve(kind,content);mount(tool,kind);await screen.findByRole('heading',{name:'Synthetic secondary'});fireEvent.change(await screen.findByLabelText('Preparation subject exact revision ID'),{target:{value:root}});fireEvent.change(screen.getByLabelText('Requested units'),{target:{value:''}});fireEvent.click(screen.getByRole('button',{name:'Compute preparation cuts'}));await waitFor(()=>expect(api.readRequests).toEqual([{revision_id:root,applications:[{section_id:null,profile_revision_id:'own-r7'}],quantity:null}]));expect(api.commands).toHaveLength(0);
+ const [tool,kind,content]=cases[0]!,api=serve(kind,content);mount(tool,kind);await screen.findByRole('heading',{name:'Synthetic secondary'});fireEvent.click(screen.getByRole('button',{name:'Advanced: paste exact revision ID for Preparation subject'}));fireEvent.change(await screen.findByLabelText('Preparation subject exact revision ID'),{target:{value:root}});fireEvent.change(screen.getByLabelText('Requested units'),{target:{value:''}});fireEvent.click(screen.getByRole('button',{name:'Compute preparation cuts'}));await waitFor(()=>expect(api.readRequests).toEqual([{revision_id:root,applications:[{section_id:null,profile_revision_id:'own-r7'}],quantity:null}]));expect(api.commands).toHaveLength(0);
  fireEvent.click(screen.getByRole('tab',{name:'Exact identity'}));fireEvent(window,new Event('focus'));await screen.findByRole('heading',{name:'Synthetic secondary'});expect(api.readRequests).toHaveLength(1);
 });
 

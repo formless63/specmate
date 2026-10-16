@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import type { Inspection } from '../cables/api';
 import { authorityDenied, postRead, read, type Definition, type Request, type Result } from './api';
-import { RevisionPicker } from './RevisionPicker';
+import { RevisionPicker } from '../cables/RevisionPicker';
 import { InstructionInspection } from './ProfileEditor';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
@@ -16,8 +16,8 @@ export function ApplyPreparation({ definitions, onDenied, onReferenceDenied, aut
   if (hidden) return null;
   const endpoints = cable.data && !cable.isError && !cable.isFetching ? cable.data.endpoints.map(endpoint => ({ value: endpoint.local_id, label: `${endpoint.local_id} · ${endpoint.label ?? 'unknown label'} · body ${endpoint.body_revision_id} · pinout ${endpoint.pinout_revision_id}` })) : [];
   return <Card withBorder><Stack><Title order={3}>Apply end preparation to exact cable endpoints</Title><Text>Deliberately map logical A/B to distinct cable endpoint IDs. This read-only query retains reviewed intent and unresolved facts; it does not modify topology, cable lengths, stock, inventory or workshop practices.</Text>
-    <RevisionPicker label="End preparation cable" definitions={definitions} kinds={['cable']} value={fields.cable_revision_id} onChange={cable_revision_id => change({ cable_revision_id, a_endpoint_id: '', b_endpoint_id: '' })} onDenied={id => onReferenceDenied?.(id, authorityScope)} />
-    {profileRevisionId ? <RevisionLabel id={profileRevisionId} role="Selected exact profile" /> : <RevisionPicker label="Applied end preparation profile" definitions={definitions} kinds={['end_preparation_profile']} value={fields.profile_revision_id} onChange={profile_revision_id => change({ profile_revision_id })} onDenied={id => onReferenceDenied?.(id, authorityScope)} />}
+    <RevisionPicker label="End preparation cable" definitions={definitions} kind="cable" value={fields.cable_revision_id} onChange={cable_revision_id => change({ cable_revision_id, a_endpoint_id: '', b_endpoint_id: '' })} onAccessDenied={id => onReferenceDenied?.(id, authorityScope)} />
+    {profileRevisionId ? <RevisionLabel id={profileRevisionId} role="Selected exact profile" /> : <RevisionPicker label="Applied end preparation profile" definitions={definitions} kind="end_preparation_profile" value={fields.profile_revision_id} onChange={profile_revision_id => change({ profile_revision_id })} onAccessDenied={id => onReferenceDenied?.(id, authorityScope)} />}
     <Select label="Profile A exact cable endpoint" value={fields.a_endpoint_id || null} data={endpoints} onChange={id => change({ a_endpoint_id: id ?? '' })} /><Select label="Profile B exact cable endpoint" value={fields.b_endpoint_id || null} data={endpoints} onChange={id => change({ b_endpoint_id: id ?? '' })} />
     <TextInput label="Endpoint mapping basis" value={fields.mapping_basis} onChange={e => change({ mapping_basis: e.currentTarget.value })} /><Select label="Endpoint mapping review" value={fields.mapping_review} data={['unreviewed', 'reviewed']} onChange={mapping_review => change({ mapping_review: mapping_review as Request['mapping_review'] })} />
     <Group><Button disabled={result.isFetching || !fields.cable_revision_id || !fields.profile_revision_id || !fields.a_endpoint_id || !fields.b_endpoint_id || fields.a_endpoint_id === fields.b_endpoint_id || !fields.mapping_basis.trim()} onClick={() => { if (JSON.stringify(request) === JSON.stringify(fields)) void result.refetch(); else setRequest(fields); }}>Apply end preparation instructions</Button><Button disabled={!request} loading={result.isFetching} onClick={() => { void result.refetch(); }}>Refresh applied end preparation access</Button></Group>

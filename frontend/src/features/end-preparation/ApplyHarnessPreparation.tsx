@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type { Inspection } from '../harnesses/api';
 import { authorityDenied, postRead, read, type Definition, type HarnessRequest, type HarnessResult } from './api';
-import { RevisionPicker } from './RevisionPicker';
+import { RevisionPicker } from '../cables/RevisionPicker';
 import { InstructionInspection } from './ProfileEditor';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
@@ -24,9 +24,9 @@ export function ApplyHarnessPreparation({ definitions, onDenied, onReferenceDeni
   const ends = selected?.physical_ends ?? [];
   const choices = ends.map(end => ({ value: end.local_id, label: `${end.local_id} · ${end.label ?? 'unknown label'}` }));
   return <Card withBorder><Stack><Title order={3}>Apply end preparation to a Harness physical section</Title><Text>One exact section is one piece. Choose declared physical end IDs explicitly. Segment direction, repeated labels and electrical relationships never choose the mapping.</Text>
-    <RevisionPicker label="End preparation harness" definitions={definitions} kinds={['harness']} value={fields.harness_revision_id} onChange={harness_revision_id => change({ harness_revision_id, section_id: '', a_physical_end_id: null, b_physical_end_id: null })} onDenied={id => onReferenceDenied?.(id, authorityScope)} />
+    <RevisionPicker label="End preparation harness" definitions={definitions} kind="harness" value={fields.harness_revision_id} onChange={harness_revision_id => change({ harness_revision_id, section_id: '', a_physical_end_id: null, b_physical_end_id: null })} onAccessDenied={id => onReferenceDenied?.(id, authorityScope)} />
     <Select label="End preparation physical section" data={sections.map(section => ({ value: section.local_id, label: `${section.local_id} · stock ${section.stock_revision_id}` }))} value={fields.section_id || null} onChange={section_id => change({ section_id: section_id ?? '', a_physical_end_id: null, b_physical_end_id: null })} />
-    {profileRevisionId ? <RevisionLabel id={profileRevisionId} role="Selected exact profile" /> : <RevisionPicker label="Harness end preparation profile" definitions={definitions} kinds={['end_preparation_profile']} value={fields.profile_revision_id} onChange={profile_revision_id => change({ profile_revision_id })} onDenied={id => onReferenceDenied?.(id, authorityScope)} />}
+    {profileRevisionId ? <RevisionLabel id={profileRevisionId} role="Selected exact profile" /> : <RevisionPicker label="Harness end preparation profile" definitions={definitions} kind="end_preparation_profile" value={fields.profile_revision_id} onChange={profile_revision_id => change({ profile_revision_id })} onAccessDenied={id => onReferenceDenied?.(id, authorityScope)} />}
     {selected && <><Text>Declared physical ends: {ends.length}. Section {selected.local_id} counts once, regardless of segment count.</Text>{ends.length !== 2 && <Alert>Two-end profile application is unresolved. Author explicit physical ends in the Harness editor; multi-end sections remain declared without guessed assignments.</Alert>}{ends.map(end => <Text key={end.local_id}>{end.local_id}: {end.segment_ends.map(ref => `${ref.segment_id}/${ref.end}`).join(', ')}; endpoint {end.endpoint_id ?? 'unknown'}; {end.review}: {end.basis}</Text>)}</>}
     <Select clearable label="Profile A exact physical end" data={choices} value={fields.a_physical_end_id} onChange={a_physical_end_id => change({ a_physical_end_id })} /><Select clearable label="Profile B exact physical end" data={choices} value={fields.b_physical_end_id} onChange={b_physical_end_id => change({ b_physical_end_id })} />
     <TextInput label="Physical end mapping basis" value={fields.mapping_basis} onChange={e => change({ mapping_basis: e.currentTarget.value })} /><Select label="Physical end mapping review" data={['unreviewed', 'reviewed']} value={fields.mapping_review} onChange={mapping_review => change({ mapping_review: mapping_review as HarnessRequest['mapping_review'] })} />
