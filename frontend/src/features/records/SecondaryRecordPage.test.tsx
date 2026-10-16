@@ -28,3 +28,9 @@ test('a wrong returned kind withdraws content instead of showing an initial fall
  vi.stubGlobal('fetch',vi.fn(async()=>reply({definition_id:'secondary',workspace_id:'workspace',kind:'part',name:'Wrong item',selected:{kind:'draft',draft_id:'draft',state:'draft-v1',content:{basis:'Wrong'}}})));
  mount();await screen.findByText('The selected record is unavailable.');expect(screen.queryByRole('textbox',{name:'Declared basis'})).toBeNull();expect(screen.queryByRole('button',{name:'Save draft'})).toBeNull();
 });
+test.each([422,403])('explicit draft recovery is metadata-free and available only for the choice response (%s)',async status=>{
+ vi.stubGlobal('fetch',vi.fn(async(path:string)=>path.includes('draft_id=chosen')?reply({definition_id:'secondary',workspace_id:'workspace',kind:'preparation_profile',name:'Synthetic chosen',selected:{kind:'draft',draft_id:'chosen',state:'draft-v3',content:{basis:'Explicit'}}}):reply({error:{message:'Choose an explicit working draft.'}},status)));
+ mount();await screen.findByText('Choose an explicit working draft.');
+ if(status===403){expect(screen.queryByText('Advanced: choose a working draft')).toBeNull();return;}
+ fireEvent.click(screen.getByText('Advanced: choose a working draft'));fireEvent.change(screen.getByLabelText('Explicit working draft ID'),{target:{value:'chosen'}});fireEvent.click(screen.getByRole('button',{name:'Open chosen draft'}));await screen.findByRole('heading',{name:'Synthetic chosen'});expect(screen.getByLabelText('Declared basis')).toHaveProperty('value','Explicit');
+});

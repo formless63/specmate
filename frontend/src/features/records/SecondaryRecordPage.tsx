@@ -8,7 +8,7 @@ import type { Content } from '../parts/api';
 import { usePartSession, type SessionProps } from '../parts/usePartSession';
 
 export type SecondaryContext = {
-  content: Content; workingContent: Content; change: (content: Content) => void; editable: boolean; active: boolean;
+  refreshAccess: () => void; content: Content; workingContent: Content; change: (content: Content) => void; editable: boolean; active: boolean;
   selected: ReturnType<typeof usePartSession>['selected']; record: ReturnType<typeof usePartSession>['record'];
 };
 export type SecondaryRecordProps = SessionProps & {
@@ -26,7 +26,7 @@ function SecondaryRecordSession(props: SecondaryRecordProps) {
   const session = usePartSession(props), edit = usePermission(props.definitionId ? 'design.edit' : 'item.create'), freeze = usePermission('design.freeze');
   const [versions, setVersions] = useState(false), [discard, setDiscard] = useState(false), [draftId, setDraftId] = useState('');
   const selected = session.selected, revision = selected?.kind === 'revision' ? selected : null;
-  const context: SecondaryContext = { content: session.content ?? session.buffer, workingContent: session.buffer, change: session.change, editable: session.ready && session.editing && edit.allowed && !session.busy, active: session.ready, selected, record: session.record };
+  const context: SecondaryContext = { refreshAccess: () => { void session.refresh(); }, content: session.content ?? session.buffer, workingContent: session.buffer, change: session.change, editable: session.ready && session.editing && edit.allowed && !session.busy, active: session.ready, selected, record: session.record };
   const canSave = typeof props.canSave === 'function' ? props.canSave(context) : props.canSave !== false;
   const canFreeze = typeof props.canFreeze === 'function' ? props.canFreeze(context) : props.canFreeze !== false;
   const state: RecordState = revision ? { kind: 'revision', id: revision.revision_id, number: revision.number } : session.base ? { kind: 'draft', id: session.base.draft_id, version: Number(session.base.state.replace('draft-v', '')) || 1, dirty: session.dirty } : { kind: 'new' };
@@ -35,6 +35,7 @@ function SecondaryRecordSession(props: SecondaryRecordProps) {
     <Group><Button variant="quiet" onClick={props.onBack}>Back to {props.collectionLabel}</Button><Button variant="quiet" onClick={() => void session.refresh()}>Refresh access</Button>{props.definitionId && <Button variant="quiet" onClick={() => setVersions(true)}>Versions</Button>}</Group>
     {session.error && <Alert color="red">{session.error}</Alert>}
     {!session.ready && <Text role="status">Record contents are hidden until current access is confirmed. Local edits remain retained.</Text>}
+    {!session.ready && session.errorStatus === 422 && session.error === 'Choose an explicit working draft.' && <details><summary>Advanced: choose a working draft</summary><TextInput label="Explicit working draft ID" value={draftId} onChange={e => setDraftId(e.currentTarget.value)} /><Button disabled={!draftId.trim()} onClick={() => session.chooseDraft(draftId.trim())}>Open chosen draft</Button></details>}
     <div hidden={!session.ready} inert={!session.ready || undefined}><RecordPage active={session.ready} identity={{ id: props.definitionId ?? undefined, name: session.record?.name ?? (session.name || `New ${props.title.toLowerCase()}`), kind: session.record?.kind ?? props.initial.kind }} state={state}
       actions={session.editing ? <><Button variant="quiet" disabled={!context.editable || !session.canUndo} onClick={session.undoEdit}>Undo</Button>{session.base && <Button variant="quiet" disabled={session.busy} onClick={() => setDiscard(true)}>Revert local edits</Button>}<Button {...edit.props} disabled={!context.editable || !session.name.trim() || !canSave} loading={session.busy} onClick={() => void session.save()}>Save draft</Button><Button {...freeze.props} disabled={!freeze.allowed || !session.ready || session.busy || !session.base || session.dirty || !canFreeze} onClick={() => void session.freeze()}>Freeze saved draft</Button></> : edit.allowed && <Button onClick={() => props.onSelect(null, true)}>Continue draft</Button>}
       notice={<Stack gap={4}>{session.notice && <Text role="status">{session.notice}</Text>}{!props.definitionId && <TextInput label={`${props.title} name`} maxLength={200} disabled={session.busy || !edit.allowed} value={session.name} onChange={e => session.setName(e.currentTarget.value)} />}</Stack>}
