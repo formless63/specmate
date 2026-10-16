@@ -8,6 +8,7 @@ import { read as readIdentity, type Identity } from '../identity/api';
 import { CableInspector } from '../cables/CableInspector';
 import { CableSummary } from '../cables/CableSummary';
 import type { Draft as CableDraft } from '../cables/api';
+import type { Harness } from '../harnesses/api';
 import { HarnessInspector } from '../harnesses/HarnessInspector';
 import { read as readHarness, type Draft as HarnessDraft } from '../harnesses/api';
 import { HarnessViews } from '../harness-views/HarnessViews';
@@ -85,9 +86,11 @@ function CableDraftViews({ draftId, name }: { draftId: string; name: string }) {
   const stockId = draft.data?.content.cable?.stock_revision_id || null;
   const stock = useQuery({ queryKey: ['cable-stock', stockId], queryFn: () => loadFrozenStock(stockId!), enabled: !!stockId, retry: false });
   const cable = draft.data?.content.cable;
+  const sectionGraph = (cable as { schema_version?: string } | undefined)?.schema_version === '0.3';
   // A draft is not resolved here: landings show their layer and terminal IDs as saved.
-  const cableEnds: CableEnd[] | undefined = cable?.endpoints.map(e => ({ endpointId: e.local_id, label: e.label ?? `End ${e.local_id.toUpperCase()}`, stockEnd: e.stock_end ?? 'unknown',
-    terminations: Object.fromEntries(cable.assignments.filter(a => a.endpoint_id === e.local_id).map(a => [a.element_path, `${a.layer_id} ${a.terminal_id}`])) }));
+  const cableEnds: CableEnd[] | undefined = (!sectionGraph ? cable : undefined)?.endpoints.map(e => ({ endpointId: e.local_id, label: e.label ?? `End ${e.local_id.toUpperCase()}`, stockEnd: e.stock_end ?? 'unknown',
+    terminations: Object.fromEntries((cable?.assignments ?? []).filter(a => a.endpoint_id === e.local_id).map(a => [a.element_path, `${a.layer_id} ${a.terminal_id}`])) }));
+  if (sectionGraph && cable && !draft.isError) return <Stack><DraftNote state={draft.data!.state} /><HarnessViews revisionId={null} harness={cable as unknown as Harness} title={`${name} (draft cable)`} /></Stack>;
   return <Stack gap="xs" aria-label="Cable draft views">
     {draft.isError && <Alert color="red" role="alert">{draft.error instanceof Error ? draft.error.message : 'The draft could not be read.'}</Alert>}
     {draft.data && <DraftNote state={draft.data.state} />}

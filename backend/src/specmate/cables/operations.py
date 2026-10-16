@@ -178,7 +178,7 @@ def freeze(ctx: Context, p: CaptureCable):
     access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadCable):
-    return inspect_revision(ctx.user, p.revision_id)
+    return inspect_revision(ctx.user, p.revision_id, p.quantity)
 
 
 @operation(

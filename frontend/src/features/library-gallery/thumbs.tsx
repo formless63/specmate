@@ -49,6 +49,10 @@ function StockThumb({ stock, title, id }: { stock: unknown; title: string; id: s
 /** Cable as a drawn sketch: two ends, the jacket in its recorded color and the conductors fanned out. */
 function CableThumb({ content, stock, title }: { content: Json; stock: unknown; title: string }) {
   const cable = obj(content.cable);
+  if (cable.schema_version === '0.3') return <Frame title={title}>
+    {arr(cable.sections).slice(0, 6).map((section, i) => <g key={i}><path d={`M40 ${24 + i * 12} H200`} className="lg-jacket-unknown" strokeWidth={4} strokeDasharray="5 3" /><text x={120} y={23 + i * 12} textAnchor="middle" className="lg-thumb-caption">{String(obj(section).local_id)}</text></g>)}
+    <text x={120} y={110} textAnchor="middle" className="lg-thumb-caption">{arr(cable.sections).length} pieces · {arr(cable.endpoints).length} declared ends</text>
+  </Frame>;
   const ends = arr(cable.endpoints).map(obj);
   const section = stock ? stockSection(stock) : null;
   const conductors = section ? section.features.filter((f) => f.kind === "conductor").slice(0, 8) : [];

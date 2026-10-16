@@ -16,6 +16,7 @@ from specmate.end_preparation.application import apply_harness_profile, apply_pr
 from specmate.end_preparation.contracts import ApplyHarnessProfile, ApplyProfile
 from specmate.end_preparation.queries import profile_revision as end_profile_revision
 from specmate.harnesses.queries import inspect_revision as inspect_harness
+from specmate.interfaces.wiring import is_section_revision
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
 from specmate.preparation.calculation import compute
@@ -347,7 +348,7 @@ def project(user, configuration):
                 "workshop_quantity": workshop_quantity,
             }
         )
-        if revision.definition.kind == "cable":
+        if revision.definition.kind == "cable" and not is_section_revision(revision):
             cable = inspected["cable"]
             stock_cut = next(r for r in inspected["lengths"]["rows"] if r["target"] == "stock_cut")
             pieces = [
@@ -406,7 +407,7 @@ def project(user, configuration):
                 }
             )
         else:
-            harness = inspected["harness"]
+            harness = inspected.get("harness") or inspected["cable"]
             pieces = [
                 {
                     "section_id": s["local_id"],
@@ -515,7 +516,7 @@ def project(user, configuration):
             piece = next(p for p in pieces if p["section_id"] == end.section_id)
             if str(profile_stock.id) != piece["stock_revision_id"]:
                 raise ValidationFailed("End preparation must pin the section's exact stock.")
-            if revision.definition.kind == "cable":
+            if revision.definition.kind == "cable" and not is_section_revision(revision):
                 if end.a_end_id is None or end.b_end_id is None:
                     projected = {
                         "status": "unresolved",

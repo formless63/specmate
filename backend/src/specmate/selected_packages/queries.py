@@ -247,7 +247,9 @@ def boundary_interfaces(user, occurrences, captured):
                     **common,
                     "kind": "cable_endpoints",
                     "endpoints": cable["endpoints"],
-                    "terminals": terminals(cable),
+                    "terminals": cable["terminals"]
+                    if cable.get("topology") == "section_graph"
+                    else terminals(cable),
                     "boundary_exposure": "declared_endpoints_not_inferred_free_ports",
                 }
             )

@@ -8,6 +8,7 @@ from specmate.cables.queries import inspect_revision as inspect_cable
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.pins import pin_workspace
 from specmate.harnesses.queries import read_revision as read_harness
+from specmate.interfaces.wiring import is_section_revision
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
 from specmate.preparation.queries import profile_revision
@@ -49,7 +50,7 @@ def compute(user, request):
         }
         profiles = {rid: profile_revision(user, rid) for rid in revisions}
     pieces = {}
-    if subject.definition.kind == "cable":
+    if subject.definition.kind == "cable" and not is_section_revision(subject):
         inspected = inspect_cable(user, subject.id)
         values = {row["target"]: row for row in inspected["lengths"]["rows"]}
         pieces[None] = {
@@ -57,7 +58,7 @@ def compute(user, request):
             "segment_ids": [],
             "inputs": values,
         }
-    elif subject.definition.kind == "harness":
+    elif is_section_revision(subject):
         _, harness = read_harness(user, subject.id)
         for section in harness.harness.sections:
             pieces[section.local_id] = {

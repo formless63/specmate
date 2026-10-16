@@ -28,6 +28,7 @@ export type ResolvedTerminal = {
   reaches: Reach[];
 };
 export type ResolvedLayer = {
+  body_revision_id?: string; pinout_revision_id?: string;
   layer_id: string; kind: LayerKind; name: string | null; terminals: ResolvedTerminal[];
   variant_label?: string | null; pinout_name?: string | null; carried_connector_id?: string | null; carried_status?: "reviewed" | "unknown" | null;
   parts?: { local_id: string; name: string; summary: string; part_identity?: InlinePartIdentity }[]; electrical?: string;

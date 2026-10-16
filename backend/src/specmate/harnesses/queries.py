@@ -24,6 +24,7 @@ from specmate.interfaces.end_assembly_contracts import EndAssembly
 from specmate.interfaces.end_stacks import ResolvedStack, stack_references
 from specmate.interfaces.queries import Lookup
 from specmate.interfaces.queries import parse_content as parse_interface
+from specmate.interfaces.wiring import is_section_cable
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
 from specmate.wire_stock.schemas import StockSpecification
@@ -49,6 +50,17 @@ def authorize_references(user, revisions):
 
 
 def parse_content(content, kind=None):
+    if is_section_cable(content) and "harness" in content:
+        raise ValidationFailed("A section cable has one cable declaration, not a harness alias.")
+    if is_section_cable(content):
+        if kind is not None and kind != "cable":
+            raise ValidationFailed("Section cable content requires a cable definition.")
+        from specmate.cables.contracts import SectionCable
+
+        try:
+            return SectionCable.model_validate(content["cable"])
+        except ValidationError:
+            raise ValidationFailed("Invalid section cable content.") from None
     if "harness" not in content:
         if kind == "harness":
             raise ValidationFailed("Typed harness content is required.")
@@ -91,6 +103,11 @@ class Closure(Lookup):
         pending = [
             *(s.stock_revision_id for s in self.harness.sections),
             *(rid for e in self.harness.endpoints for rid in end_references(e)),
+            *(
+                [self.harness.intent_revision_id]
+                if getattr(self.harness, "intent_revision_id", None)
+                else []
+            ),
             *dependencies,
         ]
         pin_scope = None
@@ -172,6 +189,14 @@ class Closure(Lookup):
             body = json.loads(bytes(revision.snapshot.canonical))["content"]
             if "interface" in body:
                 self.values[rid] = parse_interface(body, revision.definition.kind)
+        intent_id = getattr(self.harness, "intent_revision_id", None)
+        if intent_id:
+            from specmate.interfaces.intent_contracts import CableIntent
+
+            if not isinstance(self.values.get(intent_id), CableIntent):
+                raise ValidationFailed(
+                    "A cable intent pin requires an exact cable intent revision."
+                )
         self.endpoints = {}
         for endpoint in self.harness.endpoints:
             stack = endpoint.stack

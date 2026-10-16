@@ -100,7 +100,11 @@ class Builder:
 
     def project(self, revision, path, content):
         kind = revision.definition.kind
-        if kind == "cable":
+        from specmate.interfaces.wiring import is_section_cable
+
+        if is_section_cable(content):
+            self.harness(revision, path, content)
+        elif kind == "cable":
             self.cable(revision, path, content)
         elif kind == "harness":
             self.harness(revision, path, content)

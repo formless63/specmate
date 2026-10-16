@@ -8,16 +8,16 @@ const stock = '00000000-0000-4000-8000-000000000001';
 const declared = (length = '125.5'): Harness => ({ ...initialHarness(), sections: [{ local_id: 'piece', stock_revision_id: stock, planned_cut_length_mm: length, cut_basis: 'Declared test cut' }], segments: [{ local_id: 'span', section_id: 'piece', label: null, element_paths: null }] });
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-function server() {
+function server(productKind: 'harness' | 'cable' = 'harness') {
  let harness = declared(), state = 'draft-v4', denied = false, lose = false, conflicting = false, creates = 0; let held: Promise<void> | null = null, finish = () => {};
- const calls: string[] = [], posts: { operation: string; payload: { harness?: Harness }; expected_state?: string; idempotency_key: string }[] = [], replay = new Map<string, object>();
+ const calls: string[] = [], posts: { operation: string; payload: { harness?: Harness; cable?: Harness }; expected_state?: string; idempotency_key: string }[] = [], replay = new Map<string, object>();
  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => { calls.push(url);
   if (url.includes('/access/workspace')) return response({ workspace_id: 'workspace' });
   if (url.includes('/revision-labels')) return response({ labels: [{ revision_id: stock, readable: !denied }], source_labels: [] });
-  if (url.includes('/record?')) { const query = new URL(url, 'http://test').searchParams, number = Number(query.get('revision_number') ?? '2'); if (number === 150) return response({ error: { message: 'Exact harness revision unavailable' } }, 404); return response({ definition_id: 'harness', workspace_id: 'workspace', kind: 'harness', name: 'Synthetic harness', selected: query.get('working') === 'true' ? { kind: 'draft', draft_id: 'd1', state, content: { harness } } : { kind: 'revision', revision_id: `r${number}`, number, snapshot_id: `snapshot-r${number}`, sha256: 'a'.repeat(64), content: { harness: declared('75') } } }); }
+  if (url.includes('/record?')) { const query = new URL(url, 'http://test').searchParams, number = Number(query.get('revision_number') ?? '2'); if (number === 150) return response({ error: { message: 'Exact harness revision unavailable' } }, 404); return response({ definition_id: 'harness', workspace_id: 'workspace', kind: productKind, name: `Synthetic ${productKind}`, selected: query.get('working') === 'true' ? { kind: 'draft', draft_id: 'd1', state, content: { [productKind]: { ...harness, ...(productKind === 'cable' ? { schema_version: '0.3' } : {}) } } } : { kind: 'revision', revision_id: `r${number}`, number, snapshot_id: `snapshot-r${number}`, sha256: 'a'.repeat(64), content: { [productKind]: { ...declared('75'), ...(productKind === 'cable' ? { schema_version: '0.3' } : {}) } } } }); }
   if (url.includes('/catalog/definitions/')) return response({ error: { message: 'Unrelated current draft denied' } }, 403);
   if (url.endsWith('/operations')) { const body = JSON.parse(String(init?.body)); posts.push(body); if (held) await held; if (replay.has(body.idempotency_key)) return response({ result: replay.get(body.idempotency_key) }); if (conflicting) return response({ error: { message: 'Competing harness token' } }, 409);
-   let result: object; if (body.operation === 'harness.freeze') result = { revision_id: 'r3', number: 3 }; else { if (body.operation === 'harness.create') creates += 1; harness = body.payload.harness; state = 'draft-v5'; result = { definition_id: 'harness', draft_id: 'd1', state, content: { harness } }; }
+   let result: object; if (body.operation === `${productKind}.freeze`) result = { revision_id: 'r3', number: 3 }; else { if (body.operation === `${productKind}.create`) creates += 1; harness = body.payload[productKind]; state = 'draft-v5'; result = { definition_id: 'harness', draft_id: 'd1', state, content: { [productKind]: harness } }; }
    replay.set(body.idempotency_key, result); if (lose) { lose = false; throw new Error('Committed response lost'); } return response({ result }); }
   return response({});
  }));
@@ -44,4 +44,15 @@ test('lost Freeze response retries one exact saved state without adopting an unr
 });
 test('late saved response after principal replacement cannot reveal old private authoring state',async()=>{
  const api=server();const view=setup();await saved();act(()=>current.change(declared('private-999')));await ready();api.hold();fireEvent.click(screen.getByText('Save'));await waitFor(()=>expect(api.posts).toHaveLength(1));view.rerender(view.tree({principalKey:'replacement'}));await act(async()=>api.finish());await ready();expect(current.message).not.toBe('Saved harness draft.');
+});
+
+
+test('section cable editor retains cable classification and uses cable commands with exact graph pins', async () => {
+ const api = server('cable'); setup({ productKind: 'cable' }); await saved();
+ expect(current.value?.schema_version).toBe('0.3');
+ act(() => current.change({ ...current.value!, sections: [{ ...current.value!.sections[0]!, planned_cut_length_mm: '190' }] })); await ready();
+ fireEvent.click(screen.getByText('Save')); await waitFor(() => expect(current.message).toBe('Saved cable draft.'));
+ expect(api.posts[0]).toMatchObject({ operation: 'cable.update', expected_state: 'draft-v4', payload: { cable: { schema_version: '0.3', sections: [{ stock_revision_id: stock, planned_cut_length_mm: '190' }] } } });
+ expect(api.posts[0]?.payload.harness).toBeUndefined();
+ fireEvent.click(screen.getByText('Freeze')); await waitFor(() => expect(api.posts[1]?.operation).toBe('cable.freeze'));
 });

@@ -64,6 +64,11 @@ def target(user, p, *, validate=True):
 
 
 def terminals(cable):
+    if cable.get("topology") == "section_graph":
+        raise ValidationFailed(
+            "Section cable tests require occurrence-qualified section terminals; "
+            "the legacy two-end test format cannot represent this topology."
+        )
     rows = []
     for endpoint in cable["endpoints"]:
         # Test terminals are connector contacts and stock features; an end without a

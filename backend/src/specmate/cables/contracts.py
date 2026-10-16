@@ -6,28 +6,17 @@ terminations target a layer terminal. Schema 0.1 (one connector per end, termina
 contacts) stays readable for frozen revisions; ``upgrade_content`` maps it to 0.2.
 """
 
-from typing import Annotated, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, ValidationError, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
 from specmate.cables.lengths import LengthPlan
+from specmate.harnesses.contracts import Harness
 from specmate.interfaces.contracts import ContactId, Text, unique
 from specmate.interfaces.end_assembly_contracts import EndStack, StackTerminalId
-
-ElementPath = Annotated[
-    str, Field(min_length=1, max_length=1000, pattern=r"^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)*$")
-]
-
-
-class Endpoint(StrictModel):
-    """A schema 0.1 cable end (and a harness end): one connector body and pinout."""
-
-    local_id: LocalId
-    label: Text | None = None
-    body_revision_id: UUID
-    pinout_revision_id: UUID
+from specmate.interfaces.wiring_contracts import CONNECTOR_LAYER, ElementPath, Endpoint
 
 
 class Termination(StrictModel):
@@ -121,9 +110,6 @@ class Cable(StrictModel):
         return self
 
 
-CONNECTOR_LAYER = "connector"
-
-
 def upgrade_content(value: dict) -> dict:
     """Map schema 0.1 cable content to 0.2; 0.2 content is returned unchanged.
 
@@ -169,18 +155,32 @@ def upgrade_content(value: dict) -> dict:
     }
 
 
+class SectionCable(Harness):
+    """A cable product with an explicit physical section graph.
+
+    Uses the same material ownership and joint semantics as a harness, without changing
+    the item's cable classification. No one-stock/two-end projection is inferred.
+    """
+
+    schema_version: Literal["0.3"] = "0.3"
+    intent_revision_id: UUID | None = None
+
+
+CableContent = Cable | SectionCable
+
+
 class CreateCable(StrictModel):
     # The workspace collection that receives the item; omitted means the actor's only one.
     workspace_id: UUID | None = None
     name: Text
-    cable: Cable
+    cable: CableContent
     # Navigation context: the project that will reference the new cable.
     project_id: UUID | None = None
 
 
 class UpdateCable(StrictModel):
     draft_id: UUID
-    cable: Cable
+    cable: CableContent
 
 
 class CaptureCable(StrictModel):
@@ -189,6 +189,7 @@ class CaptureCable(StrictModel):
 
 class ReadCable(StrictModel):
     revision_id: UUID
+    quantity: int = Field(default=1, strict=True, ge=1, le=1000000)
 
 
 class LengthImpact(StrictModel):

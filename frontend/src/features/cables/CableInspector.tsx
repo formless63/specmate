@@ -10,6 +10,7 @@ import { StackView } from '../end-assemblies/StackEditor';
 import { CableSummary, StockLink, endName } from './CableSummary';
 import { RevisionLabel } from '../../lib/IdentityLabel';
 import { CableWorkbench } from '../cable-workbench/CableWorkbench';
+import { HarnessInspector } from '../harnesses/HarnessInspector';
 import { IntentCheckPanel } from '../intent-check/IntentCheckPanel';
 
 export function CableInspector({ revisionId, revisions = [] }: { revisionId: string; revisions?: { revision_id: string; number: number }[] }) {
@@ -37,6 +38,7 @@ export function CableInspector({ revisionId, revisions = [] }: { revisionId: str
     </>}
     {!endpoint.body && <Text size="xs" c="dimmed">No connector layer: contact ratings are not evaluated for this end.</Text>}
   </Stack>);
+  if ((data as { topology?: string } | undefined)?.topology === 'section_graph' && !result.isError) return <HarnessInspector revisionId={revisionId} productKind="cable" />;
   return <Stack gap="xs" aria-label="Frozen cable inspection">
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {data && !result.isError && <CableWorkbench mode="frozen" name={cableName ?? 'Frozen cable'} cable={data.cable} stacks={data.endpoints.map(e => e.resolved_stack)} bodies={data.endpoints.map(e => e.body)}

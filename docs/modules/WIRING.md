@@ -944,3 +944,29 @@ The editor, declared copper projection and cable/harness canvas retain this term
 The two-port intent checker reports an unresolved connector occurrence rather than
 assuming a connector when an end contains several; occurrence selection for intent
 mapping is a separate extension. End preparation likewise does not infer a single body.
+
+### Cable section graphs (content 0.3)
+
+A cable can use content `schema_version: "0.3"` with `sections`, `segments`,
+`endpoints`, `joints` and `breakouts`. These are the same explicit physical ownership
+and terminal contracts used for section-based wiring; the definition remains kind
+`cable`. A section is one physical stock piece, so several uncut spans of the same
+section never create extra procurement demand. Multiple exact stock revisions,
+multiple populated ends, a single populated flying lead and zero connector ends are
+expressible without inventing a second connector. Reusable end assemblies keep exact
+revision pins and local layer identities.
+
+`cable.create`, `cable.update`, `cable.snapshot`, `cable.freeze` and `cable.read` accept
+or inspect this version through the same operation authority, state tokens and closure
+checks. `section-cable.json` is its generated contract. Stored 0.1/0.2 cable revisions
+are read by their original adapter and never migrated in place.
+
+Section cable inspection reports `topology: "section_graph"`, the exact `cable`
+declaration, resolved endpoints, section quantities and explicit terminal relationships.
+It does not synthesize the singleton-stock `conductors`/`lengths` projection. The editor,
+Formboard, material/preparation plans, coordinated documents, shared scene and export
+packages use the section graph. Exports contain the exact cable JSON and a section
+Formboard rather than a flattened conductor CSV. Two-end intent mapping and the legacy
+bench-test terminal format cannot represent this graph: those operations reject it
+explicitly pending occurrence-qualified mappings and test terminal contracts. Neither a
+successful projection nor an authored relationship proves physical continuity.

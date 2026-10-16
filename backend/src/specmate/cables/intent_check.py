@@ -799,7 +799,16 @@ class Check:
 def check(user, content, kind, intent_revision_id=None, dependencies=()):
     """The check result for cable content; the intent defaults to the cable's pinned one."""
     from specmate.cables.queries import parse_content
+    from specmate.interfaces.wiring import is_section_cable
 
+    if is_section_cable(content):
+        from specmate.cables.queries import authorize_content
+
+        authorize_content(user, content)
+        raise ValidationFailed(
+            "Section cable intent mapping requires exact endpoint and connector "
+            "occurrence choices; the two-end checker cannot infer them."
+        )
     cable = parse_content(content, kind)
     intent_id = intent_revision_id or (cable.intent_revision_id if cable else None)
     if intent_id is None:

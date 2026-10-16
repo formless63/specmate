@@ -45,7 +45,7 @@ def formboard_print(user, revision_id):
     cut lengths are drawn dashed at a labeled placeholder length, never as measurements.
     """
     revision, closure = read_revision(user, revision_id)
-    harness = content(revision)["harness"]
+    harness = closure.harness.model_dump(mode="json")
     for section in harness["sections"]:
         value = section["planned_cut_length_mm"]
         section["planned_cut_length_mm"] = None if value is None else str(value)

@@ -6,7 +6,7 @@ import { authorizeConnectorReferences } from '../interfaces/connector-api';
 import type { Identity } from '../identity/api';
 import { ApiError, requestJson, runOperation, type LibraryRecord } from '../workspace/api';
 import { initialHarness, type Harness, type Draft } from './api';
-export type HarnessRecordProps = { active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean; onCreated: (id: string, open: boolean) => void; onSelect: (number: number | null, draft?: boolean) => void };
+export type HarnessRecordProps = { productKind?: 'harness' | 'cable'; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean; onCreated: (id: string, open: boolean) => void; onSelect: (number: number | null, draft?: boolean) => void };
 type Pin = { revision_id: string; number: number; snapshot_id: string; sha256: string };
 type Selected = { definition_id: string; workspace_id: string; name: string; kind: string; selected: (Pin & { kind: 'revision'; content: { harness: Harness } }) | ({ kind: 'draft'; draft_id: string; state: string; base_revision_id?: string | null; content: { harness: Harness } }) };
 export const deniedHarness = (failure: unknown) => !!failure && typeof failure === 'object' && 'status' in failure && [401, 403, 404].includes(Number(failure.status));
@@ -17,18 +17,21 @@ export function harnessReferences(value: unknown): string[] {
 }
 /** A retained working buffer never substitutes for an exact frozen selection. */
 export function useHarnessRecord(props: HarnessRecordProps) {
+  const productKind = props.productKind ?? 'harness';
+  const initial = () => ({ ...initialHarness(), ...(productKind === 'cable' ? { schema_version: '0.3' as const } : {}) });
+  const normalize = <T extends { content: { harness?: Harness; cable?: Harness } }>(item: T): T & { content: { harness: Harness } } => ({ ...item, content: { ...item.content, harness: item.content[productKind]! } });
   const { active, principalKey, workspaceId, definitionId, revisionNumber, draftRequested } = props;
   const cache = useQueryClient(), edit = usePermission(definitionId ? 'design.edit' : 'item.create'), freezeGate = usePermission('design.freeze');
-  const key = ['harness-record', principalKey, workspaceId, definitionId];
-  const [value, setValue] = useState(initialHarness), [name, setName] = useState(''), [current, setCurrent] = useState<Draft | null>(null), [dirty, setDirty] = useState(!definitionId), [busy, setBusy] = useState(false), [blocked, setBlocked] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
+  const key = [productKind + '-section-record', principalKey, workspaceId, definitionId];
+  const [value, setValue] = useState(initial), [name, setName] = useState(''), [current, setCurrent] = useState<Draft | null>(null), [dirty, setDirty] = useState(!definitionId), [busy, setBusy] = useState(false), [blocked, setBlocked] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [choice, setChoice] = useState<string | null>(null), [history, setHistory] = useState(false), [details, setDetails] = useState(false), [offset, setOffset] = useState(0), [editorEpoch, setEditorEpoch] = useState(0);
   const alive = useRef(false), lifetime = useRef(0), changes = useRef(0), inFlight = useRef(false), intents = useRef(new Map<string, string>());
   const target = JSON.stringify([active, definitionId, revisionNumber, draftRequested, choice]); const latest = useRef(target); latest.current = target;
-  useEffect(() => { alive.current = true; lifetime.current += 1; inFlight.current = false; intents.current.clear(); setValue(initialHarness()); setName(''); setCurrent(null); setDirty(!definitionId); setChoice(null); setBusy(false); setBlocked(false); setError(''); setMessage(''); return () => { alive.current = false; lifetime.current += 1; }; }, [principalKey, workspaceId]);
+  useEffect(() => { alive.current = true; lifetime.current += 1; inFlight.current = false; intents.current.clear(); setValue(initial()); setName(''); setCurrent(null); setDirty(!definitionId); setChoice(null); setBusy(false); setBlocked(false); setError(''); setMessage(''); return () => { alive.current = false; lifetime.current += 1; }; }, [principalKey, workspaceId]);
   const selected = useQuery({ queryKey: [...key, 'selected', revisionNumber, draftRequested, choice], enabled: active && !!definitionId, retry: false, queryFn: async ({ signal }) => {
     const query = new URLSearchParams({ include_content: 'true' }); if (revisionNumber !== null) query.set('revision_number', String(revisionNumber)); else if (draftRequested) { query.set('working', 'true'); if (choice) query.set('draft_id', choice); }
     const result = await requestJson<Selected>(`/api/v0/catalog/definitions/${definitionId}/record?${query}`, { signal, cache: 'no-store' });
-    if (result.definition_id !== definitionId || result.workspace_id !== workspaceId || result.kind !== 'harness' || !result.selected.content.harness || revisionNumber !== null && (result.selected.kind !== 'revision' || result.selected.number !== revisionNumber)) throw new Error('The selected exact harness state is unavailable. No alternate revision was substituted.'); return result;
+    if (result.definition_id !== definitionId || result.workspace_id !== workspaceId || result.kind !== productKind || !((result.selected.content as { harness?: Harness; cable?: Harness })[productKind]) || productKind === 'cable' && (result.selected.content as { cable?: Harness }).cable?.schema_version !== '0.3' || revisionNumber !== null && (result.selected.kind !== 'revision' || result.selected.number !== revisionNumber)) throw new Error(`The selected exact ${productKind} state is unavailable. No alternate revision was substituted.`); return { ...result, selected: normalize(result.selected) };
   } });
   const state = selected.data?.selected, editing = !definitionId || revisionNumber === null && (draftRequested || state?.kind === 'draft');
   const needsChoice = editing && selected.isError && selected.error instanceof ApiError && selected.error.status === 422 && selected.error.message.includes('explicit working draft');
@@ -59,15 +62,16 @@ export function useHarnessRecord(props: HarnessRecordProps) {
   }
   async function save() {
     if (!editing || !definitionId && !name.trim() || definitionId && !current) return;
-    await command<Draft>(definitionId ? 'harness.update' : 'harness.create', { ...(current ? { draft_id: current.draft_id } : { workspace_id: workspaceId, name: name.trim() }), harness: value }, current?.state, enabled.current.edit, async (result, unchanged, sameTarget) => {
-      if (!result.content.harness) throw new Error('Saved harness content is unavailable.'); setCurrent(result); if (unchanged) { setValue(structuredClone(result.content.harness)); setDirty(false); } setMessage('Saved harness draft.'); if (!definitionId) props.onCreated(result.definition_id, sameTarget); await cache.invalidateQueries({ queryKey: ['workspace', 'designs'] }); await cache.invalidateQueries({ queryKey: ['workspace', 'library'] });
+    await command<Draft>(definitionId ? `${productKind}.update` : `${productKind}.create`, { ...(current ? { draft_id: current.draft_id } : { workspace_id: workspaceId, name: name.trim() }), [productKind]: value }, current?.state, enabled.current.edit, async (result, unchanged, sameTarget) => {
+      result = normalize(result);
+      if (!result.content.harness) throw new Error('Saved harness content is unavailable.'); setCurrent(result); if (unchanged) { setValue(structuredClone(result.content.harness)); setDirty(false); } setMessage(`Saved ${productKind} draft.`); if (!definitionId) props.onCreated(result.definition_id, sameTarget); await cache.invalidateQueries({ queryKey: ['workspace', 'designs'] }); await cache.invalidateQueries({ queryKey: ['workspace', 'library'] });
     });
   }
   async function freeze() {
     if (!editing || dirty || !current) return;
-    await command<{ revision_id: string; number: number; draft?: Draft }>('harness.freeze', { draft_id: current.draft_id }, current.state, enabled.current.freeze, async (result, unchanged, sameTarget) => { if (result.draft) setCurrent(result.draft); await cache.invalidateQueries({ queryKey: [...key, 'selected'] }); setMessage('Frozen exact harness revision.'); if (unchanged && sameTarget) props.onSelect(result.number); });
+    await command<{ revision_id: string; number: number; draft?: Draft }>(`${productKind}.freeze`, { draft_id: current.draft_id }, current.state, enabled.current.freeze, async (result, unchanged, sameTarget) => { if (result.draft) setCurrent(result.draft); await cache.invalidateQueries({ queryKey: [...key, 'selected'] }); setMessage(`Frozen exact ${productKind} revision.`); if (unchanged && sameTarget) props.onSelect(result.number); });
   }
   async function reload() { if (!active || !editing || !definitionId || inFlight.current) return; const generation = lifetime.current; const result = await selected.refetch(); if (alive.current && generation === lifetime.current && result.isSuccess && result.data.selected.kind === 'draft') { const draft = result.data.selected; setCurrent({ definition_id: definitionId, draft_id: draft.draft_id, state: draft.state, base_revision_id: draft.base_revision_id, content: draft.content }); setValue(structuredClone(draft.content.harness)); setDirty(false); setEditorEpoch(old => old + 1); } }
-  return { editing, current, workingValue: value, value: editing ? value : state?.kind === 'revision' ? state.content.harness : null, pin: state?.kind === 'revision' ? state : null, name: name || selected.data?.name || 'New harness', enteredName: name, setName: (next: string) => { if (enabled.current.active && enabled.current.edit && !enabled.current.checking && !enabled.current.unavailable && !definitionId && !busy) setName(next); }, dirty, busy, checking, unavailable, needsChoice, error, message, change, save, freeze, reload, refresh, identity, metadata, history, setHistory, setDetails, offset, setOffset, editorEpoch,
+  return { editing, current, workingValue: value, value: editing ? value : state?.kind === 'revision' ? state.content.harness : null, pin: state?.kind === 'revision' ? state : null, name: name || selected.data?.name || `New ${productKind}`, enteredName: name, setName: (next: string) => { if (enabled.current.active && enabled.current.edit && !enabled.current.checking && !enabled.current.unavailable && !definitionId && !busy) setName(next); }, dirty, busy, checking, unavailable, needsChoice, error, message, change, save, freeze, reload, refresh, identity, metadata, history, setHistory, setDetails, offset, setOffset, editorEpoch,
     chooseDraft: (id: string | null) => { if (active && !dirty && !busy) { setChoice(id); setCurrent(null); setEditorEpoch(old => old + 1); } }, failAuthority: (failure: unknown) => { if (deniedHarness(failure)) setBlocked(true); } };
 }

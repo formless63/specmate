@@ -535,6 +535,9 @@ def cable_section(scope, package, p):
         package.add(
             f"{base}/cable.json", canonical_bytes(inspected), "application/json", "cable", "cable"
         )
+        if inspected.get("topology") == "section_graph":
+            formboard_output(scope, package, revision)
+            continue
         rows = []
         for conductor in inspected["conductors"]:
             for end in conductor["ends"]:

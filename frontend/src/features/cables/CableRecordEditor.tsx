@@ -9,7 +9,8 @@ import { CableWorkbench } from "../cable-workbench/CableWorkbench";
 import { cableSelection, withCableSelection } from "../cable-workbench/selection";
 import { useNavigation } from "../navigation";
 import { useProbe } from "../probe";
-import type { LibraryRecord } from "../workspace/api";
+import { requestJson, type LibraryRecord } from "../workspace/api";
+import { HarnessRecordPage } from "../harnesses/HarnessRecordPage";
 import { CableFields, EndCard, useBodies, useCableSources } from "./CableFields";
 import { authorityDenied, cableProblems, command, initialCable, read, type Cable, type Definition, type Draft, type Identity, type Inspection } from "./api";
 
@@ -45,7 +46,27 @@ export function CableRecordHost({ record, workspaceId, principalKey, active = tr
   </div>)}</>;
 }
 
-export function CableRecordEditor({ record, requestedRevision, workspaceId, principalKey, active = true, viewSlots }: {
+export function CableRecordEditor(props: {
+  record: LibraryRecord; requestedRevision: number | null; workspaceId: string; principalKey: string; active?: boolean; viewSlots?: CableEditorViewSlots;
+}) {
+  const navigation = useNavigation();
+  const resolvedOnce = useRef(false);
+  const previous = useRef<typeof props | null>(null);
+  const topology = useRef<string | undefined>(undefined);
+  const query = new URLSearchParams({ include_content: 'true' });
+  if (props.requestedRevision !== null) query.set('revision_number', String(props.requestedRevision));
+  else if (navigation?.location.filters?.status === 'draft') query.set('working', 'true');
+  const selected = useQuery({ queryKey: ['cable-topology', props.principalKey, props.record.record_id, props.requestedRevision, navigation?.location.filters?.status], enabled: props.active !== false, retry: false, queryFn: ({ signal }) => requestJson<{ selected: { content: { cable?: { schema_version?: string } } } }>(`/api/v0/catalog/definitions/${props.record.record_id}/record?${query}`, { signal }) });
+  if (!selected.isPending) resolvedOnce.current = true;
+  if (selected.data) topology.current = selected.data.selected?.content?.cable?.schema_version;
+  const retained = topology.current === '0.3' && selected.isPending && previous.current ? { ...previous.current, active: props.active } : props;
+  if (!selected.isPending) previous.current = props;
+  if (topology.current === '0.3') return <HarnessRecordPage productKind="cable" active={props.active !== false} principalKey={props.principalKey} workspaceId={props.workspaceId} definitionId={props.record.record_id} revisionNumber={retained.requestedRevision} draftRequested={navigation?.location.filters?.status === 'draft'} onCreated={() => {}} onSelect={(number, draft) => navigation?.navigate({ probe: { object: props.record.record_id, rev: number, path: [] }, filters: { ...navigation.location.filters, status: draft ? 'draft' : '' } })} projects={[]} onBack={() => navigation?.navigate({ probe: null })} onOpenInProject={() => {}} />;
+  if (selected.isPending && !resolvedOnce.current && props.active !== false) return <Text role="status">Checking cable topology…</Text>;
+  return <SimpleCableRecordEditor {...retained} />;
+}
+
+export function SimpleCableRecordEditor({ record, requestedRevision, workspaceId, principalKey, active = true, viewSlots }: {
   record: LibraryRecord; requestedRevision: number | null; workspaceId: string; principalKey: string; active?: boolean; viewSlots?: CableEditorViewSlots;
 }) {
   const cache = useQueryClient();
@@ -95,17 +116,18 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
     setPage(number ? revisionPageOffset(number) : 0); setEditing(number === null);
   }, [requestedRevision]);
   useEffect(() => {
-    if (!base && draft.data?.content.cable) {
+    if (!base && draft.data?.content.cable && (draft.data.content.cable as { schema_version?: string }).schema_version !== "0.3") {
       setBase(draft.data); history.load(draft.data.content.cable);
       setReview(draft.data.content.cable.review); setBasis(draft.data.content.cable.review_basis ?? "");
     }
   }, [base, draft.data, history.load]);
-  const cable = editing ? history.value : frozen.data?.cable ?? initialCable();
+  const sectionContent = ((editing ? draft.data?.content.cable : frozen.data?.cable) as { schema_version?: string } | undefined)?.schema_version === '0.3';
+  const cable = editing ? history.value : sectionContent ? initialCable() : frozen.data?.cable ?? initialCable();
   const dirty = editing && !!base && canonicalJson(history.value) !== canonicalJson(base.content.cable);
   const sources = useCableSources(cable, workspaceId, setSourceDenied);
   const stacks = sources.denied ? [] : sources.resolved.map(result => result.data);
   const bodies = useBodies(stacks);
-  const blocked = sources.denied || sourceDenied || mutationDenied || identity.isError || targetIdentity.isError || newestIdentity.isError || (editing ? draft.isError : frozen.isError);
+  const blocked = sectionContent || sources.denied || sourceDenied || mutationDenied || identity.isError || targetIdentity.isError || newestIdentity.isError || (editing ? draft.isError : frozen.isError);
   const snapshot: CableEditorSnapshot = { definitionId: record.record_id, revisionId: editing ? null : revisionId, draftId: editing ? draftId : null, working: cable, saved: base?.content.cable ?? null, dirty };
   const changedOnServer = !!base && !!draft.data && draft.data.state !== base.state;
   const statusTarget = `${editing ? `draft:${base?.state}` : `frozen:${revisionId}`}:${dirty}`;

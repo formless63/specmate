@@ -13,6 +13,7 @@ from specmate.assemblies.queries import get_snapshot, occurrence_result
 from specmate.catalog_matching.queries import current_actor
 from specmate.catalog_packs.authoring import authorize_origin
 from specmate.design.models import Revision, Snapshot
+from specmate.interfaces.wiring import is_section_cable
 from specmate.mechanical_sources.operations import evaluate, parse_content
 from specmate.operations import NotFound, ValidationFailed
 from specmate.pcb.models import PcbInterpretation
@@ -167,7 +168,7 @@ class Resources:
             gid = stock_geometry(revision, "construction")
             if gid:
                 geometry_ids.append(gid)
-        elif kind == "cable":
+        elif kind == "cable" and not is_section_cable(content):
             from specmate.cables.contracts import upgrade_content
 
             cable = upgrade_content(content["cable"])
@@ -213,8 +214,8 @@ class Resources:
                     assignment,
                 )
             limitations.append("Endpoint placements and installed cable route are unknown.")
-        elif kind == "harness":
-            harness = content["harness"]
+        elif kind == "harness" or is_section_cable(content):
+            harness = content["cable"] if is_section_cable(content) else content["harness"]
             for section in harness["sections"]:
                 stock = self.revision(cable_stock_id(section))
                 # Cut quantity describes a physical piece, not an installed route.

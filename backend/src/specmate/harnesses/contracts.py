@@ -13,9 +13,9 @@ from uuid import UUID
 from pydantic import Field, ValidationError, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
-from specmate.cables.contracts import CONNECTOR_LAYER, ElementPath, Endpoint
 from specmate.interfaces.contracts import ContactId, Text, unique
 from specmate.interfaces.end_assembly_contracts import EndStack, StackTerminalId
+from specmate.interfaces.wiring_contracts import CONNECTOR_LAYER, ElementPath, Endpoint
 from specmate.inventory.contracts import Amount
 
 

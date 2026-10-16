@@ -36,13 +36,15 @@ export function harnessGraph(harness: Harness, data: HarnessCanvasData) {
     segmentY += nodeHeight(items[items.length - 1]!, stock ? 180 : 110);
   }
   for (const [index, endpoint] of harness.endpoints.entries()) {
-    const resolved = data.ends[endpoint.local_id], body = resolved?.body_revision_id ? data.bodies?.[resolved.body_revision_id] : undefined;
-    const geometry = body?.geometry_key ? geometryForBody({ geometry: body.geometry_key, mating_role: body.mating_role }) : null;
+    const resolved = data.ends[endpoint.local_id];
     const groups = (resolved?.layers ?? []).flatMap(layer => layer.kind === 'inline' && layer.parts?.length
       ? layer.parts.map(part => ({ layer, part: part.local_id, title: part.name, detail: part.summary, terminals: layer.terminals.filter(terminal => terminal.part === part.local_id) })).concat(layer.terminals.some(terminal => !terminal.part) ? [{ layer, part: '', title: 'Unassigned inline terminals', detail: 'Part identity unknown', terminals: layer.terminals.filter(terminal => !terminal.part) }] : [])
       : [{ layer, part: '', title: layer.name ?? layer.kind, detail: layer.kind, terminals: layer.terminals }]);
     if (!groups.length) items.push({ id: harnessNode('endpoint', endpoint.local_id), title: endpoint.label ?? endpoint.local_id, detail: 'Drop exact layers here; unresolved terminals remain unknown', endpointId: endpoint.local_id, ports: [], position: { x: index % 2 ? 850 : 0, y: endpointY[index % 2]! } });
     for (const group of groups) {
+      const bodyId = group.layer.body_revision_id ?? resolved?.body_revision_id;
+      const body = bodyId ? data.bodies?.[bodyId] : undefined;
+      const geometry = body?.geometry_key ? geometryForBody({ geometry: body.geometry_key, mating_role: body.mating_role }) : null;
       const id = group.part ? inlineNodeId(endpoint.local_id, group.layer.layer_id, group.part) : harnessNode('endpoint', endpoint.local_id, group.layer.layer_id);
       const ports = group.terminals.map(item => {
         const terminal: Terminal = { kind: 'endpoint', endpoint_id: endpoint.local_id, layer_id: group.layer.layer_id, terminal_id: item.terminal_id }, handle = harnessHandle(terminal);

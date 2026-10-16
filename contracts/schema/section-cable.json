@@ -1,0 +1,1073 @@
+{
+  "$defs": {
+    "BoardLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "board_revision_id": {
+          "format": "uuid",
+          "title": "Board Revision Id",
+          "type": "string"
+        },
+        "carried_connector_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carried Connector Id"
+        },
+        "carried_connector_layer_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carried Connector Layer Id"
+        },
+        "kind": {
+          "const": "board",
+          "default": "board",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer_id",
+        "board_revision_id"
+      ],
+      "title": "BoardLayer",
+      "type": "object"
+    },
+    "Breakout": {
+      "additionalProperties": false,
+      "properties": {
+        "fates": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "joint": "#/$defs/JointFate",
+                "through": "#/$defs/Through",
+                "unconnected": "#/$defs/Unconnected"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Through"
+              },
+              {
+                "$ref": "#/$defs/JointFate"
+              },
+              {
+                "$ref": "#/$defs/Unconnected"
+              }
+            ]
+          },
+          "maxItems": 2048,
+          "title": "Fates",
+          "type": "array"
+        },
+        "legs": {
+          "items": {
+            "$ref": "#/$defs/SegmentEnd"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Legs",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "trunk": {
+          "$ref": "#/$defs/SegmentEnd"
+        }
+      },
+      "required": [
+        "local_id",
+        "trunk",
+        "legs"
+      ],
+      "title": "Breakout",
+      "type": "object"
+    },
+    "ConnectorLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "body_revision_id": {
+          "format": "uuid",
+          "title": "Body Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "connector",
+          "default": "connector",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "pinout_revision_id": {
+          "format": "uuid",
+          "title": "Pinout Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer_id",
+        "body_revision_id",
+        "pinout_revision_id"
+      ],
+      "title": "ConnectorLayer",
+      "type": "object"
+    },
+    "EndStack": {
+      "additionalProperties": false,
+      "properties": {
+        "graph_version": {
+          "default": "0.1",
+          "enum": [
+            "0.1",
+            "0.2"
+          ],
+          "title": "Graph Version",
+          "type": "string"
+        },
+        "joins": {
+          "items": {
+            "$ref": "#/$defs/Join"
+          },
+          "maxItems": 500,
+          "title": "Joins",
+          "type": "array"
+        },
+        "layers": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "board": "#/$defs/BoardLayer",
+                "connector": "#/$defs/ConnectorLayer",
+                "inline": "#/$defs/InlineLayer",
+                "shell": "#/$defs/ShellLayer"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ConnectorLayer"
+              },
+              {
+                "$ref": "#/$defs/BoardLayer"
+              },
+              {
+                "$ref": "#/$defs/InlineLayer"
+              },
+              {
+                "$ref": "#/$defs/ShellLayer"
+              }
+            ]
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Layers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layers"
+      ],
+      "title": "EndStack",
+      "type": "object"
+    },
+    "EndpointTerminal": {
+      "additionalProperties": false,
+      "description": "One terminal of one layer of an endpoint's stack (contact, pad, lead or shell).",
+      "properties": {
+        "endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "endpoint",
+          "default": "endpoint",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "terminal_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "layer_id",
+        "terminal_id"
+      ],
+      "title": "EndpointTerminal",
+      "type": "object"
+    },
+    "HarnessEnd": {
+      "additionalProperties": false,
+      "description": "One harness endpoint: a pinned end assembly or an ad-hoc end stack.",
+      "properties": {
+        "end_assembly_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Assembly Revision Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "stack": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndStack"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "local_id"
+      ],
+      "title": "HarnessEnd",
+      "type": "object"
+    },
+    "InlineComponent": {
+      "additionalProperties": false,
+      "description": "A part on a signal path: its kind, the value as written and exact parameters.\n\nThe written value (\"470 R\", \"220u\") is kept as typed text. Exact parameters are\nstated separately; when both are present they must agree, nothing is guessed.",
+      "properties": {
+        "capacitance_f": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacitance F"
+        },
+        "kind": {
+          "default": "unknown",
+          "enum": [
+            "resistor",
+            "capacitor",
+            "diode",
+            "inductor",
+            "transformer",
+            "active",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "resistance_ohm": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "ge": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resistance Ohm"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "InlineComponent",
+      "type": "object"
+    },
+    "InlineLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "inline",
+          "default": "inline",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/InlinePart"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Parts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer_id",
+        "parts"
+      ],
+      "title": "InlineLayer",
+      "type": "object"
+    },
+    "InlinePart": {
+      "additionalProperties": false,
+      "description": "An explicitly declared two-lead use, ``<local_id>.1`` and ``<local_id>.2``.\n\nAn optional catalog pin records provenance. It never establishes the package's\nterminal count, pinout, electrical behavior, fit or compatibility.",
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/InlineComponent"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "part_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Part Revision Id"
+        }
+      },
+      "required": [
+        "local_id",
+        "component"
+      ],
+      "title": "InlinePart",
+      "type": "object"
+    },
+    "Join": {
+      "additionalProperties": false,
+      "description": "A declared connection between layers or distinct inline parts.",
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/StackTerminal"
+        },
+        "b": {
+          "$ref": "#/$defs/StackTerminal"
+        },
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "solder",
+            "crimp",
+            "mated",
+            "integrated",
+            "bond"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "through": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StackTerminal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "local_id",
+        "a",
+        "b",
+        "kind",
+        "basis"
+      ],
+      "title": "Join",
+      "type": "object"
+    },
+    "Joint": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "termination",
+            "splice",
+            "shield_bond"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "endpoint": "#/$defs/EndpointTerminal",
+                "segment": "#/$defs/SegmentTerminal"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/SegmentTerminal"
+              },
+              {
+                "$ref": "#/$defs/EndpointTerminal"
+              }
+            ]
+          },
+          "maxItems": 64,
+          "minItems": 2,
+          "title": "Members",
+          "type": "array"
+        }
+      },
+      "required": [
+        "local_id",
+        "kind",
+        "members",
+        "basis"
+      ],
+      "title": "Joint",
+      "type": "object"
+    },
+    "JointFate": {
+      "additionalProperties": false,
+      "properties": {
+        "joint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Joint Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "joint",
+          "default": "joint",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "terminal": {
+          "$ref": "#/$defs/SegmentTerminal"
+        }
+      },
+      "required": [
+        "local_id",
+        "terminal",
+        "joint_id"
+      ],
+      "title": "JointFate",
+      "type": "object"
+    },
+    "PhysicalEnd": {
+      "additionalProperties": false,
+      "description": "A declared material end, never derived from electrical relationships.",
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Review",
+          "type": "string"
+        },
+        "segment_ends": {
+          "items": {
+            "$ref": "#/$defs/SegmentEnd"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Segment Ends",
+          "type": "array"
+        }
+      },
+      "required": [
+        "local_id",
+        "segment_ends",
+        "basis"
+      ],
+      "title": "PhysicalEnd",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "description": "One planned stock piece, even when several segments describe it.",
+      "properties": {
+        "cut_basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Basis"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "physical_ends": {
+          "items": {
+            "$ref": "#/$defs/PhysicalEnd"
+          },
+          "maxItems": 64,
+          "title": "Physical Ends",
+          "type": "array"
+        },
+        "planned_cut_length_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planned Cut Length Mm"
+        },
+        "stock_revision_id": {
+          "format": "uuid",
+          "title": "Stock Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "stock_revision_id"
+      ],
+      "title": "Section",
+      "type": "object"
+    },
+    "Segment": {
+      "additionalProperties": false,
+      "properties": {
+        "element_paths": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+                "type": "string"
+              },
+              "maxItems": 1024,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Paths"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "section_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Section Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "section_id"
+      ],
+      "title": "Segment",
+      "type": "object"
+    },
+    "SegmentEnd": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "segment_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Segment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "end"
+      ],
+      "title": "SegmentEnd",
+      "type": "object"
+    },
+    "SegmentTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "kind": {
+          "const": "segment",
+          "default": "segment",
+          "title": "Kind",
+          "type": "string"
+        },
+        "segment_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Segment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "end",
+        "element_path"
+      ],
+      "title": "SegmentTerminal",
+      "type": "object"
+    },
+    "ShellLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "shell",
+          "default": "shell",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "part_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Part Revision Id"
+        }
+      },
+      "required": [
+        "layer_id"
+      ],
+      "title": "ShellLayer",
+      "type": "object"
+    },
+    "StackTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "terminal_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer_id",
+        "terminal_id"
+      ],
+      "title": "StackTerminal",
+      "type": "object"
+    },
+    "Through": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "const": "through",
+          "default": "through",
+          "title": "Kind",
+          "type": "string"
+        },
+        "leg": {
+          "$ref": "#/$defs/SegmentTerminal"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "trunk": {
+          "$ref": "#/$defs/SegmentTerminal"
+        }
+      },
+      "required": [
+        "local_id",
+        "trunk",
+        "leg",
+        "basis"
+      ],
+      "title": "Through",
+      "type": "object"
+    },
+    "Unconnected": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "const": "unconnected",
+          "default": "unconnected",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "terminal": {
+          "$ref": "#/$defs/SegmentTerminal"
+        }
+      },
+      "required": [
+        "local_id",
+        "terminal",
+        "basis"
+      ],
+      "title": "Unconnected",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A cable product with an explicit physical section graph.\n\nUses the same material ownership and joint semantics as a harness, without changing\nthe item's cable classification. No one-stock/two-end projection is inferred.",
+  "properties": {
+    "breakouts": {
+      "items": {
+        "$ref": "#/$defs/Breakout"
+      },
+      "maxItems": 256,
+      "title": "Breakouts",
+      "type": "array"
+    },
+    "endpoints": {
+      "items": {
+        "$ref": "#/$defs/HarnessEnd"
+      },
+      "maxItems": 256,
+      "title": "Endpoints",
+      "type": "array"
+    },
+    "intent_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intent Revision Id"
+    },
+    "joints": {
+      "items": {
+        "$ref": "#/$defs/Joint"
+      },
+      "maxItems": 2000,
+      "title": "Joints",
+      "type": "array"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "schema_version": {
+      "const": "0.3",
+      "default": "0.3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/Section"
+      },
+      "maxItems": 256,
+      "title": "Sections",
+      "type": "array"
+    },
+    "segments": {
+      "items": {
+        "$ref": "#/$defs/Segment"
+      },
+      "maxItems": 256,
+      "title": "Segments",
+      "type": "array"
+    }
+  },
+  "title": "SectionCable",
+  "type": "object"
+}

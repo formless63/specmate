@@ -387,10 +387,12 @@ def render(projection):
         declarations = scope["declarations"]
         cable = declarations.get("cable")
         harness = declarations.get("harness")
+        if cable is not None and declarations.get("topology") == "section_graph":
+            harness, cable = cable, None
         contexts.append(
             {
                 "address": scope["address"],
-                "kind": "cable" if cable is not None else "harness",
+                "kind": "cable" if declarations.get("cable") is not None else "harness",
                 "disposition": scope["disposition"],
                 "sections": [
                     {

@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from specmate.cables.queries import inspect_revision as inspect_cable
 from specmate.end_preparation.application import apply_profile
 from specmate.harnesses.queries import read_revision as read_harness
+from specmate.interfaces.wiring import is_section_revision
 from specmate.inventory.contracts import QUANTITY_CONTEXT, UNITS, Quantity
 from specmate.inventory.queries import get_consumption, returnable_quantity
 from specmate.operations import ValidationFailed
@@ -106,7 +107,7 @@ def reconcile(user, record, item_revision_id, subject_revision_id, dimension):
 
 def project(user, plan):
     subject = get_revision(user, plan.subject_revision_id)
-    if subject.definition.kind == "cable":
+    if subject.definition.kind == "cable" and not is_section_revision(subject):
         cable = inspect_cable(user, subject.id)
         declaration = next(r for r in cable["lengths"]["rows"] if r["target"] == "stock_cut")
         physical = {
@@ -117,7 +118,7 @@ def project(user, plan):
                 "segment_ids": [],
             }
         }
-    elif subject.definition.kind == "harness":
+    elif is_section_revision(subject):
         _, inspected = read_harness(user, subject.id)
         harness = inspected.harness
         physical = {

@@ -6,7 +6,7 @@ from contextvars import ContextVar
 from pydantic import ValidationError
 
 from specmate.access.permissions import Perm, authorize
-from specmate.cables.contracts import Cable
+from specmate.cables.contracts import Cable, SectionCable
 from specmate.cables.lengths import project_lengths
 from specmate.design.closure_reads import closure_reads
 from specmate.design.models import Revision, SnapshotDependency
@@ -17,6 +17,7 @@ from specmate.interfaces.end_stacks import ResolvedStack, stack_references
 from specmate.interfaces.intent_contracts import CableIntent
 from specmate.interfaces.queries import Lookup
 from specmate.interfaces.queries import parse_content as parse_interface
+from specmate.interfaces.wiring import is_section_cable
 from specmate.operations import NotFound, ValidationFailed
 from specmate.wire_stock.schemas import StockSpecification
 
@@ -41,6 +42,8 @@ def authorize_references(user, revisions):
 
 
 def parse_content(content, kind=None):
+    if is_section_cable(content) and "harness" in content:
+        raise ValidationFailed("A section cable has one cable declaration, not a harness alias.")
     if "cable" not in content:
         if kind == "cable":
             raise ValidationFailed("Typed cable content is required.")
@@ -49,7 +52,9 @@ def parse_content(content, kind=None):
         raise ValidationFailed("Cable content requires a cable definition.")
     try:
         # Frozen schema 0.1 content stays readable; it is upgraded in memory, never rewritten.
-        return Cable.model_validate(content["cable"])
+        return (SectionCable if is_section_cable(content) else Cable).model_validate(
+            content["cable"]
+        )
     except ValidationError:
         raise ValidationFailed("Invalid cable content.") from None
 
@@ -85,6 +90,11 @@ class Closure(Lookup):
             self._build(user, content, kind, dependencies, authority_only)
 
     def _build(self, user, content, kind, dependencies, authority_only):
+        if is_section_cable(content):
+            raise ValidationFailed(
+                "This operation requires a single-stock cable; use the "
+                "section graph operation for this cable."
+            )
         self.cable = parse_content(content, kind)
         self.revisions = {}
         if self.cable is None:
@@ -194,23 +204,43 @@ class Closure(Lookup):
 
 
 def authorize_content(user, content, *, authority_only=False):
-    Closure(user, content, authority_only=authority_only)
+    if is_section_cable(content):
+        from specmate.harnesses.queries import Closure as SectionClosure
+
+        SectionClosure(user, content, "cable", authority_only=authority_only)
+    else:
+        Closure(user, content, authority_only=authority_only)
 
 
 def dependency_revisions(user, definition, content):
+    if is_section_cable(content):
+        from specmate.harnesses.queries import dependency_revisions as section_dependencies
+
+        return section_dependencies(user, definition, content)
     return sorted(Closure(user, content, definition.kind).revisions, key=str)
 
 
-def inspect_revision(user, revision_id):
+def inspect_revision(user, revision_id, quantity=1):
     revision = (
         Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
     )
     if revision is None:
         raise NotFound("Cable revision unavailable.")
     authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
+    content = json.loads(bytes(revision.snapshot.canonical))["content"]
+    if is_section_cable(content):
+        from specmate.harnesses.queries import inspect_revision as inspect_sections
+
+        inspected = inspect_sections(user, revision_id, quantity)
+        inspected["cable"] = inspected.pop("harness")
+        inspected["definition_id"] = str(revision.definition_id)
+        inspected["topology"] = "section_graph"
+        inspected["quantities"]["cable_count"] = inspected["quantities"].pop("harness_count")
+        inspected["stored_schema_version"] = "0.3"
+        return inspected
     closure = Closure(
         user,
-        json.loads(bytes(revision.snapshot.canonical))["content"],
+        content,
         revision.definition.kind,
         revision.snapshot.dependencies.values_list("revision_id", flat=True),
     )
@@ -457,6 +487,41 @@ def length_impact(user, before_id, after_id):
     after = inspect_revision(user, after_id)
     if before["definition_id"] != after["definition_id"]:
         raise ValidationFailed("Length comparison requires revisions of one cable definition.")
+    if before.get("topology") == "section_graph" or after.get("topology") == "section_graph":
+        fields = ("sections", "segments", "endpoints", "joints", "breakouts", "intent_revision_id")
+        changes = [
+            field for field in fields if before["cable"].get(field) != after["cable"].get(field)
+        ]
+        sections = [
+            {
+                "section": field,
+                "status": "changed",
+                "reviews": [_PREPARATION, _DOCUMENTS],
+                "summary": f"The exact cable {field} declarations changed.",
+                "details": [],
+            }
+            for field in changes
+        ]
+        return {
+            "before_revision_id": before["revision_id"],
+            "after_revision_id": after["revision_id"],
+            "before_sha256": before["sha256"],
+            "after_sha256": after["sha256"],
+            "route_changed": "segments" in changes,
+            "changes": changes,
+            "sections": sections,
+            "preparation_review_required": bool(changes),
+            "document_review_required": bool(changes),
+            "stock_revision_changed": {
+                (s["local_id"], s["stock_revision_id"]) for s in before["cable"].get("sections", [])
+            }
+            != {
+                (s["local_id"], s["stock_revision_id"]) for s in after["cable"].get("sections", [])
+            },
+            "stock_facts_written": False,
+            "declarations_applied": False,
+            "physical_qualification": "not_evaluated",
+        }
     old = {row["target"]: row for row in before["lengths"]["rows"]}
     new = {row["target"]: row for row in after["lengths"]["rows"]}
     changes = [

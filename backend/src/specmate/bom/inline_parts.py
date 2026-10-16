@@ -3,6 +3,7 @@
 import json
 
 from specmate.interfaces.end_assembly_contracts import EndAssembly
+from specmate.interfaces.wiring import is_section_cable
 from specmate.operations import ValidationFailed
 
 
@@ -15,10 +16,11 @@ def inline_parts(revision, revisions):
     if kind == "end_assembly":
         endpoints = [(None, EndAssembly.model_validate(content["interface"]).stack)]
     else:
-        from specmate.cables.contracts import Cable
+        from specmate.cables.contracts import Cable, SectionCable
         from specmate.harnesses.contracts import Harness
 
-        value = (Cable if kind == "cable" else Harness).model_validate(content[kind])
+        model = SectionCable if is_section_cable(content) else Cable if kind == "cable" else Harness
+        value = model.model_validate(content[kind])
         endpoints = []
         for endpoint in value.endpoints:
             stack = endpoint.stack

@@ -27,8 +27,8 @@ def draft(request, draft_id: UUID):
 
 
 @router.get("/revisions/{revision_id}")
-def revision(request, revision_id: UUID):
-    return inspect_revision(request.user, revision_id)
+def revision(request, revision_id: UUID, quantity: int = 1):
+    return inspect_revision(request.user, revision_id, quantity)
 
 
 @router.get("/length-impact")
