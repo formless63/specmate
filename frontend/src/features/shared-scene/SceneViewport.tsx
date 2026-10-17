@@ -4,7 +4,7 @@ import { Alert, Button, Group, Stack, Text } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '@mantine/hooks';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { addInspectionLighting, aimInspectionLighting, connectFreeOrbitUpdates, createFreeOrbitControls } from '../model-preview/inspection-view';
 import type { Address, GeometryScene } from './api';
 import { selectionKey } from './api';
 import { applySceneTheme, buildSceneObject, themedMaterial, tokenColor } from './geometry';
@@ -83,18 +83,19 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
     element.style.cssText = 'width:100%;height:420px;display:block;touch-action:none';
     container.appendChild(element); renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight('#ffffff', '#606975', 3));
-    const light = new THREE.DirectionalLight('#ffffff', 3); light.position.set(-5, 10, 8); scene.add(light);
+    const lights = addInspectionLighting(scene);
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.001, 10000);
     camera.up.set(0, 0, 1);
-    const controls = new OrbitControls(camera, element); controls.enableDamping = false;
-    let contextLost = false, aspect = 1, mode: CameraView = 'isometric';
-    const render = () => { if (activeRef.current && !contextLost && container.clientWidth > 0 && document.visibilityState !== 'hidden') renderer.render(scene, camera); };
+    const controls = createFreeOrbitControls(camera, element);
+    let contextLost = false, aspect = 1, mode: CameraView = 'isometric', lightTarget = new THREE.Vector3(), lightSpan = 1;
+    const render = () => { if (activeRef.current && !contextLost && container.clientWidth > 0 && document.visibilityState !== 'hidden') { aimInspectionLighting(lights, camera, lightTarget, lightSpan); renderer.render(scene, camera); } };
+    const cancelControlUpdates = connectFreeOrbitUpdates(controls, () => activeRef.current && !contextLost && container.clientWidth > 0);
     const frame = (requested = mode) => {
       mode = requested;
       const bounds = live.current?.object ? new THREE.Box3().setFromObject(live.current.object.group) : new THREE.Box3();
       const center = bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3());
       const radius = bounds.isEmpty() ? 1 : Math.max(bounds.getSize(new THREE.Vector3()).length() / 2, 0.001);
+      lightTarget = center; lightSpan = radius;
       const direction = mode === 'top' ? new THREE.Vector3(0, 0, 1) : mode === 'end' ? new THREE.Vector3(1, 0, 0) : mode === 'front' ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(1, -1, 0.8).normalize();
       camera.up.set(0, mode === 'top' ? 1 : 0, mode === 'top' ? 0 : 1);
       const right = camera.up.clone().cross(direction).normalize(), up = direction.clone().cross(right).normalize();
@@ -116,7 +117,7 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
     const resize = () => {
       const width = container.clientWidth;
       if (width <= 0 || contextLost) return;
-      renderer.setSize(width, 420, false); aspect = width / 420; frame();
+      renderer.setSize(width, 420, false); aspect = width / 420; controls.handleResize(); frame();
     };
     controls.addEventListener('change', render);
     const observer = new ResizeObserver(resize); observer.observe(container); resize();
@@ -138,7 +139,7 @@ function ScopedViewport({ active = true, compactControls = false, scene: project
     return () => {
       reset.current = () => {}; observer.disconnect(); document.removeEventListener('visibilitychange', render);
       element.removeEventListener('webglcontextlost', lost); element.removeEventListener('pointerdown', down); element.removeEventListener('pointerup', pick);
-      controls.removeEventListener('change', render); controls.dispose();
+      controls.removeEventListener('change', render); cancelControlUpdates(); controls.dispose();
       const state = live.current; state?.object?.dispose(); state?.highlight?.geometry.dispose();
       state?.relatedMarks.forEach(disposeMark);
       if (state?.highlight) (state.highlight.material as THREE.Material).dispose(); live.current = null;
