@@ -20,7 +20,7 @@ from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 from specmate.pcb.component_values import parse_capacitance, parse_resistance
 from specmate.wire_stock.electrical import impedance_fact, ohm_value
 
-ALGORITHM = "cable_intent_check/0.2"
+ALGORITHM = "cable_intent_check/0.3"
 MAX_DEPTH = 24
 MAX_PATHS = 64
 LIMIT_REASON = f"search limit reached ({MAX_DEPTH} steps / {MAX_PATHS} paths)"
@@ -677,6 +677,17 @@ class Check:
 
     # -- rows
 
+    def row_isolation(self, row, status, reason, *evidence):
+        if row.isolation == "unknown":
+            return dim("unknown", "Row isolation policy is unknown. Observed: " + reason, *evidence)
+        if row.isolation == "unlisted_allowed":
+            return dim(
+                "not_evaluated",
+                "Row allows other connections; isolation is not required. Observed: " + reason,
+                *evidence,
+            )
+        return dim(status, reason, *evidence)
+
     def row(self, row):
         base = {
             "row_id": row.row_id,
@@ -783,9 +794,11 @@ class Check:
             sources = {r.from_contact_id: r.row_id for r in self.intent.rows if r.from_contact_id}
             shorted = [sources[c] for c in far if c in sources]
             dims["isolation"] = (
-                dim("fail", "Shorts to the net of " + ", ".join(sorted(shorted)) + ".")
+                self.row_isolation(
+                    row, "fail", "Shorts to the net of " + ", ".join(sorted(shorted)) + "."
+                )
                 if shorted
-                else dim("pass", "Joins no row's net.", "declared path")
+                else self.row_isolation(row, "pass", "Joins no row's net.", "declared path")
             )
             return {
                 **base,
@@ -845,13 +858,15 @@ class Check:
             names = [self.pin_label("to", c) for c in extra] + [
                 f"{self.pin_label('from', c)} (same end)" for c in near_others
             ]
-            dims["isolation"] = dim(
-                "fail", "Also reaches " + ", ".join(names) + ".", "declared path"
+            dims["isolation"] = self.row_isolation(
+                row, "fail", "Also reaches " + ", ".join(names) + ".", "declared path"
             )
         elif any(s == "unknown" for s in statuses.values()):
-            dims["isolation"] = dim("unknown", "A path passes an unknown step.")
+            dims["isolation"] = self.row_isolation(row, "unknown", "A path passes an unknown step.")
         else:
-            dims["isolation"] = dim("pass", "Reaches no other pin.", "declared path")
+            dims["isolation"] = self.row_isolation(
+                row, "pass", "Reaches no other pin.", "declared path"
+            )
         if limited:
             dims["connection"] = dim("unknown", LIMIT_REASON, "declared path")
         chosen = next((c for c in row.to_contact_ids if c in far), next(iter(far), None))

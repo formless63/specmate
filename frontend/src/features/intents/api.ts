@@ -10,6 +10,7 @@ export type ReturnPolicy = "dedicated_screen" | "shared_ground" | "any" | "not_a
 export type IntentRow = {
   row_id: string; requirement: Requirement; from_contact_id: string | null; to_contact_ids: string[]; signal_ref: SignalRef | null;
   pairing: "same_signal" | "answered" | "declared" | "unpaired"; return_policy: ReturnPolicy; conductor: ConductorRequirement;
+  isolation?: "no_unlisted_connections" | "unlisted_allowed" | "unknown" | null;
   required_parts: RequiredPart[]; question: Question | null; basis: string | null;
 };
 export type ShieldPolicy = { policy: "bond_from" | "bond_to" | "bond_both" | "isolated" | "unknown"; basis: string | null };
@@ -47,3 +48,5 @@ export function conductorText(c: ConductorRequirement): string | null {
 }
 
 export const proposalPath = (from: string, to: string) => `interfaces/intents/propose?from_revision_id=${encodeURIComponent(from)}&to_revision_id=${encodeURIComponent(to)}`;
+
+export function rowIsolationText(row: IntentRow): string { return row.isolation == null ? "Strict (legacy)" : row.isolation === "unknown" ? "Unknown" : row.isolation === "unlisted_allowed" ? "Other contacts allowed" : "Only listed contacts"; }

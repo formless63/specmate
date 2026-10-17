@@ -9,7 +9,7 @@ import { RevisionPicker } from "../cables/RevisionPicker";
 import type { CableEnd } from "../interfaces/api";
 import { SignalTypeChip } from "../interfaces/SignalSetFields";
 import {
-  CONDITIONING_LABELS, REQUIREMENT_LABELS, RETURN_LABELS, conductorText, contactText, proposalPath,
+  CONDITIONING_LABELS, REQUIREMENT_LABELS, RETURN_LABELS, conductorText, contactText, proposalPath, rowIsolationText,
   type CableIntent, type Definition, type IntentInspection, type IntentRow, type Proposal, type Requirement,
 } from "./api";
 import { ApiError, requestJson } from '../workspace/api';
@@ -20,6 +20,8 @@ import "./intent-visual.css";
 const read = <T,>(path: string) => requestJson<T>(`/api/v0/${path}`, { cache: 'no-store' });
 
 const ISOLATION = [{ value: "unknown", label: "unknown" }, { value: "no_unlisted_connections", label: "No connection beyond these rows" }, { value: "unlisted_allowed", label: "Other connections allowed" }];
+const ROW_ISOLATION = [{value:"legacy_strict",label:"Strict (legacy)"},{value:"no_unlisted_connections",label:"Only listed contacts"},{value:"unknown",label:"Unknown"},{value:"unlisted_allowed",label:"Other contacts allowed"}];
+const rowIsolation = (value: string | null): IntentRow["isolation"] => value === "legacy_strict" || value === null ? undefined : value as IntentRow["isolation"];
 const SHIELD = [{ value: "unknown", label: "unknown" }, { value: "bond_from", label: "Bond at the from end" }, { value: "bond_to", label: "Bond at the to end" }, { value: "bond_both", label: "Bond at both ends" }, { value: "isolated", label: "Isolated" }];
 const ANSWERED_BASIS = "Answered in the intent editor";
 
@@ -166,11 +168,13 @@ function SelectionInspector({ selection, value, wiring, from, to, onSelect, setR
       <dt>Conductor</dt><dd>{conductorText(row.conductor) ?? <SbUnknown what="Conductor" />}</dd>
       <dt>Return</dt><dd>{row.return_policy === "unknown" ? <SbUnknown what="Return" /> : RETURN_LABELS[row.return_policy]}</dd>
       <dt>Parts</dt><dd>{row.required_parts.length ? row.required_parts.map((p) => `${CONDITIONING_LABELS[p.conditioning]}${p.value ? ` ${p.value}` : ""}`).join(", ") : "none declared"}</dd>
+      <dt>Row isolation</dt><dd>{rowIsolationText(row)}</dd>
       <dt>Pairing</dt><dd>{row.pairing.replace("_", " ")}</dd>
     </dl>
     {row.question && <QuestionCard row={row} source={sourceOf(row, from)} lockedReason={lockedReason} onAnswer={onAnswer ? (ids) => onAnswer(row.row_id, ids) : undefined} />}
     {setRow ? <>
       <Select size="xs" label="Requirement" aria-label={`Requirement of row ${row.row_id}`} value={row.requirement} data={Object.entries(REQUIREMENT_LABELS).map(([v, label]) => ({ value: v, label }))} onChange={(v) => setRow(row.row_id, { requirement: (v ?? "required") as Requirement })} />
+      <Select size="xs" label="Row isolation" aria-label={`Isolation of row ${row.row_id}`} value={row.isolation ?? "legacy_strict"} data={ROW_ISOLATION} onChange={value => setRow(row.row_id,{isolation:rowIsolation(value)})} />
       <TextInput size="xs" label="Basis" aria-label={`Basis of row ${row.row_id}`} placeholder={row.requirement === "must_not_connect" ? "Reason required" : "optional"} value={row.basis ?? ""} onChange={(e) => setRow(row.row_id, { basis: e.currentTarget.value || null })} />
     </> : <dl className="ibv-kv"><dt>Requirement</dt><dd>{REQUIREMENT_LABELS[row.requirement]}</dd><dt>Basis</dt><dd>{row.basis ?? "—"}</dd></dl>}
   </Stack>;
@@ -193,7 +197,7 @@ function RowsEditor({ rows, onChange, from, to }: { rows: IntentRow[]; onChange:
   const toRows = new Map((to?.rows ?? []).map((r) => [r.contact_id, r] as const));
   const set = (id: string, patch: Partial<IntentRow>) => onChange(rows.map((r) => (r.row_id === id ? { ...r, ...patch } : r)));
   return <Table.ScrollContainer minWidth={980}><Table verticalSpacing={4} aria-label="Intent rows" className="sb-intent-table">
-    <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Requirement</Table.Th><Table.Th>Conductor</Table.Th><Table.Th>Return</Table.Th><Table.Th>Parts to add</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
+    <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Requirement</Table.Th><Table.Th>Row isolation</Table.Th><Table.Th>Conductor</Table.Th><Table.Th>Return</Table.Th><Table.Th>Parts to add</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
     <Table.Tbody>{rows.map((row) => {
       const source = row.from_contact_id ? fromRows.get(row.from_contact_id) : undefined;
       const signal = source?.signal ?? (row.to_contact_ids[0] ? toRows.get(row.to_contact_ids[0])?.signal : undefined);
@@ -204,6 +208,7 @@ function RowsEditor({ rows, onChange, from, to }: { rows: IntentRow[]; onChange:
           : <Text size="xs" c="dimmed">none</Text>}</Table.Td>
         <Table.Td>{signal ? <Group gap={4} wrap="nowrap"><span>{signal.name}</span><SignalTypeChip type={signal.type} /></Group> : <SbUnknown what="Signal" />}</Table.Td>
         <Table.Td><Select size="xs" aria-label={`Requirement in table of row ${row.row_id}`} value={row.requirement} data={Object.entries(REQUIREMENT_LABELS).map(([value, label]) => ({ value, label }))} onChange={(v) => set(row.row_id, { requirement: (v ?? "required") as Requirement })} /></Table.Td>
+        <Table.Td><Select size="xs" aria-label={`Isolation in table of row ${row.row_id}`} value={row.isolation ?? "legacy_strict"} data={ROW_ISOLATION} onChange={value => set(row.row_id,{isolation:rowIsolation(value)})} /></Table.Td>
         <Table.Td>{conductorText(row.conductor) ?? <SbUnknown what="Conductor" />}</Table.Td>
         <Table.Td>{row.return_policy === "unknown" ? <SbUnknown what="Return" /> : RETURN_LABELS[row.return_policy]}</Table.Td>
         <Table.Td>{row.required_parts.length ? row.required_parts.map((p, i) => <Text key={i} size="xs">{CONDITIONING_LABELS[p.conditioning]}{p.value ? ` ${p.value}` : ""}</Text>) : <Text size="xs" c="dimmed">none declared</Text>}</Table.Td>
@@ -230,7 +235,7 @@ function FrozenRows({ rows, from, to }: { rows: IntentRow[]; from?: CableEnd; to
   const fromRows = new Map((from?.rows ?? []).map((r) => [r.contact_id, r] as const));
   const toRows = new Map((to?.rows ?? []).map((r) => [r.contact_id, r] as const));
   return <Table.ScrollContainer minWidth={820}><Table verticalSpacing={2} aria-label="Intent rows" className="sb-intent-table">
-    <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Requirement</Table.Th><Table.Th>Conductor</Table.Th><Table.Th>Return</Table.Th><Table.Th>Parts to add</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
+    <Table.Thead><Table.Tr><Table.Th>From</Table.Th><Table.Th>To</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Requirement</Table.Th><Table.Th>Row isolation</Table.Th><Table.Th>Conductor</Table.Th><Table.Th>Return</Table.Th><Table.Th>Parts to add</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
     <Table.Tbody>{rows.map((row) => {
       const source = row.from_contact_id ? fromRows.get(row.from_contact_id) : undefined;
       const signal = source?.signal ?? (row.to_contact_ids[0] ? toRows.get(row.to_contact_ids[0])?.signal : undefined);
@@ -239,6 +244,7 @@ function FrozenRows({ rows, from, to }: { rows: IntentRow[]; from?: CableEnd; to
         <Table.Td className="sb-mono">{row.to_contact_ids.map((c) => contactText(toRows.get(c), c)).join(", ") || "none"}</Table.Td>
         <Table.Td>{signal ? <Group gap={4} wrap="nowrap"><span>{signal.name}</span><SignalTypeChip type={signal.type} /></Group> : <SbUnknown what="Signal" />}</Table.Td>
         <Table.Td>{row.requirement === "must_not_connect" ? <Badge color="red" variant="light">Must not connect</Badge> : REQUIREMENT_LABELS[row.requirement]}</Table.Td>
+        <Table.Td>{rowIsolationText(row)}</Table.Td>
         <Table.Td>{conductorText(row.conductor) ?? <SbUnknown what="Conductor" />}</Table.Td>
         <Table.Td>{row.return_policy === "unknown" ? <SbUnknown what="Return" /> : RETURN_LABELS[row.return_policy]}</Table.Td>
         <Table.Td>{row.required_parts.map((p, i) => <Text key={i} size="xs">{CONDITIONING_LABELS[p.conditioning]}{p.value ? ` ${p.value}` : ""}</Text>)}</Table.Td>

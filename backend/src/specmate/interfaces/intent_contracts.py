@@ -13,7 +13,7 @@ check) and wiring a cable from them (proposal) are separate, later steps.
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from specmate.assemblies.contracts import StrictModel
 from specmate.contracts import FiniteNumber
@@ -71,6 +71,8 @@ class IntentRow(StrictModel):
     from_contact_id: Contact | None = None
     to_contact_ids: list[Contact] = Field(default_factory=list, max_length=50)
     signal_ref: SignalRef | None = None
+    # None retains the original strict per-row check; global isolation is separate.
+    isolation: Literal["no_unlisted_connections", "unlisted_allowed", "unknown"] | None = None
     # How the two ends were paired: by exact signal identity, by a person, or not at all.
     pairing: Literal["same_signal", "answered", "declared", "unpaired"] = "declared"
     return_policy: Literal[
@@ -80,6 +82,13 @@ class IntentRow(StrictModel):
     required_parts: list[RequiredPart] = Field(default_factory=list, max_length=10)
     question: Question | None = None
     basis: Basis | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_unrecorded_isolation(self, handler):
+        data = handler(self)
+        if data.get("isolation") is None:
+            data.pop("isolation", None)
+        return data
 
     @model_validator(mode="after")
     def shape(self):

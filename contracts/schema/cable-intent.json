@@ -82,6 +82,23 @@
           "default": null,
           "title": "From Contact Id"
         },
+        "isolation": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_unlisted_connections",
+                "unlisted_allowed",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Isolation"
+        },
         "pairing": {
           "default": "declared",
           "enum": [

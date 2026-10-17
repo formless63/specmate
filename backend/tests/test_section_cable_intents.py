@@ -265,3 +265,87 @@ def test_signal_matching_requires_an_explicit_expected_identity_without_weakenin
         assert row["outcome"] == "fail"
     with pytest.raises(NotFound):
         op(users["outsider"], "cable_intent.check", {"cable_revision_id": revision["revision_id"]})
+
+
+@pytest.mark.parametrize("section", [False, True])
+@pytest.mark.parametrize(
+    "policy,status",
+    [
+        (None, "fail"),
+        ("no_unlisted_connections", "fail"),
+        ("unknown", "unknown"),
+        ("unlisted_allowed", "not_evaluated"),
+    ],
+)
+def test_explicit_row_isolation_policy_retains_observed_extras_and_legacy_strictness(
+    users, project, demo, section, policy, status
+):
+    from specmate.interfaces.intent_contracts import IntentRow
+    from specmate.operations import NotFound
+
+    original = Revision.objects.get(id=demo["intent"])
+    intent = json.loads(bytes(original.snapshot.canonical))["content"]["interface"]
+    ground = next(r for r in intent["rows"] if r["row_id"] == "from-3")
+    # The independent fixture connects source3 to both sink5+17. Require5 only.
+    ground["to_contact_ids"] = ["5"]
+    if policy is not None:
+        ground["isolation"] = policy
+    else:
+        assert "isolation" not in IntentRow.model_validate(ground).model_dump(mode="json")
+    intent["isolation"] = (
+        "unlisted_allowed"  # Whole-cable policy never changes strict row semantics.
+    )
+    value = (
+        section_content(demo)
+        if section
+        else examples.av_demo_cable(demo["stock"], demo["end_a"], demo["end_b"])
+    )
+    value["intent_revision_id"] = frozen(
+        users["owner"], project, intent, "Synthetic independent row isolation policy"
+    )
+    revision = make_cable(users["owner"], project, value)[1]
+    report = op(
+        users["viewer"], "cable_intent.check", {"cable_revision_id": revision["revision_id"]}
+    )
+    row = next(r for r in report["rows"] if r["row_id"] == "from-3")
+    assert row["dimensions"]["connection"]["status"] == "pass"
+    assert row["dimensions"]["signal_match"]["status"] == "pass"
+    assert row["dimensions"]["isolation"]["status"] == status
+    assert "17" in row["dimensions"]["isolation"]["reason"]
+    assert any("17" in pin for pin in row["reached"])
+    with pytest.raises(NotFound):
+        op(users["outsider"], "cable_intent.check", {"cable_revision_id": revision["revision_id"]})
+
+
+def test_unknown_row_isolation_does_not_override_explicit_signal_or_forbidden_connection(
+    users, project, demo
+):
+    original = Revision.objects.get(id=demo["intent"])
+    intent = json.loads(bytes(original.snapshot.canonical))["content"]["interface"]
+    ground = next(r for r in intent["rows"] if r["row_id"] == "from-3")
+    ground.update(
+        isolation="unknown",
+        signal_ref=next(r["signal_ref"] for r in intent["rows"] if r["row_id"] == "from-4"),
+    )
+    red = next(r for r in intent["rows"] if r["row_id"] == "from-4")
+    red.update(
+        isolation="unknown",
+        requirement="must_not_connect",
+        basis="Independent source hazard forbids this contact",
+    )
+    value = section_content(demo)
+    value["intent_revision_id"] = frozen(
+        users["owner"], project, intent, "Synthetic explicit hazards remain failures"
+    )
+    revision = make_cable(users["owner"], project, value)[1]
+    rows = {
+        r["row_id"]: r
+        for r in op(
+            users["viewer"], "cable_intent.check", {"cable_revision_id": revision["revision_id"]}
+        )["rows"]
+    }
+    assert rows["from-3"]["dimensions"]["signal_match"]["status"] == "fail"
+    assert rows["from-3"]["dimensions"]["isolation"]["status"] == "unknown"
+    assert rows["from-3"]["outcome"] == "fail"
+    assert rows["from-4"]["dimensions"]["connection"]["status"] == "fail"
+    assert rows["from-4"]["outcome"] == "fail"

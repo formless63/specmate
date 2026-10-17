@@ -875,12 +875,25 @@ reports ten separate dimensions, each `pass`, `fail`, `unknown`, `not_evaluated`
   (board path component or inline part) is on the path.
 - **return**: for a dedicated screen, the conductor's own screen lands at both ends on a
   pin whose signal is a return for this signal.
-- **isolation**: the pin reaches no other far pin and no other pin at its own end.
+- **isolation**: by default the pin reaches no other far pin and no other pin at its
+  own end. An explicit row policy may leave isolation unknown or allow extra contacts;
+  the observed contacts remain in the report.
 - **shield**: evaluated for the whole cable against the intent's shield policy and the
   stock's overall shield or drain.
 - **convention**: compares the conductor with exact stock conventions; it only flags and
   never changes an outcome.
 - **mating**: reviewed mating passes; unreviewed is `unknown`; none fails.
+
+A row's optional `isolation` policy is independent of the whole-cable policy.
+Omitted or null retains the strict existing row behavior and is omitted during
+serialization. `no_unlisted_connections` explicitly requires that same strict check.
+`unknown` reports isolation `unknown`; `unlisted_allowed` reports isolation
+`not_evaluated`, never a compatibility pass. Both retain observed extra far contacts
+and same-end contacts in the reason and path evidence. They do not relax a
+`must_not_connect` requirement, an explicitly wrong signal identity, or a missing
+required connection. The whole-cable `isolation` policy still governs only contacts
+outside the intent's rows. An absent row `signal_ref` reports signal matching unknown;
+it does not assert that a known target signal is wrong.
 
 A row's outcome is `fail` if any dimension fails, else `unknown` if any is unknown, else
 `flagged` if any is flagged, else `pass`; optional rows that are not wired read

@@ -526,6 +526,6 @@ def check_section_cable(user, content, kind, intent_revision_id, dependencies):
     # Reuse the physical graph under its cable classification; no synthetic combined stock.
     closure.cable = closure.harness
     result = SectionCheck(user, closure, intent_id).result()
-    result["algorithm_version"] = "section_cable_intent_check/0.3"
+    result["algorithm_version"] = "section_cable_intent_check/0.4"
     result["topology"] = "section_graph"
     return result

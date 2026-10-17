@@ -131,3 +131,26 @@ test('a held row proposal cannot overwrite a newer authored intent value', async
   await act(async () => complete!(new Response(JSON.stringify({ rows: proposed }))));
   expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe('Newer hand-authored purpose'); expect(screen.queryByRole('button', { name: 'Line Red video' })).toBeNull();
 });
+
+test('row isolation keeps legacy strict until explicitly changed and can restore the omitted setting',async()=>{
+ serve([]);const changed=vi.fn();
+ function Editable(){const[value,setValue]=useState(emptyIntent());return <IntentEditor value={value} definitions={[]} onChange={next=>{setValue(next);changed(next);}} />;}
+ render(wrap(<Editable />));await chooseEnds();fireEvent.click(screen.getByRole('button',{name:'Line Red video'}));
+ const select=screen.getByLabelText('Isolation of row from-4');expect((select as HTMLInputElement).value).toBe('Strict (legacy)');
+ expect(changed.mock.lastCall![0].rows[0].isolation).toBeUndefined();
+ fireEvent.click(select);fireEvent.click(screen.getByRole('option',{name:'Unknown',exact:true}));
+ expect(changed.mock.lastCall![0].rows[0].isolation).toBe('unknown');
+ fireEvent.click(select);fireEvent.click(screen.getByRole('option',{name:'Strict (legacy)',exact:true}));
+ expect(changed.mock.lastCall![0].rows[0].isolation).toBeUndefined();
+ expect(JSON.stringify(changed.mock.lastCall![0].rows[0])).not.toContain('isolation');
+ expect(proposed[0]!.isolation).toBeUndefined();
+});
+
+test('frozen row inspection names an unknown isolation policy without offering editing',async()=>{
+ serve([]);const value={...emptyIntent(),from_revision_id:'from-rev',to_revision_id:'to-rev',rows:proposed.map(row=>({...row,isolation:'unknown' as const}))};
+ render(wrap(<IntentEditor value={value} definitions={[]} />,['workspace.read']));
+ fireEvent.click(await screen.findByRole('button',{name:'Line Red video'}));
+ const inspector=screen.getByRole('complementary',{name:'Intent inspector'});
+ expect(within(inspector).getByText('Row isolation')).toBeTruthy();expect(within(inspector).getByText('Unknown',{exact:true})).toBeTruthy();
+ expect(screen.queryByLabelText('Isolation of row from-4')).toBeNull();
+});
