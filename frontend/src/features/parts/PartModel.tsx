@@ -1,7 +1,6 @@
 import { Alert, Button, Group, Select, Stack, Text } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { sha256Hex } from '../../lib/sha256';
-import { addInspectionLighting, aimInspectionLighting, connectFreeOrbitUpdates, createFreeOrbitControls } from '../model-preview/inspection-view';
 import type { Representation } from '../identity/api';
 import { ApiError } from '../workspace/api';
 export type PreviewRepresentation = Pick<Representation, 'representation_id' | 'kind' | 'label' | 'source_bundle_revision_id' | 'source_path' | 'sha256' | 'rights' | 'rights_status' | 'model_metadata'> & { units?: string | null; frame?: string | null };
@@ -73,7 +72,7 @@ function MeshPreview({ bytes, format, units, frame }: { bytes: Uint8Array; forma
     let disposed = false; const controller = new AbortController(); const resources: (() => void)[] = [];
     const cleanup = () => { for (const release of resources.splice(0).reverse()) release(); }; setError('');
     void (async () => {
-      const THREE = await import('three');
+      const [THREE, inspectionView] = await Promise.all([import('three'), import('../model-preview/inspection-view')]);
       const element = host.current; if (disposed || !element) return;
       let object: import('three').Object3D;
       if (format === 'glb') {
@@ -93,12 +92,12 @@ function MeshPreview({ bytes, format, units, frame }: { bytes: Uint8Array; forma
       object.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(object), center = bounds.getCenter(new THREE.Vector3()), size = bounds.getSize(new THREE.Vector3());
       const span = Math.max(size.x, size.y, size.z); if (!Number.isFinite(span) || span <= 0) { cleanup(); throw new Error('Model bounds are unavailable.'); }
-      const centered = new THREE.Group(); centered.position.sub(center); centered.add(object); const scene = new THREE.Scene(); scene.add(centered); const lights = addInspectionLighting(scene);
+      const centered = new THREE.Group(); centered.position.sub(center); centered.add(object); const scene = new THREE.Scene(); scene.add(centered); const lights = inspectionView.addInspectionLighting(scene);
       const camera = new THREE.PerspectiveCamera(40, 1, span / 1000, span * 100); if (format === 'glb' && units && ['right_handed_y_up', 'right_handed_z_up'].includes(frame ?? '')) camera.up.set(0, 0, 1); camera.position.set(span * 1.5, span, span * 1.5);
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); resources.push(() => { renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove(); }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.domElement.setAttribute('aria-label', 'Source model preview'); element.append(renderer.domElement);
-      const controls = createFreeOrbitControls(camera, renderer.domElement); resources.push(() => controls.dispose());
-      const render = () => { const width = element.clientWidth || 300; renderer.setSize(width, 360); camera.aspect = width / 360; camera.updateProjectionMatrix(); aimInspectionLighting(lights, camera, new THREE.Vector3(), span); renderer.render(scene, camera); };
-      controls.addEventListener('change', render); resources.push(connectFreeOrbitUpdates(controls, () => !disposed));
+      const controls = inspectionView.createFreeOrbitControls(camera, renderer.domElement); resources.push(() => controls.dispose());
+      const render = () => { const width = element.clientWidth || 300; renderer.setSize(width, 360); camera.aspect = width / 360; camera.updateProjectionMatrix(); inspectionView.aimInspectionLighting(lights, camera, new THREE.Vector3(), span); renderer.render(scene, camera); };
+      controls.addEventListener('change', render); resources.push(inspectionView.connectFreeOrbitUpdates(controls, () => !disposed));
       const observer = new ResizeObserver(() => { controls.handleResize(); render(); }); resources.push(() => observer.disconnect()); observer.observe(element); render();
       if (disposed) cleanup();
     })().catch(failure => { cleanup(); if (!disposed) setError(failure instanceof Error ? failure.message : 'WebGL preview unavailable.'); });
