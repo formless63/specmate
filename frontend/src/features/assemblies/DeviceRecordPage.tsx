@@ -17,6 +17,7 @@ import { OccurrenceControls, RelationshipControls, WorkingFirmware, WorkingTree 
 import type { Assembly } from './api';
 import { MountingDetails, MountingEditor } from './MountingEditor';
 import './device-record.css';
+const RevisionModels = lazy(() => import('../parts/RevisionModels').then(module => ({ default: module.RevisionModels })));
 const Viewport = lazy(() => import('../shared-scene/SceneViewport'));
 const DeviceSections = lazy(() => import('./DeviceSections').then(module => ({ default: module.DeviceSections })));
 type Props = DeviceRecordProps & { projects: Project[]; onBack: () => void; onOpenInProject: (id: string, record: LibraryRecord) => void };
@@ -37,7 +38,8 @@ function DeviceSurface(props: Props & { record: ReturnType<typeof useDeviceRecor
   const context = useContextSelection(), navigation = useNavigation(), probe = useProbe();
   const edit = usePermission(definitionId ? 'design.edit' : 'item.create'), freeze = usePermission('design.freeze');
   const [ownView, setOwnView] = useState('scene'), [ownTab, setOwnTab] = useState('occurrence');
-  const view = active && ['scene', 'tree', 'documents'].includes(navigation?.location.filters?.view ?? '') ? navigation!.location.filters!.view! : ownView;
+  const selectedView = active && ['scene', 'tree', 'documents', 'model'].includes(navigation?.location.filters?.view ?? '') ? navigation!.location.filters!.view! : ownView;
+  const view = record.editing && selectedView === 'model' ? 'scene' : selectedView;
   const tab = active ? navigation?.location.filters?.section ?? ownTab : ownTab;
   const chooseTab = (value: string) => { setOwnTab(value); if (active) navigation?.navigate({ filters: { ...navigation.location.filters, section: value } }, { replace: true }); };
   useEffect(() => { record.setDetails(active && tab === 'more'); }, [active, tab, record.setDetails]);
@@ -71,6 +73,7 @@ function DeviceSurface(props: Props & { record: ReturnType<typeof useDeviceRecor
         view={view} onView={value => { setOwnView(value); if (active) navigation?.navigate({ filters: { ...navigation.location.filters, view: value } }, { replace: true }); }}
         views={[
           { id: 'scene', label: 'Scene', content: <DeviceScene geometry={geometry} active={frameActive && view === 'scene'} selected={sceneSelected} onSelect={selectScene} captured={!frozen} dirty={record.dirty} /> },
+          ...(frozen && content?.pin ? [{ id: 'model', label: 'Model', content: <Suspense fallback={<Text>Loading model view…</Text>}><Text size="sm">Source illustration only. This model does not establish occurrence placement, fit, clearance, connectivity or physical qualification.</Text><RevisionModels active={frameActive && view === 'model'} revisionId={content.pin.revision_id} principalKey={principalKey} workspaceId={workspaceId} onAccessLost={record.failAuthority} /></Suspense> }] : []),
           { id: 'tree', label: 'Tree', content: frozen && context.state.scene ? <TreeView /> : geometry ? <CapturedTree scene={geometry} selected={sceneSelected} onSelect={selectScene} /> : assembly ? <WorkingTree assembly={assembly} selected={selectedWorking} onSelect={choose} /> : null },
           { id: 'documents', label: 'Documents', content: content?.pin && frozen && definitionId ? <RootDocuments name={content.name} snapshot={{ definitionId, revisionId: content.pin.revision_id, draftId: null }} principalKey={principalKey} workspaceId={workspaceId} active={frameActive && view === 'documents'} authorizeWorking={async () => { throw new Error('Device documents require the selected frozen revision.'); }} /> : <Text size="sm">Exact device documents require a frozen revision. A captured draft scene does not establish a document or BOM qualification basis.</Text> },
         ]}

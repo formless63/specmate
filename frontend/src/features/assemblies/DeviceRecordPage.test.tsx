@@ -14,6 +14,10 @@ import type { Assembly } from './api';
 // Adapter coverage; real WebGL remains a separate checkpoint.
 vi.mock('../shared-scene/SceneViewport', () => ({ default: ({ active, scene, selected, onSelect }: { active: boolean; scene: { snapshot_id: string }; selected: { path: string[] } | null; onSelect: (value: object) => void }) => <div><p>Viewport active {String(active)} · {selected?.path.join('/') ?? 'None'}</p><button onClick={() => onSelect({ snapshot_id: scene.snapshot_id, path: ['right', 'board'] })}>Pick second board in scene</button></div> }));
 vi.mock('../../components/editor/Documents', () => ({ RootDocuments: () => <p>Exact frozen documents</p> }));
+vi.mock('../parts/RevisionModels', async () => {
+ const { ApiError } = await import('../workspace/api');
+ return { RevisionModels: ({ active, revisionId, onAccessLost }: { active: boolean; revisionId: string; onAccessLost: (failure: unknown) => void }) => active ? <div data-testid="exact-device-model">Model revision {revisionId}<button onClick={() => onAccessLost(new ApiError(403, 'Synthetic model source denied'))}>Withdraw synthetic model source</button></div> : null };
+});
 const child = '00000000-0000-4000-8000-000000000001';
 const original: Assembly = { ...emptyAssembly(), occurrences: [{ local_id: 'left', revision_id: child, display_ref: 'Left board', placement: { status: 'unknown' } }, { local_id: 'right', revision_id: child, display_ref: 'Right board', placement: { status: 'unknown' } }] };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -111,4 +115,19 @@ test('viewer Relationships never opens mounting authoring',async()=>{
 
 test('current mounting source denial conceals retained fields and restores local intent without advancing CAS',async()=>{
  const api=server();setup();await screen.findByRole('button',{name:'Save device'});tab('Relationships');const local=await screen.findByLabelText('Mounting declaration local ID');fireEvent.change(local,{target:{value:'private-retained-mount'}});api.deny(true);fireEvent.click(screen.getByRole('button',{name:'Refresh mounting choices'}));await screen.findByText(/Selected drawings and facts are hidden/);expect(screen.queryByLabelText('Mounting declaration local ID')).toBeNull();api.deny(false);fireEvent.click(screen.getByRole('button',{name:'Refresh device'}));await waitFor(()=>expect((screen.getByLabelText('Mounting declaration local ID') as HTMLInputElement).value).toBe('private-retained-mount'));expect(api.posts).toHaveLength(0);
+});
+
+
+test('frozen Model is lazy, exact and inactive on leaving the view or record', async () => {
+ const api=server();const page=setup({frozen:true,viewer:true});await screen.findByText('Viewport active true · None');
+ expect(screen.queryByTestId('exact-device-model')).toBeNull();tab('Model');
+ expect((await screen.findByTestId('exact-device-model')).textContent).toContain(api.scene.root.revision_id);
+ expect(screen.getByText(/Source illustration only/)).toBeTruthy();tab('Tree');expect(screen.queryByTestId('exact-device-model')).toBeNull();
+ tab('Model');await screen.findByTestId('exact-device-model');page.rerender(page.tree(false));await waitFor(()=>expect(screen.queryByTestId('exact-device-model')).toBeNull());expect(api.posts).toHaveLength(0);
+});
+test('Device model source denial withdraws retained preview until explicit refresh; drafts expose no model', async () => {
+ const api=server();setup({frozen:true});await screen.findByText('Viewport active true · None');tab('Model');await screen.findByTestId('exact-device-model');
+ fireEvent.click(screen.getByRole('button',{name:'Withdraw synthetic model source'}));await screen.findByText('Device state unavailable');expect(screen.queryByTestId('exact-device-model')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Refresh device'}));await screen.findByTestId('exact-device-model');expect(api.posts).toHaveLength(0);
+ cleanup();server();setup();await screen.findByRole('button',{name:'Save device'});expect(screen.queryByRole('tab',{name:'Model'})).toBeNull();
 });
