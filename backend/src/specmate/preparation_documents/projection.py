@@ -32,6 +32,18 @@ MAX_INPUT_BYTES = 8 * 1024 * 1024
 MAX_SOURCE_FILES = 4000
 
 
+def test_address_generator(tests, default):
+    for context in tests:
+        plan = (context.get("declarations") or {}).get("test_plan") or {}
+        terminals = [t for pair in plan.get("pairs", []) for t in (pair["first"], pair["second"])]
+        terminals.extend(
+            label["terminal"] for label in plan.get("labels", []) if label.get("terminal")
+        )
+        if any(t["kind"] in {"stack_terminal", "segment", "pigtail"} for t in terminals):
+            return "specmate.preparation-documents/5"
+    return default
+
+
 def references(configuration):
     ids = {configuration.root_revision_id}
     if configuration.bom_plan_revision_id:
@@ -284,7 +296,6 @@ def project(user, configuration):
         "fit": "not_evaluated",
         "physical_qualification": False,
     }
-    common_hash = digest(canonical_bytes(common))
     cuts, preparations, terminations, tests, schematics, specifications, issues = (
         [],
         [],
@@ -748,6 +759,8 @@ def project(user, configuration):
     if not wiring:
         for name in DOCUMENTS[1:]:
             document_assessments[name]["status"] = "unknown_wiring_scope"
+    common["generator"] = test_address_generator(tests, common["generator"])
+    common_hash = digest(canonical_bytes(common))
     return {
         "document_assessments": document_assessments,
         "inputs": common,

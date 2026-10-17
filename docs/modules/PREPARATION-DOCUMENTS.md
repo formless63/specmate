@@ -153,4 +153,8 @@ Settings-bearing configurations use generator `/4`: their standalone build sheet
 explicitly select a light paper canvas and dark text, including under dark browser
 preferences. Retained `/3` receipts/downloads return their stored original bytes;
 no later generator rerenders them. Configurations without `document_settings` keep
-generator `/2` and its exact legacy outputs.
+generator `/2` and its exact legacy outputs, except when the test plan uses section
+addresses. Stack-terminal, segment and pigtail test addresses select generator `/5`
+with or without document settings. Their readable rows and labels include the exact
+endpoint/layer/terminal or segment/end/feature identifiers; retained earlier outputs
+remain unchanged.

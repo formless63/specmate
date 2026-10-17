@@ -82,6 +82,11 @@ def test_tables(tests):
             continue
 
         def term(t):
+            if t["kind"] == "stack_terminal":
+                return f"{t['endpoint_id']} · {t['layer_id']} · {t['terminal_id']}"
+            if t["kind"] in {"segment", "pigtail"}:
+                feature = t["pigtail_id"] if t["kind"] == "pigtail" else t["element_path"]
+                return f"{t['segment_id']} · {t['end']} · {feature}"
             return f"{t['endpoint_id']} · {t.get('contact_id') or t.get('element_path')}"
 
         body = "".join(
