@@ -34,6 +34,14 @@
           "default": null,
           "title": "Carried Connector Layer Id"
         },
+        "carried_connectors": {
+          "items": {
+            "$ref": "#/$defs/CarriedConnectorBinding"
+          },
+          "maxItems": 20,
+          "title": "Carried Connectors",
+          "type": "array"
+        },
         "condition_states": {
           "maxProperties": 20,
           "patternProperties": {
@@ -117,6 +125,27 @@
         "legs"
       ],
       "title": "Breakout",
+      "type": "object"
+    },
+    "CarriedConnectorBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "carried_connector_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Carried Connector Id",
+          "type": "string"
+        },
+        "connector_layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Connector Layer Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "carried_connector_id",
+        "connector_layer_id"
+      ],
+      "title": "CarriedConnectorBinding",
       "type": "object"
     },
     "ConnectorLayer": {

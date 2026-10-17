@@ -63,3 +63,10 @@ test("viewers see the editor fields as read-only and cannot create", async () =>
   render(wrap(<PermissionsProvider permissions={["workspace.read"]}><ConnectorRecordPage definitionId={null} revisionNumber={null} draftRequested={false} active principalKey="test" workspaceId="w1" projects={[]} onBack={() => {}} onSelect={() => {}} onCreated={() => {}} onNew={() => {}} onOpen={() => {}} onOpenInProject={() => {}} initial={{ kind: "end_assembly" }} /></PermissionsProvider>));
   expect((await screen.findByRole("button", { name: "Save connector" }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+test('two carried occurrences on one board display exact ownership and unknown landings',()=>{
+ const value={...resolved,layers:resolved.layers.map(layer=>layer.kind==='board'?{...layer,carried_connector_id:null,carried_connectors:[{carried_connector_id:'left',connector_layer_id:'plug-a',carried_status:'unknown' as const},{carried_connector_id:'right',connector_layer_id:'plug-b',carried_status:'reviewed' as const}]}:layer)};
+ render(wrap(<StackView resolved={value} label="Dual connector end" />));
+ expect(screen.getByText('Carried left → plug-a · landings unknown')).toBeTruthy();
+ expect(screen.getByText('Carried right → plug-b · reviewed landings')).toBeTruthy();
+});

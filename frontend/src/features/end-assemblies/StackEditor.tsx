@@ -48,13 +48,13 @@ export function StackDiagram({ layers, mirrored = false, label }: { layers: { ki
 }
 
 export function resolvedChips(resolved: ResolvedStack) {
-  return resolved.layers.map((l) => ({ kind: l.kind, name: l.name, detail: l.kind === "connector" ? l.variant_label ?? l.pinout_name ?? null : null, status: l.kind === "board" ? l.carried_status ?? null : null }));
+  return resolved.layers.map((l) => ({ kind: l.kind, name: l.name, detail: l.kind === "connector" ? l.variant_label ?? l.pinout_name ?? null : null, status: l.kind === "board" ? l.carried_status ?? (l.carried_connectors?.some(binding => binding.carried_status === "unknown") ? "unknown" : null) : null }));
 }
 
 /** Layer cards from the wire outward, then the joins between their terminals. */
 export function StackEditor({ value, onChange, definitions, resolved, label = "End", nameFilter = null }: { value: EndStack; onChange: (v: EndStack) => void; definitions?: Definition[]; resolved?: ResolvedStack; label?: string; nameFilter?: string | null }) {
   const present = new Set(value.layers.map((l) => l.kind));
-  const setLayer = (layerId: string, next: StackLayer) => onChange({ ...value, layers: value.layers.map((l) => (l.layer_id === layerId ? next : l)) });
+  const setLayer = (layerId: string, next: StackLayer) => onChange({ ...value, ...(next.kind === "board" && next.carried_connectors?.length ? { graph_version: "0.2" as const } : {}), layers: value.layers.map((l) => (l.layer_id === layerId ? next : l)) });
   return <Stack gap="xs">
     <Group gap="xs" aria-label={`${label} layers`}>
       <Text size="xs" c="dimmed">From the wire outward:</Text>
@@ -97,12 +97,13 @@ function BoardFields({ layer, label, definitions, onChange, hasConnector, connec
   const board = useQuery({ queryKey: ["cable-board", layer.board_revision_id], queryFn: () => readBoard<BoardInspection>(`interfaces/revisions/${layer.board_revision_id}`), enabled: !!layer.board_revision_id });
   const carried = board.data?.board?.connectors ?? [];
   return <Stack gap={4}>
-    <RevisionPicker label={`${label} board`} title="Board (PCBA)" kind="board" value={layer.board_revision_id} onChange={(id) => onChange({ ...layer, board_revision_id: id, carried_connector_id: null, condition_states: {} })} definitions={definitions} />
-    {carried.length > 0 && <Select size="xs" clearable label="Carries this end's connector" aria-label={`${label} carried connector`} description={hasConnector ? "The board's reviewed pad/contact landings join it to the connector layer." : "Add the connector layer first."}
+    <RevisionPicker label={`${label} board`} title="Board (PCBA)" kind="board" value={layer.board_revision_id} onChange={(id) => onChange({ ...layer, board_revision_id: id, carried_connector_id: null, carried_connector_layer_id: null, carried_connectors: [], condition_states: {} })} definitions={definitions} />
+    {carried.length > 0 && !layer.carried_connectors?.length && carried.length === 1 && <Select size="xs" clearable label="Carries this end's connector" aria-label={`${label} carried connector`} description={hasConnector ? "The board's reviewed pad/contact landings join it to the connector layer." : "Add the connector layer first."}
       disabled={!hasConnector} placeholder="Not carried" value={layer.carried_connector_id}
       data={carried.map((c) => ({ value: c.local_id, label: `${c.body_name} r${c.body_revision_number} · ${c.status === "reviewed" ? "reviewed landings" : "landings unknown"}` }))}
-      onChange={(id) => onChange({ ...layer, carried_connector_id: id })} />}
+      onChange={(id) => onChange({ ...layer, carried_connector_id: id, ...(!id ? {carried_connector_layer_id: null} : {}) })} />}
     {layer.carried_connector_id && connectors.length > 1 && <Select size="xs" label="Carried connector occurrence" aria-label={`${label} carried connector occurrence`} data={connectors.map((c) => ({ value: c.layer_id, label: c.layer_id }))} value={layer.carried_connector_layer_id ?? null} onChange={(id) => onChange({ ...layer, carried_connector_layer_id: id })} />}
+    {(carried.length > 1 || !!layer.carried_connectors?.length) && carried.map(c => <Select key={c.local_id} size="xs" clearable label={`${label} carried ${c.local_id} occurrence`} description={`${c.body_name} · ${c.status === 'reviewed' ? 'reviewed' : 'landings unknown'}`} data={connectors.filter(connector => connector.kind === 'connector' && connector.body_revision_id === c.body_revision_id && !(layer.carried_connectors ?? []).some(binding => binding.carried_connector_id !== c.local_id && binding.connector_layer_id === connector.layer_id)).map(connector => ({value:connector.layer_id,label:connector.layer_id}))} value={layer.carried_connectors?.find(binding=>binding.carried_connector_id===c.local_id)?.connector_layer_id ?? null} onChange={id=>onChange({...layer,carried_connector_id:null,carried_connector_layer_id:null,carried_connectors:[...(layer.carried_connectors ?? []).filter(binding=>binding.carried_connector_id!==c.local_id),...(id ? [{carried_connector_id:c.local_id,connector_layer_id:id}] : [])]})} />)}
     {board.data?.interface.conditions.map(condition => <Select key={condition.key} clearable label={`${label} ${condition.name} state`} placeholder="Unknown" data={condition.choices.map(choice => ({value:choice.key,label:choice.name}))} value={layer.condition_states?.[condition.key] ?? null} onChange={state => { const states = {...layer.condition_states}; if(state) states[condition.key]=state; else delete states[condition.key]; onChange({...layer,condition_states:states}); }} />)}
     {board.isError && <Alert color="red">{board.error.message}</Alert>}
   </Stack>;
@@ -187,6 +188,7 @@ export function StackView({ resolved, label = "End" }: { resolved: ResolvedStack
       <Group gap="xs" mb={4}><Text fw={600} size="sm">{LAYER_LABELS[layer.kind]} · {layer.layer_id}</Text><Text size="sm">{layer.name ?? <SbUnknown what="part" />}</Text>
         {layer.kind === "connector" && layer.variant_label && <Text size="xs" c="dimmed">variant {layer.variant_label}</Text>}
         {layer.kind === "board" && layer.carried_connector_id && <SbStatus led={layer.carried_status === "reviewed" ? "info" : "review"} dimension="landings" value={layer.carried_status === "reviewed" ? "reviewed" : "unknown"} />}
+        {layer.kind === "board" && layer.carried_connectors?.map(binding => <Text size="xs" key={binding.carried_connector_id}>Carried {binding.carried_connector_id} → {binding.connector_layer_id} · {binding.carried_status === 'reviewed' ? 'reviewed landings' : 'landings unknown'}</Text>)}
         {layer.kind === "inline" && layer.parts?.map((p) => <Text key={p.local_id} size="xs" className="sb-mono">{p.name}: {p.summary}</Text>)}
       </Group>
       {layer.kind === "board" && layer.paths && layer.paths.length > 0 && <Text size="xs" c="dimmed">{layer.paths.length} declared board paths{layer.condition_states && Object.keys(layer.condition_states).length > 0 ? ` · states: ${Object.entries(layer.condition_states).map(([key,state]) => `${key}=${state}`).join(", ")}` : ""}</Text>}

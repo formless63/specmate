@@ -173,3 +173,94 @@ def test_versioned_local_contact_solder_bridge_preserves_legacy_and_component_gu
     invalid["joins"][0]["kind"] = "integrated"
     with pytest.raises(ValidationError, match="Same-layer"):
         EndStack.model_validate(invalid)
+
+
+def test_two_carried_connectors_share_one_exact_board_without_invented_solder(users, project, kit):
+    board = examples.av_adapter_board(kit["plug"])
+    declaration = board
+    declaration["terminals"].append(
+        {
+            "terminal_id": "second-contact",
+            "label": "Second connector contact",
+            "kind": "connector_contact",
+        }
+    )
+    declaration["carried_connectors"].append(
+        {
+            "local_id": "second",
+            "body_revision_id": kit["plug"],
+            "correspondence": [{"terminal_id": "second-contact", "contact_id": "1"}],
+            "review": "unreviewed",
+            "basis": "Independent second physical connector drawing",
+        }
+    )
+    board_revision = freeze(users["owner"], create(users["owner"], project, board))["revision_id"]
+    first = declaration["carried_connectors"][0]["local_id"]
+    stack = {
+        "graph_version": "0.2",
+        "layers": [
+            {
+                "kind": "board",
+                "layer_id": "carrier",
+                "board_revision_id": board_revision,
+                "carried_connectors": [
+                    {"carried_connector_id": first, "connector_layer_id": "plug-a"},
+                    {"carried_connector_id": "second", "connector_layer_id": "plug-b"},
+                ],
+            },
+            *[
+                {
+                    "kind": "connector",
+                    "layer_id": id,
+                    "body_revision_id": kit["plug"],
+                    "pinout_revision_id": kit["plug_variant"],
+                }
+                for id in ["plug-a", "plug-b"]
+            ],
+        ],
+        "joins": [],
+    }
+    view = op(users["viewer"], "end_assembly.resolve", {"stack": stack})
+    assert len([r for r in view["layers"] if r["kind"] == "board"]) == 1
+    joins = [j for j in view["joins"] if j["origin"] == "board_carried_connector"]
+    second = next(j for j in joins if j["a"]["terminal_id"] == "second-contact")
+    assert second["b"]["layer_id"] == "plug-b" and second["b"]["terminal_id"] == "1"
+    assert second["status"] == "unknown" and second["kind"] == "carried"
+    assert all(j["b"]["layer_id"] == "plug-a" for j in joins if j is not second)
+    assert len({j["local_id"] for j in joins}) == len(joins)
+    saved = freeze(
+        users["owner"],
+        create(
+            users["owner"],
+            project,
+            {"kind": "end_assembly", "schema_version": "0.1", "stack": stack},
+        ),
+    )
+    reopened = op(users["viewer"], "interface.read", {"revision_id": saved["revision_id"]})
+    assert reopened["end_stack"]["joins"] == view["joins"]
+    with pytest.raises(NotFound):
+        op(users["outsider"], "interface.read", {"revision_id": saved["revision_id"]})
+    invalid = copy.deepcopy(stack)
+    invalid["layers"][0]["carried_connectors"][1]["carried_connector_id"] = "absent"
+    with pytest.raises(ValidationFailed, match="does not declare"):
+        op(users["owner"], "end_assembly.resolve", {"stack": invalid})
+    invalid = copy.deepcopy(stack)
+    invalid["layers"][2]["body_revision_id"] = kit["rgb_plug"]
+    invalid["layers"][2]["pinout_revision_id"] = kit["rgb_variant"]
+    with pytest.raises(ValidationFailed, match="exact connector body"):
+        op(users["owner"], "end_assembly.resolve", {"stack": invalid})
+    with pytest.raises(NotFound):
+        op(users["outsider"], "end_assembly.resolve", {"stack": stack})
+    for change in [{"carried_connector_id": first}, {"carried_connector_layer_id": "plug-a"}]:
+        invalid = copy.deepcopy(stack)
+        invalid["layers"][0].update(change)
+        with pytest.raises(ValidationError, match="legacy carried"):
+            EndStack.model_validate(invalid)
+    invalid = copy.deepcopy(stack)
+    invalid["layers"][0]["carried_connectors"][1]["connector_layer_id"] = "plug-a"
+    with pytest.raises(ValidationError, match="selected once"):
+        EndStack.model_validate(invalid)
+    invalid = copy.deepcopy(stack)
+    invalid["layers"][0]["carried_connectors"][1]["connector_layer_id"] = "carrier"
+    with pytest.raises(ValidationError, match="not a connector occurrence"):
+        EndStack.model_validate(invalid)

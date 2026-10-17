@@ -41,6 +41,11 @@ class ConnectorLayer(StrictModel):
     pinout_revision_id: UUID
 
 
+class CarriedConnectorBinding(StrictModel):
+    carried_connector_id: Key
+    connector_layer_id: LocalId
+
+
 class BoardLayer(StrictModel):
     kind: Literal["board"] = "board"
     layer_id: LocalId
@@ -49,15 +54,32 @@ class BoardLayer(StrictModel):
     carried_connector_id: Key | None = None
     # Required when an end graph contains more than one connector occurrence.
     carried_connector_layer_id: LocalId | None = None
+    carried_connectors: list[CarriedConnectorBinding] = Field(default_factory=list, max_length=20)
 
     # Runtime/configuration declaration for this exact board occurrence; absent is unknown.
     condition_states: dict[Key, Key] = Field(default_factory=dict, max_length=20)
+
+    @model_validator(mode="after")
+    def distinct_carried(self):
+        if self.carried_connectors and (
+            self.carried_connector_id or self.carried_connector_layer_id
+        ):
+            raise ValueError(
+                "Choose legacy carried selection or explicit carried connector bindings."
+            )
+        for field in ("carried_connector_id", "connector_layer_id"):
+            values = [getattr(row, field) for row in self.carried_connectors]
+            if len(values) != len(set(values)):
+                raise ValueError("Each carried connector and target occurrence is selected once.")
+        return self
 
     @model_serializer(mode="wrap")
     def omit_unrecorded_target(self, handler):
         data = handler(self)
         if not data.get("condition_states"):
             data.pop("condition_states", None)
+        if not data.get("carried_connectors"):
+            data.pop("carried_connectors", None)
         if data.get("carried_connector_layer_id") is None:
             data.pop("carried_connector_layer_id", None)
         return data
@@ -160,6 +182,13 @@ class EndStack(StrictModel):
         layers = {layer.layer_id: layer for layer in self.layers}
         connectors = [layer for layer in self.layers if layer.kind == "connector"]
         for board in (layer for layer in self.layers if layer.kind == "board"):
+            if board.carried_connectors and self.graph_version != "0.2":
+                raise ValueError("Multiple carried bindings require end graph version 0.2.")
+            if any(
+                binding.connector_layer_id not in {c.layer_id for c in connectors}
+                for binding in board.carried_connectors
+            ):
+                raise ValueError("The carried connector layer is not a connector occurrence.")
             if board.carried_connector_layer_id and not board.carried_connector_id:
                 raise ValueError("A connector occurrence target requires a carried connector.")
             if board.carried_connector_id:

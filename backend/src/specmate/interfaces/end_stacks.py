@@ -235,18 +235,38 @@ class ResolvedStack:
         self.connector = next(iter(self.connectors.values())) if len(self.connectors) == 1 else None
         self.board = next(iter(self.boards.values())) if len(self.boards) == 1 else None
         for layer, board in self.boards.values():
-            if not layer.carried_connector_id:
-                continue
-            connector_layer, _, _ = self.carried_target(layer)
-            carried = next(
-                c for c in board.carried_connectors if c.local_id == layer.carried_connector_id
-            )
-            if carried.body_revision_id != connector_layer.body_revision_id:
+            selected = self.carried_bindings(layer, board)
+            if layer.carried_connectors:
+                view = next(v for v in self.layers if v["layer_id"] == layer.layer_id)
+                view["carried_connectors"] = [
+                    {
+                        "carried_connector_id": carried.local_id,
+                        "connector_layer_id": connector.layer_id,
+                        "carried_status": "reviewed" if carried.review == "reviewed" else "unknown",
+                    }
+                    for carried, connector in selected
+                ]
+        self.joins = self._joins()
+        self._edges()
+
+    def carried_bindings(self, layer, board):
+        choices = [
+            (b.carried_connector_id, self.connectors[b.connector_layer_id][0])
+            for b in layer.carried_connectors
+        ]
+        if layer.carried_connector_id:
+            choices.append((layer.carried_connector_id, self.carried_target(layer)[0]))
+        result = []
+        for carried_id, connector in choices:
+            carried = next((c for c in board.carried_connectors if c.local_id == carried_id), None)
+            if carried is None:
+                raise ValidationFailed("The board does not declare that carried connector.")
+            if carried.body_revision_id != connector.body_revision_id:
                 raise ValidationFailed(
                     "The board's carried connector must be the stack's exact connector body."
                 )
-        self.joins = self._joins()
-        self._edges()
+            result.append((carried, connector))
+        return result
 
     def carried_target(self, layer):
         if layer.carried_connector_layer_id:
@@ -297,38 +317,35 @@ class ResolvedStack:
                 }
             )
         for layer, board in self.boards.values():
-            if not layer.carried_connector_id:
-                continue
-            connector_layer = self.carried_target(layer)[0]
-            carried = next(
-                c for c in board.carried_connectors if c.local_id == layer.carried_connector_id
-            )
-            status = "reviewed" if carried.review == "reviewed" else "unknown"
-            for pair in carried.correspondence:
-                rows.append(
-                    {
-                        "local_id": (
-                            f"{layer.layer_id}:carried:{pair.terminal_id}"
-                            if self.stack.graph_version == "0.2"
-                            else f"carried:{pair.terminal_id}"
-                        ),
-                        "a": {
-                            "layer_id": layer.layer_id,
-                            "terminal_id": pair.terminal_id,
-                            "label": self.label(layer.layer_id, pair.terminal_id),
-                        },
-                        "b": {
-                            "layer_id": connector_layer.layer_id,
-                            "terminal_id": pair.contact_id,
-                            "label": self.label(connector_layer.layer_id, pair.contact_id),
-                        },
-                        "kind": "carried",
-                        "basis": carried.basis
-                        or "Board carried-connector correspondence (unreviewed).",
-                        "origin": "board_carried_connector",
-                        "status": status,
-                    }
-                )
+            for carried, connector_layer in self.carried_bindings(layer, board):
+                status = "reviewed" if carried.review == "reviewed" else "unknown"
+                for pair in carried.correspondence:
+                    rows.append(
+                        {
+                            "local_id": (
+                                f"{layer.layer_id}:carried:{carried.local_id}:{pair.terminal_id}"
+                                if layer.carried_connectors
+                                else f"{layer.layer_id}:carried:{pair.terminal_id}"
+                                if self.stack.graph_version == "0.2"
+                                else f"carried:{pair.terminal_id}"
+                            ),
+                            "a": {
+                                "layer_id": layer.layer_id,
+                                "terminal_id": pair.terminal_id,
+                                "label": self.label(layer.layer_id, pair.terminal_id),
+                            },
+                            "b": {
+                                "layer_id": connector_layer.layer_id,
+                                "terminal_id": pair.contact_id,
+                                "label": self.label(connector_layer.layer_id, pair.contact_id),
+                            },
+                            "kind": "carried",
+                            "basis": carried.basis
+                            or "Board carried-connector correspondence (unreviewed).",
+                            "origin": "board_carried_connector",
+                            "status": status,
+                        }
+                    )
         return rows
 
     def _edges(self):

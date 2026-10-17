@@ -5,7 +5,7 @@ export { command, read, type Definition, type Identity } from "../identity/api";
 
 /** Layers of one cable end, ordered from the wire outward (see docs/modules/WIRING.md). */
 export type ConnectorLayer = { kind: "connector"; layer_id: string; body_revision_id: string; pinout_revision_id: string };
-export type BoardLayer = { kind: "board"; layer_id: string; board_revision_id: string; carried_connector_id: string | null; carried_connector_layer_id?: string | null; condition_states?: Record<string,string> };
+export type BoardLayer = { kind: "board"; layer_id: string; board_revision_id: string; carried_connector_id: string | null; carried_connector_layer_id?: string | null; carried_connectors?: { carried_connector_id: string; connector_layer_id: string }[]; condition_states?: Record<string,string> };
 /** Exact catalog provenance for an authored two-lead use; package pinout stays unassessed. */
 export type InlinePart = { local_id: string; label: string | null; component: InlineComponent; part_revision_id?: string | null };
 export type InlinePartIdentity = { revision_id: string; definition_id: string; name: string; number: number; package_pinout: "not_evaluated"; declared_use: "two_lead_inline"; behavior_source: "separate_authored_component" };
@@ -30,7 +30,7 @@ export type ResolvedTerminal = {
 export type ResolvedLayer = {
   body_revision_id?: string; pinout_revision_id?: string;
   layer_id: string; kind: LayerKind; name: string | null; terminals: ResolvedTerminal[];
-  variant_label?: string | null; pinout_name?: string | null; carried_connector_id?: string | null; carried_status?: "reviewed" | "unknown" | null;
+  variant_label?: string | null; pinout_name?: string | null; carried_connector_id?: string | null; carried_status?: "reviewed" | "unknown" | null; carried_connectors?: { carried_connector_id: string; connector_layer_id: string; carried_status: "reviewed" | "unknown" }[];
   parts?: { local_id: string; name: string; summary: string; part_identity?: InlinePartIdentity }[]; electrical?: string;
   internal_nodes?: { node_id: string; label: string; basis: string }[];
   conditions?: { key: string; name: string; choices: { key: string; name: string }[] }[]; condition_states?: Record<string,string>;
@@ -68,7 +68,7 @@ export function addLayer(stack: EndStack, kind: LayerKind): EndStack {
   return { ...stack, ...(stack.layers.some((l) => l.kind === kind) ? { graph_version: "0.2" as const } : {}), layers };
 }
 export function removeLayer(stack: EndStack, layerId: string): EndStack {
-  return { ...stack, layers: stack.layers.filter((l) => l.layer_id !== layerId).map((l) => l.kind === "board" && l.carried_connector_layer_id === layerId ? { ...l, carried_connector_id: null, carried_connector_layer_id: null } : l), joins: stack.joins.filter((j) => j.a.layer_id !== layerId && j.b.layer_id !== layerId && j.through?.layer_id !== layerId) };
+  return { ...stack, layers: stack.layers.filter((l) => l.layer_id !== layerId).map((l) => l.kind === "board" ? { ...l, ...(l.carried_connector_layer_id === layerId ? { carried_connector_id: null, carried_connector_layer_id: null } : {}), ...(l.carried_connectors ? { carried_connectors: l.carried_connectors.filter(binding => binding.connector_layer_id !== layerId) } : {}) } : l), joins: stack.joins.filter((j) => j.a.layer_id !== layerId && j.b.layer_id !== layerId && j.through?.layer_id !== layerId) };
 }
 export const connectorStack = (): EndStack => ({ layers: [newLayer("connector")], joins: [] });
 export const emptyEndAssembly = (): EndAssembly => ({ kind: "end_assembly", description: null, stack: connectorStack(), review: "unreviewed", review_basis: null });

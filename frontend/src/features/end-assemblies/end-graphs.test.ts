@@ -27,3 +27,9 @@ test('removing one connector clears its explicit carried mapping and third solde
   expect(removeLayer(stack, 'carrier').joins).toEqual([]);
   expect(stack.joins).toHaveLength(1);
 });
+
+test('removing a carried occurrence preserves sibling bindings on the same physical board',()=>{
+ const stack:EndStack={graph_version:'0.2',layers:[{kind:'board',layer_id:'carrier',board_revision_id:'board',carried_connector_id:null,carried_connectors:[{carried_connector_id:'left',connector_layer_id:'plug-a'},{carried_connector_id:'right',connector_layer_id:'plug-b'}]},{kind:'connector',layer_id:'plug-a',body_revision_id:'body',pinout_revision_id:'pinout'},{kind:'connector',layer_id:'plug-b',body_revision_id:'body',pinout_revision_id:'pinout'}],joins:[]};
+ expect(removeLayer(stack,'plug-a').layers[0]).toMatchObject({carried_connectors:[{carried_connector_id:'right',connector_layer_id:'plug-b'}]});
+ expect(stack.layers[0]).toMatchObject({carried_connectors:[{carried_connector_id:'left',connector_layer_id:'plug-a'},{carried_connector_id:'right',connector_layer_id:'plug-b'}]});
+});

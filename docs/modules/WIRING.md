@@ -1059,3 +1059,12 @@ bond searches exclude longitudinal wires, so a source-only preparation does not 
 into a destination preparation through a parallel ground wire. Explicit shell bonds
 retain their associated end; ambiguous end bindings and bounded searches stay unknown.
 All results compare declarations; they do not qualify measured continuity or shielding.
+
+An end graph board occurrence may explicitly bind several of its declared carried
+connectors using `carried_connectors: [{carried_connector_id, connector_layer_id}]`.
+Each target is an exact connector occurrence with the carried connector's body and
+its own exact pinout. Source and target IDs are unique within the board occurrence;
+this list is exclusive with the legacy single carried selection. An omitted/empty
+list preserves legacy serialization. Correspondence review remains unchanged: an
+unreviewed board landing stays unknown. These bindings create carried correspondence,
+not additional solder joints or repeated physical boards.
