@@ -7,7 +7,7 @@ import json
 
 from specmate.design.operations import canonical_bytes
 from specmate.operations import ValidationFailed
-from specmate.preparation_documents.contracts import DOCUMENTS
+from specmate.preparation_documents.contracts import COMPACT_GENERATOR, DOCUMENTS
 from specmate.selected_packages.queries import digest
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -173,12 +173,11 @@ def title_block(inputs):
     return block, style
 
 
-def render(projection):
+def _envelope(projection):
     inputs = projection["inputs"]
     sha = projection["inputs_sha256"]
     sections = projection["sections"]
-    title, title_style = title_block(inputs)
-    envelope = {
+    return {
         "inputs": inputs,
         "inputs_sha256": sha,
         "readiness": projection["readiness"],
@@ -195,6 +194,53 @@ def render(projection):
             ],
         },
     }
+
+
+def build_sheet_html(projection, *, envelope=None, escape_pre_quotes=True):
+    """Build the inert HTML output, preserving each generator's exact text escaping."""
+    inputs = projection["inputs"]
+    sections = projection["sections"]
+    title, title_style = title_block(inputs)
+    envelope = _envelope(projection) if envelope is None else envelope
+    blocks = []
+    for name, data in (
+        ("Exact input provenance", envelope),
+        ("Specifications", sections["specifications"]),
+        ("Frozen procurement policy", sections["procurement"]),
+        ("Declared cuts and separate suggestions", sections["cut_preparation"]),
+        ("Per-end preparation intent", sections["end_preparation"]),
+        ("Declared terminations", sections["terminations"]),
+        ("Authored test intent; no physical test performed", sections["test_intent"]),
+        ("Missing inputs and limits", sections["issues"]),
+    ):
+        escaped = html.escape(pretty(data), quote=escape_pre_quotes)
+        blocks.append(f"<section><h2>{html.escape(name)}</h2><pre>{escaped}</pre></section>")
+    document = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta http-equiv="Content-Security-Policy" '
+        "content=\"default-src 'none'; style-src 'unsafe-inline'\">"
+        "<title>Coordinated build sheet</title><style>"
+        + title_style
+        + "body{font:14px sans-serif;margin:2em}"
+        "pre{white-space:pre-wrap;overflow-wrap:anywhere}section{break-inside:avoid}"
+        "h2{font-size:1.2em}h3{font-size:1em}table{border-collapse:collapse;margin:.5em 0}"
+        "td,th{border:1px solid #888;padding:2px 6px;text-align:left}</style></head><body>"
+        "<h1>Coordinated declared build sheet</h1><p>Not a release or physical qualification. "
+        "Missing inputs stay unknown.</p>"
+        + title
+        + termination_tables(sections["terminations"])
+        + test_tables(sections["test_intent"])
+        + "".join(blocks)
+        + "</body></html>"
+    )
+    return document.encode()
+
+
+def render(projection):
+    inputs = projection["inputs"]
+    sha = projection["inputs_sha256"]
+    sections = projection["sections"]
+    envelope = _envelope(projection)
     files = {}
 
     def add(name, media_type, data):
@@ -362,39 +408,15 @@ def render(projection):
         + "</svg>"
     )
     add("schematic.svg", "image/svg+xml", svg.encode())
-    blocks = []
-    for name, data in (
-        ("Exact input provenance", envelope),
-        ("Specifications", sections["specifications"]),
-        ("Frozen procurement policy", sections["procurement"]),
-        ("Declared cuts and separate suggestions", sections["cut_preparation"]),
-        ("Per-end preparation intent", sections["end_preparation"]),
-        ("Declared terminations", sections["terminations"]),
-        ("Authored test intent; no physical test performed", sections["test_intent"]),
-        ("Missing inputs and limits", sections["issues"]),
-    ):
-        blocks.append(
-            f"<section><h2>{html.escape(name)}</h2><pre>{html.escape(pretty(data))}</pre></section>"
-        )
-    document = (
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<meta http-equiv="Content-Security-Policy" '
-        "content=\"default-src 'none'; style-src 'unsafe-inline'\">"
-        "<title>Coordinated build sheet</title><style>"
-        + title_style
-        + "body{font:14px sans-serif;margin:2em}"
-        "pre{white-space:pre-wrap;overflow-wrap:anywhere}section{break-inside:avoid}"
-        "h2{font-size:1.2em}h3{font-size:1em}table{border-collapse:collapse;margin:.5em 0}"
-        "td,th{border:1px solid #888;padding:2px 6px;text-align:left}</style></head><body>"
-        "<h1>Coordinated declared build sheet</h1><p>Not a release or physical qualification. "
-        "Missing inputs stay unknown.</p>"
-        + title
-        + termination_tables(sections["terminations"])
-        + test_tables(sections["test_intent"])
-        + "".join(blocks)
-        + "</body></html>"
+    add(
+        "build-sheet.html",
+        "text/html",
+        build_sheet_html(
+            projection,
+            envelope=envelope,
+            escape_pre_quotes=inputs.get("generator") != COMPACT_GENERATOR,
+        ),
     )
-    add("build-sheet.html", "text/html", document.encode())
     if set(files) != set(DOCUMENTS) or sum(len(data) for _, data in files.values()) > MAX_SET_BYTES:
         raise ValidationFailed("Coordinated output set exceeds the bounded complete-file limits.")
     contexts = []

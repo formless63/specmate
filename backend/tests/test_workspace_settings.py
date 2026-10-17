@@ -1,6 +1,8 @@
 """Workspace settings authority, explicit document copies and unchanged retained files."""
 
 import hashlib
+import html
+import json
 import uuid
 
 import pytest
@@ -9,9 +11,14 @@ from django.test import Client
 
 from specmate.design.operations import canonical_bytes
 from specmate.operations import Conflict, NotFound, PermissionDenied, ValidationFailed
-from specmate.preparation_documents.contracts import Configuration
-from specmate.preparation_documents.projection import project as projection
-from specmate.preparation_documents.rendering import render
+from specmate.preparation_documents.contracts import COMPACT_GENERATOR, Configuration
+from specmate.preparation_documents.projection import (
+    _select_size_bounded_generator,
+)
+from specmate.preparation_documents.projection import (
+    project as projection,
+)
+from specmate.preparation_documents.rendering import MAX_FILE_BYTES, build_sheet_html, render
 from specmate.workspace_settings.models import WorkspaceSettings
 
 from .conftest import op
@@ -234,6 +241,105 @@ def test_legacy_generator_two_output_hashes():
         "schematic.svg": "6d4c2e8cdc488a78014a56bb370aa4a13b07824061adde90fe2dc3c962e5049a",
         "build-sheet.html": "735bab0002f350c8d57b96f07abf2207ddbc0c1447f1f1efca3d820aba65d618",
     }
+
+
+@pytest.mark.parametrize(
+    ("generator", "expected_html_sha256"),
+    [
+        (
+            "specmate.preparation-documents/4",
+            "1afd2b41539f6b7f2bc0576c22d7880f718598ec00427a204fb7df54013dae9b",
+        ),
+        (
+            "specmate.preparation-documents/5",
+            "beb2e56b9377e58389124160d66f87bbca5606cbcd897ba03c2cf9a13133951b",
+        ),
+    ],
+)
+def test_legacy_generator_four_and_five_output_hashes(generator, expected_html_sha256):
+    root = "10000000-0000-4000-8000-000000000001"
+    inputs = {
+        "generator": generator,
+        "root": {"revision_id": root},
+        "configuration": Configuration.model_validate({"root_revision_id": root}).model_dump(
+            mode="json"
+        ),
+    }
+    value = {
+        "inputs": inputs,
+        "inputs_sha256": hashlib.sha256(canonical_bytes(inputs)).hexdigest(),
+        "readiness": "declared_with_unknowns",
+        "document_assessments": {},
+        "sections": {
+            key: []
+            for key in [
+                "issues",
+                "cut_preparation",
+                "terminations",
+                "revision_specifications",
+                "specifications",
+                "test_intent",
+                "end_preparation",
+                "schematic",
+                "procurement",
+            ]
+        },
+    }
+    _, rendered = render(value)
+    assert hashlib.sha256(rendered["build-sheet.html"][1]).hexdigest() == expected_html_sha256
+
+
+def test_dense_build_sheet_selects_compact_generator_without_losing_text():
+    root = "10000000-0000-4000-8000-000000000001"
+    hostile = '"' * 380_000 + '<script>&"end</script>'
+    inputs = {
+        "generator": "specmate.preparation-documents/2",
+        "root": {"revision_id": root},
+        "configuration": Configuration.model_validate({"root_revision_id": root}).model_dump(
+            mode="json"
+        ),
+    }
+    value = {
+        "inputs": inputs,
+        "inputs_sha256": hashlib.sha256(canonical_bytes(inputs)).hexdigest(),
+        "readiness": "declared_with_unknowns",
+        "document_assessments": {},
+        "sections": {
+            "issues": [],
+            "cut_preparation": [],
+            "terminations": [],
+            "revision_specifications": [],
+            "specifications": [],
+            "test_intent": [],
+            "end_preparation": [],
+            "schematic": [],
+            "procurement": {"dense_value": hostile},
+        },
+    }
+    initial_hash = value["inputs_sha256"]
+    assert len(build_sheet_html(value, escape_pre_quotes=True)) > MAX_FILE_BYTES
+
+    with pytest.raises(ValidationFailed, match="bounded file size"):
+        render(value)
+
+    _select_size_bounded_generator(value)
+    assert value["inputs"]["generator"] == COMPACT_GENERATOR
+    assert value["inputs_sha256"] != initial_hash
+    assert value["inputs_sha256"] == hashlib.sha256(canonical_bytes(inputs)).hexdigest()
+    manifest, rendered = render(value)
+    html_bytes = rendered["build-sheet.html"][1]
+    assert len(html_bytes) < MAX_FILE_BYTES
+    assert manifest["inputs"]["generator"] == COMPACT_GENERATOR
+    assert b"<script>" not in html_bytes
+    assert b"&lt;script&gt;&amp;" in html_bytes
+    assert b"&quot;" not in html_bytes
+    procurement_text = (
+        html_bytes.decode()
+        .split("<h2>Frozen procurement policy</h2><pre>", 1)[1]
+        .split("</pre>", 1)[0]
+    )
+    assert json.loads(html.unescape(procurement_text)) == {"dense_value": hostile}
+    assert render(value)[1] == rendered
 
 
 @pytest.mark.django_db(transaction=True)

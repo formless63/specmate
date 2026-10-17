@@ -11,6 +11,7 @@ from specmate.selected_packages.contracts import RightsReview
 from specmate.workspace_settings.contracts import DocumentSettingsSnapshot
 
 GENERATOR = "specmate.preparation-documents/2"
+COMPACT_GENERATOR = "specmate.preparation-documents/6"
 FORMAT = "specmate.coordinated-document-set/0.1"
 DOCUMENTS = (
     "specifications.json",

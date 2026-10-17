@@ -21,7 +21,12 @@ from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
 from specmate.preparation.calculation import compute
 from specmate.preparation.contracts import ComputeCuts
-from specmate.preparation_documents.contracts import DOCUMENTS, FORMAT, GENERATOR
+from specmate.preparation_documents.contracts import (
+    COMPACT_GENERATOR,
+    DOCUMENTS,
+    FORMAT,
+    GENERATOR,
+)
 from specmate.queries import get_revision
 from specmate.selected_packages.queries import collect_sources, digest, source_ancestry
 
@@ -42,6 +47,19 @@ def test_address_generator(tests, default):
         if any(t["kind"] in {"stack_terminal", "segment", "pigtail"} for t in terminals):
             return "specmate.preparation-documents/5"
     return default
+
+
+def _select_size_bounded_generator(projected):
+    """Version dense build sheets before returning the authoritative input hash."""
+    from specmate.preparation_documents.rendering import MAX_FILE_BYTES, build_sheet_html
+
+    inputs = projected["inputs"]
+    if inputs["generator"] == COMPACT_GENERATOR:
+        return
+    legacy_html = build_sheet_html(projected, escape_pre_quotes=True)
+    if len(legacy_html) > MAX_FILE_BYTES:
+        inputs["generator"] = COMPACT_GENERATOR
+        projected["inputs_sha256"] = digest(canonical_bytes(inputs))
 
 
 def references(configuration):
@@ -761,7 +779,7 @@ def project(user, configuration):
             document_assessments[name]["status"] = "unknown_wiring_scope"
     common["generator"] = test_address_generator(tests, common["generator"])
     common_hash = digest(canonical_bytes(common))
-    return {
+    projected = {
         "document_assessments": document_assessments,
         "inputs": common,
         "inputs_sha256": common_hash,
@@ -772,3 +790,5 @@ def project(user, configuration):
         or any(p.get("status") == "unknown" for p in preparations)
         else "declared_inputs_only",
     }
+    _select_size_bounded_generator(projected)
+    return projected
