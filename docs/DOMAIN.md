@@ -18,6 +18,9 @@ Superseded identities leave default new-item choices, while exact links, histori
 revisions, inventory and pinned consumers remain unchanged. Adoption by projects and
 consumers is a separate reviewed operation. `catalog.lifecycle` reads the disposition
 without selecting a different revision or reading an unrelated working draft.
+An optional `reviewed_draft: {draft_id, state}` also guards the source draft under
+a row lock. Replacement workflows can therefore reject a source edit made after
+review, even when the separate catalog lifecycle token has not changed.
 
 Model representations may retain immutable `model_metadata`: declared units, frame,
 purpose, builder version and basis. Missing metadata stays unknown. Browser previews

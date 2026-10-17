@@ -10,10 +10,16 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from specmate.access.models import Workspace
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog.models import DefinitionLifecycle
-from specmate.design.models import Definition
+from specmate.design.models import Definition, Draft
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.scope import workspace_scope
 from specmate.queries import get_revision
+
+
+class ReviewedDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    draft_id: UUID
+    state: str = Field(pattern=r"^draft-v[1-9][0-9]*$")
 
 
 class SetLifecycle(BaseModel):
@@ -22,6 +28,7 @@ class SetLifecycle(BaseModel):
     status: Literal["active", "development", "legacy", "retired", "superseded"]
     replacement_revision_id: UUID | None = None
     basis: str = Field(min_length=1, max_length=4000)
+    reviewed_draft: ReviewedDraft | None = None
 
     @model_validator(mode="after")
     def replacement_required(self):
@@ -111,6 +118,19 @@ def replay(ctx, p, stored):
 )
 def set_lifecycle(ctx: Context, p: SetLifecycle):
     definition = definition_for(ctx.user, p.definition_id, Perm.DESIGN_EDIT)
+    if p.reviewed_draft:
+        draft = (
+            Draft.objects.select_for_update()
+            .filter(id=p.reviewed_draft.draft_id, definition=definition)
+            .first()
+        )
+        if draft is None:
+            raise NotFound("Reviewed draft not found.")
+        if draft.state_token != p.reviewed_draft.state:
+            raise Conflict(
+                "The reviewed source draft changed; review the replacement again.",
+                details={"current_draft_state": draft.state_token},
+            )
     # Serialize replacement chains in a workspace, including opposite concurrent edges.
     Workspace.objects.select_for_update().get(pk=definition.workspace_id)
     prior = current(definition)

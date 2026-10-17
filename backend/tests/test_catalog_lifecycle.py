@@ -181,3 +181,76 @@ def test_competing_replacements_one_cas_winner(users, workspace):
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         assert sorted(pool.map(competing, range(2))) == ["conflict", "created"]
+
+
+def test_replacement_can_atomically_guard_reviewed_source_draft(users, workspace):
+    old, old_revision = item(users["owner"], workspace)
+    _new, replacement = item(users["owner"], workspace, "board")
+    guarded = {
+        "definition_id": old["definition_id"],
+        "status": "superseded",
+        "replacement_revision_id": replacement["revision_id"],
+        "basis": "Reviewed source draft",
+        "reviewed_draft": {"draft_id": old["draft_id"], "state": old_revision["draft"]["state"]},
+    }
+    updated = op(
+        users["owner"],
+        "draft.update",
+        {"draft_id": old["draft_id"], "changes": {"user_note": "Keep my work"}},
+        expected_state=old_revision["draft"]["state"],
+    )
+    with pytest.raises(Conflict):
+        op(
+            users["owner"],
+            "catalog.set_lifecycle",
+            guarded,
+            expected_state="lifecycle-v0",
+            idempotency_key="reviewed-source",
+        )
+    assert not DefinitionLifecycle.objects.exists()
+    guarded["reviewed_draft"]["state"] = updated["state"]
+    first = op(
+        users["owner"],
+        "catalog.set_lifecycle",
+        guarded,
+        expected_state="lifecycle-v0",
+        idempotency_key="reviewed-source",
+    )
+    op(
+        users["owner"],
+        "draft.update",
+        {"draft_id": old["draft_id"], "changes": {"later_note": "Retained too"}},
+        expected_state=updated["state"],
+    )
+    assert (
+        op(
+            users["owner"],
+            "catalog.set_lifecycle",
+            guarded,
+            expected_state="lifecycle-v0",
+            idempotency_key="reviewed-source",
+        )
+        == first
+    )
+    from specmate.queries import get_draft
+
+    assert get_draft(users["owner"], old["draft_id"])["content"]["user_note"] == "Keep my work"
+
+
+def test_reviewed_draft_must_belong_to_source_definition(users, workspace):
+    old, _old_revision = item(users["owner"], workspace)
+    other, replacement = item(users["owner"], workspace)
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            "catalog.set_lifecycle",
+            {
+                "definition_id": old["definition_id"],
+                "status": "superseded",
+                "replacement_revision_id": replacement["revision_id"],
+                "basis": "Wrong draft scope",
+                "reviewed_draft": {"draft_id": other["draft_id"], "state": "draft-v2"},
+            },
+            expected_state="lifecycle-v0",
+        )
+    assert not DefinitionLifecycle.objects.exists()
