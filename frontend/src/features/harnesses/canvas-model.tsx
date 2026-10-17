@@ -74,7 +74,10 @@ export function harnessGraph(harness: Harness, data: HarnessCanvasData) {
   for (const segment of harness.segments) {
     for (const pigtail of segment.pigtails ?? []) for (const path of pigtail.element_paths) edge(JSON.stringify(['pigtail', segment.local_id, pigtail.end, pigtail.local_id, path]), { kind: 'pigtail', segment_id: segment.local_id, end: pigtail.end, pigtail_id: pigtail.local_id }, { kind: 'segment', segment_id: segment.local_id, end: pigtail.end, element_path: path }, `Prepared pigtail · ${pigtail.basis}`);
     const section = harness.sections.find(item => item.local_id === segment.section_id), stock = section && data.stocks[section.stock_revision_id];
-    for (const bond of stock?.bonded_sets ?? []) for (const end of ['a', 'b'] as const) for (const path of bond.element_paths.slice(1)) edge(JSON.stringify(['stock-bond', segment.local_id, end, bond.local_id, path]), { kind: 'segment', segment_id: segment.local_id, end, element_path: bond.element_paths[0]! }, { kind: 'segment', segment_id: segment.local_id, end, element_path: path }, `Stock construction bond · ${bond.basis}`);
+    for (const bond of stock?.bonded_sets ?? []) {
+      const present = bond.element_paths.filter(path => segment.element_paths === null || segment.element_paths.includes(path));
+      for (const end of ['a', 'b'] as const) for (const path of present.slice(1)) edge(JSON.stringify(['stock-bond', segment.local_id, end, bond.local_id, path]), { kind: 'segment', segment_id: segment.local_id, end, element_path: present[0]! }, { kind: 'segment', segment_id: segment.local_id, end, element_path: path }, `Stock construction bond · ${bond.basis}`);
+    }
   }
   for (const joint of harness.joints) for (const member of joint.members.slice(1)) edge(JSON.stringify(['joint', joint.local_id, terminalKey(member)]), joint.members[0]!, member, `${joint.kind} · ${joint.basis}`);
   for (const breakout of harness.breakouts) for (const fate of breakout.fates) if (fate.kind === 'through') edge(JSON.stringify(['through', breakout.local_id, fate.local_id]), fate.trunk, fate.leg, `Declared uncut passage · ${fate.basis}`, true);

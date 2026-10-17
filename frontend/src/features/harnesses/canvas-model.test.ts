@@ -75,3 +75,21 @@ test('named screen preparation exposes one landing and keeps construction bonds 
  const landed=addHarnessJoint(harness,tail,terminal('sink'),'termination','One physical landing');
  expect(landed.joints).toHaveLength(1); expect(landed.sections).toEqual(harness.sections);
 });
+
+test('scoped branch construction bonds only join present members while missing declared joints still warn', async()=>{
+ const { stock } = await import('../cable-workbench/fixtures');
+ const specification = stock(); specification.bonded_sets = [{ local_id: 'screens', element_paths: ['stock.core-1.screen','stock.core-2.screen','stock.core-3.screen'], basis: 'Independent stock construction' }];
+ if (specification.structure.kind === 'group') specification.structure.children.push({...specification.structure.children[0]!,id:'core-3'});
+ const base = { ...initialHarness(), sections: [{local_id:'piece',stock_revision_id:revision,planned_cut_length_mm:'100',cut_basis:'One uncut piece'}], segments: [{local_id:'branch',section_id:'piece',label:null,element_paths:['stock.core-1.center']}] };
+ const data = {stocks:{[revision]:specification},ends:{}};
+ expect(harnessGraph(base,data).unresolved).toBe(0);
+ const one = {...base,segments:[{...base.segments[0]!,element_paths:['stock.core-2.screen']}]};
+ expect(harnessGraph(one,data).edges).toHaveLength(0);
+ expect(harnessGraph(one,data).unresolved).toBe(0);
+ const two = {...base,segments:[{...base.segments[0]!,element_paths:['stock.core-2.screen','stock.core-3.screen']}]};
+ const graph = harnessGraph(two,data);
+ expect(graph.unresolved).toBe(0); expect(graph.edges).toHaveLength(2);
+ expect(graph.edges.every(edge=>!edge.sourceHandle?.includes('core-1'))).toBe(true);
+ const bad = {...base,joints:[{local_id:'missing',kind:'splice' as const,members:[{kind:'segment' as const,segment_id:'branch',end:'a' as const,element_path:'stock.core-1.center'},{kind:'segment' as const,segment_id:'branch',end:'b' as const,element_path:'stock.core-1.screen'}],basis:'Explicit invalid terminal declaration remains inspectable'}]};
+ expect(harnessGraph(bad,data).unresolved).toBe(1);
+});
