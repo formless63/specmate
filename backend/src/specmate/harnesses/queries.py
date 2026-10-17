@@ -191,14 +191,21 @@ class Closure(Lookup):
         self.pigtails = []
         self.pigtail_members = []
         for segment in self.harness.segments:
-            used = set()
+            used = []
             for pigtail in segment.pigtails:
+                requested = set(pigtail.element_paths)
+                for previous_end, previous in used:
+                    if previous_end == pigtail.end and requested & previous:
+                        bonds = self.stocks[segment.section_id].bonded_sets or []
+                        if not any(
+                            requested | previous <= set(bond.element_paths) for bond in bonds
+                        ):
+                            raise ValidationFailed(
+                                "Overlapping pigtails require an explicit inherent stock bond mass."
+                            )
+                used.append((pigtail.end, requested))
                 members = []
                 for path in pigtail.element_paths:
-                    key = (pigtail.end, path)
-                    if key in used:
-                        raise ValidationFailed("A screen end belongs to only one prepared pigtail.")
-                    used.add(key)
                     member = SegmentTerminal(
                         segment_id=segment.local_id, end=pigtail.end, element_path=path
                     )
@@ -324,7 +331,10 @@ class Closure(Lookup):
         self.joints = {j.local_id: j for j in self.harness.joints}
         self.owners = {}
         for member, local_id in self.pigtail_members:
-            self.claim(member, ("pigtail", local_id))
+            # Several named tails may leave one explicitly bonded copper mass; the
+            # underlying stock end is still prepared once, while each tail lands once.
+            if terminal_key(member) not in self.owners:
+                self.claim(member, ("pigtail", local_id))
         self.relationships = []
         for joint in self.harness.joints:
             records = [self.resolve(member) for member in joint.members]

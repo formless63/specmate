@@ -1036,3 +1036,11 @@ unknown paths remain possible with an unknown result. The copper projection reta
 switches as conditional boundaries with the selection provenance. These declarations
 are not measured switch positions, and fixed build bridges remain separate copper
 paths on the frozen board revision.
+
+
+Several distinct named pigtails may leave one explicitly bonded stock mass. Overlap is
+accepted only when the combined declared member paths are contained in one inherent
+`bonded_set`; otherwise a screen end belongs to one preparation. The shared raw mass
+retains one ownership record, each named tail keeps its own landing, and no additional
+stock piece or fabricated isolation appears. Separate board pads can therefore remain
+electrically common through the stock despite their different physical landings.

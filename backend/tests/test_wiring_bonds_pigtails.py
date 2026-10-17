@@ -215,3 +215,28 @@ def test_scoped_impedance_never_spills_from_coax_group_to_power_core(users, proj
     assert ohm_value(impedance_fact(spec, "stock.coax.core")) == 75.0
     assert impedance_fact(spec, "stock.power") is None
     assert impedance_fact(spec, "stock.missing") is None
+
+
+def test_multiple_named_tails_share_only_an_explicit_bonded_copper_mass(users, project):
+    value, _ = prepared(users["owner"], project, bonded=True)
+    first = value["segments"][0]["pigtails"][0]
+    value["segments"][0]["pigtails"].append({**first, "local_id": "second-tail"})
+    second_joint = copy.deepcopy(value["joints"][0])
+    second_joint["local_id"] = "second-landing"
+    second_joint["members"][0]["pigtail_id"] = "second-tail"
+    second_joint["members"][1]["terminal_id"] = "b"
+    value["joints"].append(second_joint)
+    pin = freeze(users["owner"], create(users["owner"], project, value))
+    inspected = op(users["viewer"], "cable.read", {"revision_id": pin["revision_id"]})
+    assert inspected["quantities"]["physical_piece_count"] == 1
+    assert len(inspected["pigtail_preparations"]) == 2
+    assert len(inspected["declared_relationships"]) == 2
+    copper = graph(users["viewer"], pin)
+    contacts = {n["id"] for n in copper["nodes"] if n["terminal"].get("contact_id") in {"a", "b"}}
+    assert len(contacts) == 2
+    assert any(contacts <= set(c["members"]) for c in copper["components"])
+    independent, _ = prepared(users["owner"], project, bonded=False)
+    independent["segments"][0]["pigtails"] = value["segments"][0]["pigtails"]
+    independent["joints"] = value["joints"]
+    with pytest.raises(ValidationFailed, match="explicit inherent stock bond mass"):
+        create(users["owner"], project, independent)
