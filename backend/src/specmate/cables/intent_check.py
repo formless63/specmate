@@ -20,7 +20,7 @@ from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 from specmate.pcb.component_values import parse_capacitance, parse_resistance
 from specmate.wire_stock.electrical import impedance_fact, ohm_value
 
-ALGORITHM = "cable_intent_check/0.1"
+ALGORITHM = "cable_intent_check/0.2"
 MAX_DEPTH = 24
 MAX_PATHS = 64
 LIMIT_REASON = f"search limit reached ({MAX_DEPTH} steps / {MAX_PATHS} paths)"
@@ -822,7 +822,11 @@ class Check:
             if self.pin_signal("to", c) is not None and self.pin_signal("to", c) != expected
         ]
         unknown = [c for c in far if self.pin_signal("to", c) is None]
-        if wrong:
+        if expected is None:
+            dims["signal_match"] = dim(
+                "unknown", "The intent row declares no expected signal identity.", "intent"
+            )
+        elif wrong:
             dims["signal_match"] = dim(
                 "fail",
                 "Reaches " + ", ".join(self.pin_label("to", c) for c in wrong) + ".",

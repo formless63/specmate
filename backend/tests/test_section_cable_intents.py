@@ -225,3 +225,43 @@ def test_per_contact_binding_selects_exact_repeated_connector_without_first_matc
     result = op(users["viewer"], "cable_intent.check", {"cable_revision_id": second["revision_id"]})
     red = next(r for r in result["rows"] if r["row_id"] == "from-4")
     assert red["dimensions"]["connection"]["status"] == "fail"
+
+
+@pytest.mark.parametrize("section", [False, True])
+@pytest.mark.parametrize("expected_signal", ["unspecified", "explicit_wrong"])
+def test_signal_matching_requires_an_explicit_expected_identity_without_weakening_other_checks(
+    users, project, demo, section, expected_signal
+):
+    from specmate.operations import NotFound
+
+    original = Revision.objects.get(id=demo["intent"])
+    intent = json.loads(bytes(original.snapshot.canonical))["content"]["interface"]
+    ground = next(r for r in intent["rows"] if r["row_id"] == "from-3")
+    ground["signal_ref"] = (
+        None
+        if expected_signal == "unspecified"
+        else next(r["signal_ref"] for r in intent["rows"] if r["row_id"] == "from-4")
+    )
+    value = (
+        section_content(demo)
+        if section
+        else examples.av_demo_cable(demo["stock"], demo["end_a"], demo["end_b"])
+    )
+    value["intent_revision_id"] = frozen(
+        users["owner"], project, intent, "Synthetic independent ground expectation"
+    )
+    revision = make_cable(users["owner"], project, value)[1]
+    report = op(
+        users["viewer"], "cable_intent.check", {"cable_revision_id": revision["revision_id"]}
+    )
+    row = next(r for r in report["rows"] if r["row_id"] == "from-3")
+    assert row["dimensions"]["connection"]["status"] == "pass"
+    assert row["dimensions"]["isolation"]["status"] == "pass"
+    if expected_signal == "unspecified":
+        assert row["dimensions"]["signal_match"]["status"] == "unknown"
+        assert row["outcome"] == "unknown"
+    else:
+        assert row["dimensions"]["signal_match"]["status"] == "fail"
+        assert row["outcome"] == "fail"
+    with pytest.raises(NotFound):
+        op(users["outsider"], "cable_intent.check", {"cable_revision_id": revision["revision_id"]})
