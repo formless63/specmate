@@ -159,6 +159,10 @@ class Closure:
                     "A retained child cannot also be a supplemental need in that context."
                 )
 
+        from specmate.bom.material_bindings import validate as validate_material_bindings
+
+        validate_material_bindings(self)
+
 
 def authorize_content(user, content):
     Closure(user, content)
@@ -248,9 +252,18 @@ def project(closure, purpose):
     policies = {tuple(p.path): p for p in plan.policies}
     demands = {tuple(d.path): d for d in plan.occurrence_demands}
     rows, unresolved, boundaries, excluded_needs = [], [], [], []
+    material_bindings = {tuple(b.wiring_path): b for b in plan.material_bindings}
 
     def selected(path):
-        return not scopes or any(path[: len(scope)] == scope for scope in scopes)
+        return (
+            not scopes
+            or any(path[: len(scope)] == scope for scope in scopes)
+            or any(
+                any(tuple(binding.wiring_path)[: len(scope)] == scope for scope in scopes)
+                and path[: len(binding.inputs_path)] == tuple(binding.inputs_path)
+                for binding in material_bindings.values()
+            )
+        )
 
     def address(path):
         return {"snapshot_id": str(root.snapshot_id), "path": list(path)}
@@ -309,7 +322,9 @@ def project(closure, purpose):
             continue
         if purpose == "assembly_contents":
             rows.append(row(path, node.revision, "retained_occurrence", plan.quantity.amount))
-            for locator, part in inline_parts(node.revision, closure.revisions):
+            for locator, part in (
+                [] if path in material_bindings else inline_parts(node.revision, closure.revisions)
+            ):
                 rows.append(
                     row(
                         path,
@@ -341,10 +356,14 @@ def project(closure, purpose):
             if purpose == "procurement":
                 rows.append(row(path, node.revision, "buy_boundary", plan.quantity.amount))
         else:
-            for locator, _part in inline_parts(node.revision, closure.revisions):
+            for locator, _part in (
+                [] if path in material_bindings else inline_parts(node.revision, closure.revisions)
+            ):
                 issue(path, "inline_part_material_policy_unspecified", inline_part=locator)
-            if not any(p[:-1] == path for p in nodes) and not any(
-                tuple(n.context_path) == path for n in plan.needs
+            if (
+                path not in material_bindings
+                and not any(p[:-1] == path for p in nodes)
+                and not any(tuple(n.context_path) == path for n in plan.needs)
             ):
                 issue(path, "make_inputs_unspecified")
     if purpose != "assembly_contents":
@@ -403,7 +422,25 @@ def project(closure, purpose):
         "excluded_needs": excluded_needs,
         "status": "unknown" if unresolved else "resolved",
         "physical_qualification": "not_evaluated",
+        **(
+            {
+                "material_bindings": [
+                    binding.model_dump(mode="json") for binding in plan.material_bindings
+                ]
+            }
+            if plan.material_bindings
+            else {}
+        ),
         "limitations": [
+            *(
+                [
+                    "Material bindings declare corresponding retained inputs; "
+                    "they do not establish "
+                    "complete manufacturing instructions or physical qualification."
+                ]
+                if plan.material_bindings
+                else []
+            ),
             "Demand units do not establish stock compatibility; sourcing and native PCB "
             "extraction are not evaluated.",
             "Waste is an explicit additive amount per root assembly. An undeclared "

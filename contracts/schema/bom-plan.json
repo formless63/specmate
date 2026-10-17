@@ -80,6 +80,107 @@
       "title": "DemandQuantity",
       "type": "object"
     },
+    "InlineMaterialBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "endpoint_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "material_path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Material Path",
+          "type": "array"
+        },
+        "part_local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Part Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer_id",
+        "part_local_id",
+        "material_path"
+      ],
+      "title": "InlineMaterialBinding",
+      "type": "object"
+    },
+    "MaterialBinding": {
+      "additionalProperties": false,
+      "description": "One made wiring occurrence uses one retained input assembly, not extra copies.",
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "inline_parts": {
+          "items": {
+            "$ref": "#/$defs/InlineMaterialBinding"
+          },
+          "maxItems": 1024,
+          "title": "Inline Parts",
+          "type": "array"
+        },
+        "inputs_path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Inputs Path",
+          "type": "array"
+        },
+        "inputs_revision_id": {
+          "format": "uuid",
+          "title": "Inputs Revision Id",
+          "type": "string"
+        },
+        "wiring_path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Wiring Path",
+          "type": "array"
+        },
+        "wiring_revision_id": {
+          "format": "uuid",
+          "title": "Wiring Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "wiring_path",
+        "wiring_revision_id",
+        "inputs_path",
+        "inputs_revision_id",
+        "basis"
+      ],
+      "title": "MaterialBinding",
+      "type": "object"
+    },
     "Need": {
       "additionalProperties": false,
       "properties": {
@@ -256,6 +357,14 @@
       "format": "uuid",
       "title": "Assembly Revision Id",
       "type": "string"
+    },
+    "material_bindings": {
+      "items": {
+        "$ref": "#/$defs/MaterialBinding"
+      },
+      "maxItems": 256,
+      "title": "Material Bindings",
+      "type": "array"
     },
     "needs": {
       "items": {

@@ -310,3 +310,13 @@ test.each(['allowed', 'readonly', 'inactive'])('Library New BOM request resets a
     await waitFor(() => expect((screen.getByLabelText('BOM plan name').closest('details') as HTMLDetailsElement).open).toBe(true));
   }
 });
+
+test("retained wiring material association identifies exact inputs without duplicate inline rows", async () => {
+  const material_bindings = [{ wiring_path: ["wiring"], wiring_revision_id: "wire-r1", inputs_path: ["materials"], inputs_revision_id: "inputs-r1", basis: "Reviewed synthetic material list", inline_parts: [{ endpoint_id: "a", layer_id: "inline", part_local_id: "r1", material_path: ["materials", "resistor"] }] }];
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ revision_id: "plan", bom: { assembly_revision_id: "root", material_bindings }, rows: [], status: "unknown", boundaries: [], unresolved: [], excluded_needs: [], limitations: [] }))));
+  render(wrap(<BomInspector revisionId="plan" />));
+  expect(await screen.findByText("wiring uses materials")).toBeTruthy();
+  expect(screen.getByText("a / inline / r1 represented by materials / resistor")).toBeTruthy();
+  expect(screen.getByText("wire-r1")).toBeTruthy();
+  expect(screen.getByText("inputs-r1")).toBeTruthy();
+});

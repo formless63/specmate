@@ -90,6 +90,17 @@ function DraftEditor({ draft, blocked, definitions, workspaceId, onSaved, onFroz
   </Stack></Card>;
 }
 
+function MaterialBindings({ bindings }: { bindings?: Plan["material_bindings"] }) {
+  if (!bindings?.length) return null;
+  return <Stack gap="xs"><Title order={4}>Wiring material bindings</Title>{bindings.map(binding => <Card withBorder key={JSON.stringify(binding.wiring_path)}>
+    <Text>{label(binding.wiring_path)} uses {label(binding.inputs_path)}</Text>
+    <Text size="xs"><RevisionLabel id={binding.wiring_revision_id} role="Wiring" /> · <RevisionLabel id={binding.inputs_revision_id} role="Inputs" /></Text>
+    <Text size="sm">{binding.basis}</Text>
+    {binding.inline_parts.map(part => <Text size="xs" key={`${part.endpoint_id}/${part.layer_id}/${part.part_local_id}`}>{part.endpoint_id ?? "standalone"} / {part.layer_id} / {part.part_local_id} represented by {label(part.material_path)}</Text>)}
+    <Text size="sm">Retained material occurrences count once. Manufacturing completeness and physical qualification are not evaluated.</Text>
+  </Card>)}</Stack>;
+}
+
 function RevisionPicker({ title, definitions, value, onChange, blocked = false }: { blocked?: boolean; title: string; definitions: Definition[]; value: string; onChange: (id: string) => void }) {
   const [definition, setDefinition] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -135,6 +146,7 @@ function PlanEditor({ value, definitions, onChange, workspaceId, onAuthorityChan
     {root.isError && <Alert color="red">{root.error.message}</Alert>}{tree.isError && <Alert color="red">{tree.error.message}</Alert>}
     <div hidden={sourceDenied} inert={sourceDenied || undefined}><Stack>
     <RevisionPicker blocked={choicesBlocked} title="Root assembly" definitions={definitions.filter(d => d.kind === "assembly")} value={value.assembly_revision_id} onChange={id => onChange({ ...blankPlan(), assembly_revision_id: id, quantity: value.quantity })} />
+    <MaterialBindings bindings={value.material_bindings} />
     <CountInput title="Planned assembly quantity" value={value.quantity} onChange={quantity => onChange({ ...value, quantity })} />
     {tree.data && <>
       <MultiSelect disabled={choicesBlocked} dropdownOpened={choicesBlocked ? false : undefined} label="Occurrence scope" description="Empty selects the whole root. Select disjoint branches; ancestor decisions still apply." value={value.scope_paths.map(p => JSON.stringify(p))} data={contexts.slice(1).map(c => ({ value: JSON.stringify(c.path), label: label(c.path) }))} onChange={paths => onChange({ ...value, scope_paths: paths.map(p => JSON.parse(p) as string[]) })} />
@@ -171,6 +183,7 @@ export function BomInspector({ revisionId }: { revisionId: string }) {
     <Select label="BOM purpose" value={purpose} data={purposes} onChange={p => setPurpose(p as Purpose)} />
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {result.data && !result.isError && <><Text><RevisionLabel id={result.data.revision_id} role="Plan" /></Text><Text><RevisionLabel id={result.data.bom.assembly_revision_id} role="Assembly" /></Text><Text>Status: {result.data.status}. Physical qualification: not evaluated.</Text>
+      <MaterialBindings bindings={result.data.bom.material_bindings} />
       <Table><Table.Thead><Table.Tr><Table.Th>Occurrence / need</Table.Th><Table.Th>Exact item</Table.Th><Table.Th>Net / structural quantity</Table.Th><Table.Th>Additive waste / gross required</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{result.data.rows.map(r => <Table.Tr key={JSON.stringify([r.address.snapshot_id, r.address.path, r.inline_part?.endpoint_id ?? null, r.inline_part?.layer_id ?? null, r.inline_part?.part_local_id ?? null, r.revision_id, r.need_id])}><Table.Td>{label(r.address.path)}{r.inline_part ? ` · inline ${r.inline_part.endpoint_id ?? "standalone"}/${r.inline_part.layer_id}/${r.inline_part.part_local_id}` : ""}{r.need_id ? ` · ${r.need_id}` : ""}</Table.Td><Table.Td>{r.name}<Text size="xs"><RevisionLabel id={r.revision_id} /></Text></Table.Td><Table.Td><SbQuantity value={r.quantity.amount} unit={r.quantity.unit} /><Text size="xs">{r.demand_basis}</Text>{r.per_root_quantity && <Text size="xs">Per root: <SbQuantity value={r.per_root_quantity.amount} unit={r.per_root_quantity.unit} /></Text>}{r.structural_quantity && <Text size="xs">Structural: <SbQuantity value={r.structural_quantity.amount} unit="ea" /></Text>}{r.net_quantity && <Text size="xs">Net demand: <SbQuantity value={r.net_quantity.amount} unit={r.net_quantity.unit} /></Text>}</Table.Td><Table.Td>{r.waste_quantity ? <>Waste: <SbQuantity value={r.waste_quantity.amount} unit={r.waste_quantity.unit} /><Text size="xs">{r.waste_status} · {r.waste_basis}</Text>{r.per_root_waste && <Text size="xs">Allowance per root: <SbQuantity value={r.per_root_waste.amount} unit={r.per_root_waste.unit} /></Text>}<Text>Gross: <SbQuantity value={r.required_quantity?.amount} unit={r.required_quantity?.unit ?? r.quantity.unit} /></Text></> : "Waste not evaluated"}</Table.Td><Table.Td>{r.reason}<Text size="xs">{r.basis}</Text></Table.Td></Table.Tr>)}</Table.Tbody></Table>
       {!result.data.rows.length && <Text>No included rows for this purpose and scope. Check boundaries and unresolved decisions below.</Text>}
       {result.data.boundaries.map((b, i) => <Text key={i}>Boundary: {label(b.address.path)} · {b.decision}</Text>)}

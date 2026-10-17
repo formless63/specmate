@@ -64,3 +64,25 @@ never create continuity. Existing feature-string electrical relationships retain
 their unevaluated meaning. Device relationship controls offer exact terminal choices
 from the selected frozen children; saved inspection and coordinated schematic and
 termination documents retain both occurrence paths and the declaration basis.
+
+
+### Wiring material bindings
+
+A BOM can bind a made cable, harness, or end assembly occurrence to a separate
+retained input assembly using `material_bindings`. Both paths and revision pins
+are exact. The wiring occurrence requires a `make` policy; its input assembly
+keeps ordinary make/buy boundaries and dimensional occurrence demands. Selecting
+that wiring occurrence as a BOM scope also selects its declared input subtree.
+
+Every inline Part use names its endpoint, layer and part ID and maps to one
+retained material occurrence containing the same exact Part revision. A physical
+material occurrence cannot represent two inline uses. Known net demand for that
+occurrence is one each; additional purchasing belongs in an explicit waste
+allowance. Bound inline uses are represented by the retained occurrences instead
+of counted again as implicit contents. Unbound legacy plans retain their existing
+counts and unresolved material-policy diagnostics.
+
+This declaration links the wiring and material views. It does not prove that all
+required hardware, stock, consumables or manufacturing instructions are present.
+Missing policies, unknown quantities and undeclared waste stay visible. Empty or
+absent bindings serialize without the field, preserving prior frozen content.
