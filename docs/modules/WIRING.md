@@ -1044,3 +1044,18 @@ accepted only when the combined declared member paths are contained in one inher
 retains one ownership record, each named tail keeps its own landing, and no additional
 stock piece or fabricated isolation appears. Separate board pads can therefore remain
 electrically common through the stock despite their different physical landings.
+
+
+Section-cable intent checker version 0.2 assesses every traversed coax span's own
+screen. Each physical screen end must land locally or explicitly continue into the
+next shielded span; a missing splice cannot borrow a remote bond through another
+ground wire. Exact signal-set `return_for` relations establish dedicated or shared
+returns. Generic grounds without that relation, different signal vocabularies, unknown
+board paths and component passages retain an unknown result.
+
+Overall shield policy is assessed per declared material copper mass, including stock
+bonds, named pigtails and shield continuations between physical sections. Local end
+bond searches exclude longitudinal wires, so a source-only preparation does not turn
+into a destination preparation through a parallel ground wire. Explicit shell bonds
+retain their associated end; ambiguous end bindings and bounded searches stay unknown.
+All results compare declarations; they do not qualify measured continuity or shielding.

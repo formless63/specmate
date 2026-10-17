@@ -605,7 +605,7 @@ class Check:
             "end stack",
         )
 
-    def return_dim(self, row, centers):
+    def return_dim(self, row, centers, steps=()):
         if row.return_policy in ("not_applicable",):
             return dim("not_evaluated", "This row is itself a return.")
         if row.return_policy == "dedicated_screen" and self.closure.cable.intent_contact_bindings:
@@ -864,7 +864,7 @@ class Check:
             row, "to", [c for c in row.to_contact_ids if c in far], components
         )
         dims["required_parts"] = self.parts_dim(row, components, [step[-1] for step in steps])
-        dims["return"] = self.return_dim(row, centers)
+        dims["return"] = self.return_dim(row, centers, steps)
         dims["convention"] = self.convention_dim(row, centers)
         path = self.chips(side, contact, start, steps, far_side, chosen) if chosen else []
         return {

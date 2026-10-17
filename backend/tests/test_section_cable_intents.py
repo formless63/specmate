@@ -102,7 +102,7 @@ def test_section_intent_uses_exact_choices_and_reports_known_vs_unevaluated_dime
     red = next(r for r in result["rows"] if r["row_id"] == "from-4")
     assert red["dimensions"]["connection"]["status"] == "pass"
     assert red["dimensions"]["conductor"]["status"] == "pass"
-    assert red["dimensions"]["return"]["status"] == "unknown"
+    assert red["dimensions"]["return"]["status"] == "pass"
     refs = [chip.get("ref", {}) for chip in red["path"]]
     assert {r["section_id"] for r in refs if "section_id" in r} == {"piece-a", "piece-b"}
     assert all("::" not in r.get("element_path", "") for r in refs)
@@ -206,6 +206,7 @@ def test_per_contact_binding_selects_exact_repeated_connector_without_first_matc
     red = next(r for r in result["rows"] if r["row_id"] == "from-4")
     assert red["dimensions"]["connection"]["status"] == "pass"
     assert red["dimensions"]["mating"]["status"] == "pass"
+    assert red["dimensions"]["return"]["status"] == "pass"
     saved = Revision.objects.get(id=demo["end_a"])
     stack = json.loads(bytes(saved.snapshot.canonical))["content"]["interface"]["stack"]
     stack["graph_version"] = "0.2"
