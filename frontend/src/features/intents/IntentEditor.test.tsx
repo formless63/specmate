@@ -138,19 +138,19 @@ test('row isolation keeps legacy strict until explicitly changed and can restore
  render(wrap(<Editable />));await chooseEnds();fireEvent.click(screen.getByRole('button',{name:'Line Red video'}));
  const select=screen.getByLabelText('Isolation of row from-4');expect((select as HTMLInputElement).value).toBe('Strict (legacy)');
  expect(changed.mock.lastCall![0].rows[0].isolation).toBeUndefined();
- fireEvent.click(select);fireEvent.click(screen.getByRole('option',{name:'Unknown',exact:true}));
+ fireEvent.click(select);fireEvent.click(screen.getByRole('option',{name:'Unknown'}));
  expect(changed.mock.lastCall![0].rows[0].isolation).toBe('unknown');
- fireEvent.click(select);fireEvent.click(screen.getByRole('option',{name:'Strict (legacy)',exact:true}));
+ fireEvent.click(select);fireEvent.click(screen.getByRole('option',{name:'Strict (legacy)'}));
  expect(changed.mock.lastCall![0].rows[0].isolation).toBeUndefined();
  expect(JSON.stringify(changed.mock.lastCall![0].rows[0])).not.toContain('isolation');
  expect(proposed[0]!.isolation).toBeUndefined();
 });
 
 test('frozen row inspection names an unknown isolation policy without offering editing',async()=>{
- serve([]);const value={...emptyIntent(),from_revision_id:'from-rev',to_revision_id:'to-rev',rows:proposed.map(row=>({...row,isolation:'unknown' as const}))};
- render(wrap(<IntentEditor value={value} definitions={[]} />,['workspace.read']));
+ serve([]);const changed=vi.fn();const value={...emptyIntent(),from_revision_id:'from-rev',to_revision_id:'to-rev',rows:proposed.map(row=>({...row,isolation:'unknown' as const}))};
+ render(wrap(<IntentEditor value={value} definitions={[]} onChange={changed} />,['workspace.read']));
  fireEvent.click(await screen.findByRole('button',{name:'Line Red video'}));
  const inspector=screen.getByRole('complementary',{name:'Intent inspector'});
  expect(within(inspector).getByText('Row isolation')).toBeTruthy();expect(within(inspector).getByText('Unknown',{exact:true})).toBeTruthy();
- expect(screen.queryByLabelText('Isolation of row from-4')).toBeNull();
+ expect(screen.queryByLabelText('Isolation of row from-4')).toBeNull();expect(changed).not.toHaveBeenCalled();
 });
