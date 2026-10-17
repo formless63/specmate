@@ -77,3 +77,16 @@ test('quantized GLB uses the exact authenticated source and releases geometry on
   expect(fetch.mock.calls[0]).toEqual([expect.stringContaining('/sources/revisions/source-glb/file'),expect.objectContaining({credentials:'same-origin',cache:'no-store'})]);
   view.rerender({active:false}); expect(release).toHaveBeenCalledTimes(1); expect(gpu.disposed).toHaveBeenCalledTimes(1);
 });
+
+test('repeated source denials notify the record once until an authorized source load recovers', async () => {
+  let denied = true;
+  vi.stubGlobal('fetch', vi.fn(async () => denied ? new Response('', { status: 403 }) : new Response(imageBytes)));
+  const view = mount([row('protected')]); await screen.findByText('The selected model source is unavailable.');
+  expect(view.props.onAccessLost).toHaveBeenCalledTimes(1);
+  view.rerender({ active: false }); view.rerender({ active: true });
+  await screen.findByText('The selected model source is unavailable.');
+  expect(view.props.onAccessLost).toHaveBeenCalledTimes(1); expect(screen.queryByRole('img')).toBeNull();
+  denied = false; view.rerender({ active: false }); view.rerender({ active: true }); await screen.findByAltText('Synthetic protected');
+  denied = true; view.rerender({ active: false }); view.rerender({ active: true }); await screen.findByText('The selected model source is unavailable.');
+  expect(view.props.onAccessLost).toHaveBeenCalledTimes(2); expect(screen.queryByRole('img')).toBeNull();
+});

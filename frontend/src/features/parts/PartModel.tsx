@@ -37,6 +37,9 @@ export async function readModelFile(row: PreviewRepresentation, signal: AbortSig
 }
 /** Source-backed preview only. No dimensions, units or physical fit are inferred. */
 export function PartModel({ active, rows, scopeKey, onAccessLost }: { active: boolean; rows: PreviewRepresentation[]; scopeKey: string; onAccessLost?: () => void }) {
+  // A containing record may refresh after denial. Repeated denied reads must
+  // not restart that refresh; a successful authenticated load resets the guard.
+  const notified = useRef('');
   const [chosen, setChosen] = useState<string | null>(null), [data, setData] = useState<{ key: string; bytes?: Uint8Array; image?: string } | null>(null), [failure, setFailure] = useState<{ key: string; message: string; denied: boolean } | null>(null);
   const row = rows.find(item => item.representation_id === chosen) ?? rows.find(item => ['model', 'drawing'].includes(item.kind));
   const format = row ? modelFormat(row.source_path) : null;
@@ -45,7 +48,7 @@ export function PartModel({ active, rows, scopeKey, onAccessLost }: { active: bo
   useEffect(() => {
     setData(null); setFailure(null); if (!active || !row || !format) return;
     const controller = new AbortController(); let url = '';
-    void readModelFile(row, controller.signal).then(bytes => { if (controller.signal.aborted) return; if (format === 'image') { url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: /\.png$/i.test(row.source_path) ? 'image/png' : /\.webp$/i.test(row.source_path) ? 'image/webp' : 'image/jpeg' })); setData({ key: identity, image: url }); } else setData({ key: identity, bytes }); }).catch(failure => { if (!controller.signal.aborted) { const denied = failure instanceof ApiError && [401, 403, 404].includes(failure.status); setFailure({ key: identity, message: failure instanceof Error ? failure.message : 'Model preview unavailable.', denied }); if (denied) onAccessLost?.(); } });
+    void readModelFile(row, controller.signal).then(bytes => { if (controller.signal.aborted) return; notified.current = ''; if (format === 'image') { url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: /\.png$/i.test(row.source_path) ? 'image/png' : /\.webp$/i.test(row.source_path) ? 'image/webp' : 'image/jpeg' })); setData({ key: identity, image: url }); } else setData({ key: identity, bytes }); }).catch(failure => { if (!controller.signal.aborted) { const denied = failure instanceof ApiError && [401, 403, 404].includes(failure.status); setFailure({ key: identity, message: failure instanceof Error ? failure.message : 'Model preview unavailable.', denied }); if (denied && notified.current !== identity) { notified.current = identity; onAccessLost?.(); } } });
     return () => { controller.abort(); if (url) URL.revokeObjectURL(url); };
   }, [active, identity, format]);
   if (!active) return <Text>Model view inactive.</Text>;
