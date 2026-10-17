@@ -23,6 +23,7 @@ from specmate.preparation.calculation import compute
 from specmate.preparation.contracts import ComputeCuts
 from specmate.preparation_documents.contracts import (
     COMPACT_GENERATOR,
+    COMPACT_JSON_GENERATOR,
     DOCUMENTS,
     FORMAT,
     GENERATOR,
@@ -54,11 +55,17 @@ def _select_size_bounded_generator(projected):
     from specmate.preparation_documents.rendering import MAX_FILE_BYTES, build_sheet_html
 
     inputs = projected["inputs"]
-    if inputs["generator"] == COMPACT_GENERATOR:
+    if inputs["generator"] == COMPACT_JSON_GENERATOR:
         return
-    legacy_html = build_sheet_html(projected, escape_pre_quotes=True)
-    if len(legacy_html) > MAX_FILE_BYTES:
+    if inputs["generator"] != COMPACT_GENERATOR:
+        legacy_html = build_sheet_html(projected, escape_pre_quotes=True)
+        if len(legacy_html) <= MAX_FILE_BYTES:
+            return
         inputs["generator"] = COMPACT_GENERATOR
+        projected["inputs_sha256"] = digest(canonical_bytes(inputs))
+    compact_html = build_sheet_html(projected, escape_pre_quotes=False)
+    if len(compact_html) > MAX_FILE_BYTES:
+        inputs["generator"] = COMPACT_JSON_GENERATOR
         projected["inputs_sha256"] = digest(canonical_bytes(inputs))
 
 

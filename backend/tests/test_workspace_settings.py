@@ -11,7 +11,11 @@ from django.test import Client
 
 from specmate.design.operations import canonical_bytes
 from specmate.operations import Conflict, NotFound, PermissionDenied, ValidationFailed
-from specmate.preparation_documents.contracts import COMPACT_GENERATOR, Configuration
+from specmate.preparation_documents.contracts import (
+    COMPACT_GENERATOR,
+    COMPACT_JSON_GENERATOR,
+    Configuration,
+)
 from specmate.preparation_documents.projection import (
     _select_size_bounded_generator,
 )
@@ -243,6 +247,46 @@ def test_legacy_generator_two_output_hashes():
     }
 
 
+def test_compact_generator_six_outputs_keep_their_exact_bytes():
+    root = "10000000-0000-4000-8000-000000000001"
+    inputs = {
+        "generator": COMPACT_GENERATOR,
+        "root": {"revision_id": root},
+        "configuration": Configuration.model_validate({"root_revision_id": root}).model_dump(
+            mode="json"
+        ),
+    }
+    value = {
+        "inputs": inputs,
+        "inputs_sha256": hashlib.sha256(canonical_bytes(inputs)).hexdigest(),
+        "readiness": "declared_with_unknowns",
+        "document_assessments": {},
+        "sections": {
+            key: []
+            for key in [
+                "issues",
+                "cut_preparation",
+                "terminations",
+                "revision_specifications",
+                "specifications",
+                "test_intent",
+                "end_preparation",
+                "schematic",
+                "procurement",
+            ]
+        },
+    }
+    _, rendered = render(value)
+    assert {name: hashlib.sha256(data).hexdigest() for name, (_, data) in rendered.items()} == {
+        "specifications.json": "35d3e44acd63d51bf142bf7fd4cc4511bac03b6b3735327b48a55a40035d7957",
+        "terminations.json": "a6681f9cab35da81133e9bf92f6356ba993de3c1ae9b4e4819a8a0131996c9f3",
+        "test-intent.json": "a6681f9cab35da81133e9bf92f6356ba993de3c1ae9b4e4819a8a0131996c9f3",
+        "cut-preparation.csv": "2cead305028aea8d6e9fb5cc123e2f0a8895d628f2353ff446b4b510d4bb06a9",
+        "schematic.svg": "1803d2307ba59fb3f706c9bf7a0b8f770bd50cebed0567447529d295d3c509f6",
+        "build-sheet.html": "e5ae3cf1ad43e1056f577558852ce1f53f0f425b27a2c47a44b5a9fc8b420f84",
+    }
+
+
 @pytest.mark.parametrize(
     ("generator", "expected_html_sha256"),
     [
@@ -339,6 +383,76 @@ def test_dense_build_sheet_selects_compact_generator_without_losing_text():
         .split("</pre>", 1)[0]
     )
     assert json.loads(html.unescape(procurement_text)) == {"dense_value": hostile}
+    assert render(value)[1] == rendered
+
+
+def test_indented_build_sheet_uses_compact_json_only_after_generator_six_exceeds_bound():
+    root = "10000000-0000-4000-8000-000000000001"
+    dense = [{"i": index} for index in range(90_000)]
+    hostile = '<script>&"close</pre>'
+    inputs = {
+        "generator": "specmate.preparation-documents/2",
+        "root": {"revision_id": root},
+        "configuration": Configuration.model_validate({"root_revision_id": root}).model_dump(
+            mode="json"
+        ),
+    }
+    value = {
+        "inputs": inputs,
+        "inputs_sha256": hashlib.sha256(canonical_bytes(inputs)).hexdigest(),
+        "readiness": "declared_with_unknowns",
+        "document_assessments": {},
+        "sections": {
+            key: []
+            for key in [
+                "issues",
+                "cut_preparation",
+                "terminations",
+                "revision_specifications",
+                "specifications",
+                "test_intent",
+                "end_preparation",
+                "schematic",
+            ]
+        }
+        | {
+            "procurement": {
+                "a": {"b": {"c": {"d": {"e": {"groups": {"items": dense}}}}}},
+                "hostile": hostile,
+            }
+        },
+    }
+    legacy_hash = value["inputs_sha256"]
+    assert len(build_sheet_html(value, escape_pre_quotes=True)) > MAX_FILE_BYTES
+    assert len(build_sheet_html(value, escape_pre_quotes=False)) > MAX_FILE_BYTES
+
+    _select_size_bounded_generator(value)
+    assert value["inputs"]["generator"] == COMPACT_JSON_GENERATOR
+    assert value["inputs_sha256"] != legacy_hash
+    assert value["inputs_sha256"] == hashlib.sha256(canonical_bytes(value["inputs"])).hexdigest()
+    manifest, rendered = render(value)
+    assert set(rendered) == {
+        "specifications.json",
+        "schematic.svg",
+        "cut-preparation.csv",
+        "build-sheet.html",
+        "terminations.json",
+        "test-intent.json",
+    }
+    assert sum(len(data) for _, data in rendered.values()) <= 8 * 1024 * 1024
+    sheet = rendered["build-sheet.html"][1]
+    assert len(sheet) <= MAX_FILE_BYTES
+    assert manifest["inputs"]["generator"] == COMPACT_JSON_GENERATOR
+    assert b'&lt;script&gt;&amp;\\"close&lt;/pre&gt;' in sheet
+    assert b"<script>" not in sheet and b'</pre>"' not in sheet
+    procurement_text = (
+        sheet.decode().split("<h2>Frozen procurement policy</h2><pre>", 1)[1].split("</pre>", 1)[0]
+    )
+    procurement = json.loads(html.unescape(procurement_text))
+    assert procurement == {
+        "a": {"b": {"c": {"d": {"e": {"groups": {"items": dense}}}}}},
+        "hostile": hostile,
+    }
     assert render(value)[1] == rendered
 
 

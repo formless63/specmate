@@ -12,6 +12,7 @@ from specmate.workspace_settings.contracts import DocumentSettingsSnapshot
 
 GENERATOR = "specmate.preparation-documents/2"
 COMPACT_GENERATOR = "specmate.preparation-documents/6"
+COMPACT_JSON_GENERATOR = "specmate.preparation-documents/7"
 FORMAT = "specmate.coordinated-document-set/0.1"
 DOCUMENTS = (
     "specifications.json",

@@ -7,7 +7,11 @@ import json
 
 from specmate.design.operations import canonical_bytes
 from specmate.operations import ValidationFailed
-from specmate.preparation_documents.contracts import COMPACT_GENERATOR, DOCUMENTS
+from specmate.preparation_documents.contracts import (
+    COMPACT_GENERATOR,
+    COMPACT_JSON_GENERATOR,
+    DOCUMENTS,
+)
 from specmate.selected_packages.queries import digest
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -196,7 +200,7 @@ def _envelope(projection):
     }
 
 
-def build_sheet_html(projection, *, envelope=None, escape_pre_quotes=True):
+def build_sheet_html(projection, *, envelope=None, escape_pre_quotes=True, compact_pre_json=False):
     """Build the inert HTML output, preserving each generator's exact text escaping."""
     inputs = projection["inputs"]
     sections = projection["sections"]
@@ -213,7 +217,18 @@ def build_sheet_html(projection, *, envelope=None, escape_pre_quotes=True):
         ("Authored test intent; no physical test performed", sections["test_intent"]),
         ("Missing inputs and limits", sections["issues"]),
     ):
-        escaped = html.escape(pretty(data), quote=escape_pre_quotes)
+        rendered = (
+            json.dumps(
+                data,
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            if compact_pre_json
+            else pretty(data)
+        )
+        escaped = html.escape(rendered, quote=escape_pre_quotes)
         blocks.append(f"<section><h2>{html.escape(name)}</h2><pre>{escaped}</pre></section>")
     document = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -414,7 +429,9 @@ def render(projection):
         build_sheet_html(
             projection,
             envelope=envelope,
-            escape_pre_quotes=inputs.get("generator") != COMPACT_GENERATOR,
+            escape_pre_quotes=inputs.get("generator")
+            not in {COMPACT_GENERATOR, COMPACT_JSON_GENERATOR},
+            compact_pre_json=inputs.get("generator") == COMPACT_JSON_GENERATOR,
         ),
     )
     if set(files) != set(DOCUMENTS) or sum(len(data) for _, data in files.values()) > MAX_SET_BYTES:
