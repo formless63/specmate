@@ -2,8 +2,12 @@
 
 import hashlib
 import json
+from unittest.mock import patch
+from uuid import UUID
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from specmate.catalog.queries import get_revision_catalog
 from specmate.design.models import Definition, Snapshot
@@ -158,3 +162,81 @@ def test_origin_update_cas_and_previous_frozen_bytes_unchanged(users, workspace)
         )
     assert changed["content"]["source_origins"][0]["converter"] == "fixture/2"
     assert bytes(Snapshot.objects.get(id=frozen["snapshot_id"]).canonical) == old
+
+
+def test_source_origin_file_reads_are_positive_and_scoped(users, workspace):
+    from specmate.design.closure_reads import closure_reads
+    from specmate.design.source_origins import authorize_content
+
+    origin = source_origin(users["owner"], workspace)
+    definition = Definition(workspace_id=UUID(workspace))
+    with CaptureQueriesContext(connection) as queries:
+        with closure_reads():
+            authorize_content(users["owner"], definition, {"source_origins": [origin]})
+            authorize_content(users["owner"], definition, {"source_origins": [origin]})
+            # A distinct actor gets a distinct cache entry even within one traversal.
+            authorize_content(users["viewer"], definition, {"source_origins": [origin]})
+        # A new traversal starts with an empty file cache.
+        with closure_reads():
+            authorize_content(users["owner"], definition, {"source_origins": [origin]})
+        # Calls outside a closure read do not share cached file rows.
+        authorize_content(users["owner"], definition, {"source_origins": [origin]})
+        authorize_content(users["owner"], definition, {"source_origins": [origin]})
+
+    file_queries = [
+        query
+        for query in queries.captured_queries
+        if "sources_sourcebundlefile" in query["sql"].lower()
+    ]
+    assert len(file_queries) == 5
+
+
+def test_source_origin_cache_does_not_mask_current_authority_rejection(users, workspace):
+    from specmate import queries as scoped_queries
+    from specmate.design.closure_reads import closure_reads
+    from specmate.design.source_origins import authorize_content
+
+    origin = source_origin(users["owner"], workspace)
+    definition = Definition(workspace_id=UUID(workspace))
+    resolve_authority = scoped_queries.get_bundle_revision
+    calls = 0
+
+    def current_authority(user, revision_id):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise NotFound("Bundle revision not found.")
+        return resolve_authority(user, revision_id)
+
+    with closure_reads(), patch.object(
+        scoped_queries, "get_bundle_revision", side_effect=current_authority
+    ):
+        authorize_content(users["owner"], definition, {"source_origins": [origin]})
+        with pytest.raises(NotFound):
+            authorize_content(users["owner"], definition, {"source_origins": [origin]})
+    assert calls == 2
+
+
+def test_source_origin_hash_and_rights_are_checked_after_cached_file_read(users, workspace):
+    from specmate.design.closure_reads import closure_reads
+    from specmate.design.source_origins import authorize_content
+
+    origin = source_origin(users["owner"], workspace)
+    definition = Definition(workspace_id=UUID(workspace))
+    with CaptureQueriesContext(connection) as queries, closure_reads():
+        authorize_content(users["owner"], definition, {"source_origins": [origin]})
+        with pytest.raises(ValidationFailed, match="hash or rights"):
+            authorize_content(
+                users["owner"], definition, {"source_origins": [{**origin, "sha256": "0" * 64}]}
+            )
+        with pytest.raises(ValidationFailed, match="hash or rights"):
+            authorize_content(
+                users["owner"], definition, {"source_origins": [{**origin, "rights": "changed"}]}
+            )
+
+    file_queries = [
+        query
+        for query in queries.captured_queries
+        if "sources_sourcebundlefile" in query["sql"].lower()
+    ]
+    assert len(file_queries) == 1

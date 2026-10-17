@@ -58,6 +58,7 @@ def validate_content(content):
 
 
 def authorize_content(user, definition, content):
+    from specmate.design.closure_reads import source_bundle_file
     from specmate.queries import get_bundle_revision
 
     origins = parse(content)
@@ -72,7 +73,7 @@ def authorize_content(user, definition, content):
             revisions[source.id] = source
     for origin in origins:
         source = revisions[origin.source_bundle_revision_id]
-        file = source.files.select_related("blob").filter(path=origin.source_path).first()
+        file = source_bundle_file(user, source.id, origin.source_path)
         if file is None:
             raise NotFound("Source origin file not found.")
         if file.blob.sha256 != origin.sha256 or file.rights != origin.rights:

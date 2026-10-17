@@ -5,7 +5,9 @@ each frozen pin inside one workspace. Authorizing a closure therefore needs one
 membership read per workspace, not one per node, and its node rows can be loaded per
 level instead of per node. ``closure_reads`` scopes that reuse to one read-only
 traversal: nothing is retained between operations, requests or actors' calls, and every
-per-node check (typed content, retained catalog origins) still runs.
+per-node check (typed content, retained catalog origins) still runs. Origin authority is
+resolved on every check; only positive immutable file rows are reused for that actor,
+revision and path, and their hash/rights are checked again.
 """
 
 from __future__ import annotations
@@ -26,6 +28,10 @@ _authorized_revisions: ContextVar[dict | None] = ContextVar(
     "closure_authorized_revisions", default=None
 )
 
+# Immutable source files that have already been loaded during this traversal. Keep the
+# actor in the key so this diagnostic-row reuse never crosses actors within a context.
+_source_files: ContextVar[dict | None] = ContextVar("closure_source_files", default=None)
+
 
 @contextmanager
 def closure_reads() -> Iterator[None]:
@@ -35,12 +41,33 @@ def closure_reads() -> Iterator[None]:
         return
     token = _without_origin.set(set())
     revisions = _authorized_revisions.set({})
+    source_files = _source_files.set({})
     try:
         with memoized_membership():
             yield
     finally:
+        _source_files.reset(source_files)
         _authorized_revisions.reset(revisions)
         _without_origin.reset(token)
+
+
+def source_bundle_file(user: Any, revision_id: Any, path: str) -> Any:
+    """Load an exact immutable source file, reusing only positive scoped reads."""
+    known = _source_files.get()
+    key = (getattr(user, "pk", None), str(revision_id), path)
+    if known is not None and key in known:
+        return known[key]
+
+    from specmate.sources.models import SourceBundleFile
+
+    file = (
+        SourceBundleFile.objects.select_related("blob")
+        .filter(revision_id=revision_id, path=path)
+        .first()
+    )
+    if file is not None and known is not None:
+        known[key] = file
+    return file
 
 
 def authorized_revision(user: Any, revision_id: Any) -> Any:
